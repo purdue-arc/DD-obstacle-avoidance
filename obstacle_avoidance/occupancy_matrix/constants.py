@@ -1,5 +1,4 @@
-# just a file to hold all the constants
-
+# File to hold constants
 width = 640
 height = 480
 detectionDepth = 1
