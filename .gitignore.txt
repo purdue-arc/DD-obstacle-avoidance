@@ -1,0 +1,2 @@
+# Igoring VS version control 
+./ObstacleAvoidance/.vs
