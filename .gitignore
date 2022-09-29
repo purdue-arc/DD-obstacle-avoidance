@@ -1,0 +1,5 @@
+# Ignoring VS version control
+./ObstacleAvoidance/.vs
+
+# Ignore the .exe file as it has to compile natively
+./ObstacleAvoidance/ObstacleAvoidance/x64/Debug/ObstacleAvoidance.exe
