@@ -2,4 +2,9 @@
 ./ObstacleAvoidance/.vs
 
 # Ignore the .exe file as it has to compile natively
-./ObstacleAvoidance/ObstacleAvoidance/x64/Debug/ObstacleAvoidance.exe
+./ObstacleAvoidance/ObstacleAvoidance/x64/*
+./ObstacleAvoidance/x64/*
+
+# Ignore the .idea and __pycache__ files assosiated with Python IDE
+./old_python_code/.idea
+./old_python_code/__pycache__
