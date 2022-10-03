@@ -14,10 +14,18 @@
 3) Navigate to this webpage: "https://github.com/IntelRealSense/librealsense/releases/tag/v2.51.1"
 4) Download "Source Code (zip)" from the bottom of the page
 5) Extract the download into "/c/git"
+6) Rename the extracted folder to "librealsense"
 
 ### Installing CMake
+1) Navigate to this webpage: "https://cmake.org/download/"
+2) Install CMake using Binary distributions (.msi)
+3) When installing, make sure to select "Add to path"
 
 ### Compiling using CMake
+1) Open CMake
+2) In "Where is Source Code," add this: "C:/git/librealsense"
+3) Navigate to "C:/git/librealsense" and create "build" folder
+4) In "C:/git/librealsense/build," add this: "C:/git/librealsense/build"
 
 ### Compiling Using Visual Studio
 
