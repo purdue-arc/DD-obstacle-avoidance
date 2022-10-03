@@ -3,6 +3,10 @@
 ## Obstacle Avoidance Setup
 
 ### Installing Visual Studio
+1) Navigate to this webpage: "https://learn.microsoft.com/en-us/visualstudio/install/install-visual-studio?view=vs-2022"
+2) Click on "Download Visual Studio" button
+3) In the Visual Studio Installer, select "Desktop Development with C++"
+4) Download/Install while Downloading
 
 ### Downloading RealSense Library
 1) Navigate to "/c"
