@@ -1,20 +1,15 @@
-#include <iostream>
-#include <librealsense2/rs.hpp>
-#include <opencv2/opencv.hpp>
+// header file
+#include "header.hh"
 
-using namespace std;
-using namespace rs2;
-using namespace cv;
+// other files
+#include "utils.cpp"
 
-const int WIDTH = 640;
-const int HEIGHT = 480;
-
-Mat frame_to_mat(frame color_frame) {
-	Mat color_image(Size(WIDTH, HEIGHT), CV_8UC3, (void*)color_frame.get_data(), Mat::AUTO_STEP);
-	return color_image;
-}
-
+// Main
 int main() {
+	std::string serial;
+	if (!device_with_streams({ RS2_STREAM_POSE }, serial))
+		return EXIT_SUCCESS;
+
 	// creating and configuring a pipeline for rs2
 	pipeline pipe;
 	config config;
