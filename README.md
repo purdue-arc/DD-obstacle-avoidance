@@ -33,7 +33,8 @@
 3) Once open, click on the green "Start without Debugging Button" on the top
 4) It should take a couple of minutes
 5) Do not worry about the "Access denied - ALL BUILD" error
-6) To confirm compilation, navigate to "C:\git\librealsense\build". There should be a "DEBUG" and "x64" folder here.
+6) To confirm compilation, navigate to "C:\git\librealsense\build"
+7) Here, you should find a "DEBUG" and "x64" folder
 
 ### Installing OpenCV
 1) Navigate to this webpage: "https://opencv.org/releases/"
@@ -42,3 +43,13 @@
 4) In extract to location, paste: "C:\" and extract
 
 ### Configuring Project Files
+1) Clone this repository to location of your choice
+2) Then, navigate to "C:\git\librealsense\build\DEBUG\"
+3) Copy files with names "realsense2d.dll" and "realsense2d.lib"
+4) Place them in your git repository with relative path: "\DroneDelivery\ObstacleAvoidance\x64\Debug"
+5) Navigate to "C:\opencv\build\x64\vc15\bin"
+6) Copy file with name "opencv_world460d.dll"
+7) Place the file in your git repository with relative path: "\DroneDelivery\ObstacleAvoidance\x64\Debug"
+8) Finally, navigate within git repository to relative path: "\DroneDelivery\ObstacleAvoidance"
+9) Open the "ObstacleAvoidance.sln" VS project file
+10) Follow instuctions on to configure project: "https://docs.google.com/document/d/1myfsQhaJrfRXf1rcWCboaPYjYce16MSWIf7sAMnLKaw/edit?usp=sharing"
