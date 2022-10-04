@@ -36,5 +36,9 @@
 6) To confirm compilation, navigate to "C:\git\librealsense\build". There should be a "DEBUG" and "x64" folder here.
 
 ### Installing OpenCV
+1) Navigate to this webpage: "https://opencv.org/releases/"
+2) Choose on appropriate OS to download
+3) Open the downloaded file
+4) In extract to location, paste: "C:\" and extract
 
 ### Configuring Project Files
