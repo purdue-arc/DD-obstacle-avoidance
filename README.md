@@ -28,6 +28,12 @@
 4) In "C:/git/librealsense/build," add this: "C:/git/librealsense/build"
 
 ### Compiling Using Visual Studio
+1) Navigate to "C:\git\librealsense\build"
+2) Open VS project: "librealsense2.sln"
+3) Once open, click on the green "Start without Debugging Button" on the top
+4) It should take a couple of minutes
+5) Do not worry about the "Access denied - ALL BUILD" error
+6) To confirm compilation, navigate to "C:\git\librealsense\build". There should be a "DEBUG" and "x64" folder here.
 
 ### Installing OpenCV
 
