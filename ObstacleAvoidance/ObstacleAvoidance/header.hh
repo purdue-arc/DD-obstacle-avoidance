@@ -1,3 +1,5 @@
+#pragma once
+
 // Standard Libraries
 #include <iostream>
 #include <math.h>
@@ -22,5 +24,5 @@ const int HEIGHT = 480;
 
 // Function Prototypes
 // utils.cpp
-Mat frame_to_mat(frame);
-bool device_with_streams(vector <rs2_stream>, string&);
+inline Mat frame_to_mat(frame);
+inline bool device_with_streams(vector <rs2_stream>, string&);
