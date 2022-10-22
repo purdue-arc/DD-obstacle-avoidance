@@ -37,5 +37,11 @@
     <ClInclude Include="util_structs.hpp">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="occupancy.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="geometry.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>
