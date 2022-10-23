@@ -1,3 +1,5 @@
+#pragma once
+
 
 namespace dstar {
 	inline int ceilDiv(int a, int b) {

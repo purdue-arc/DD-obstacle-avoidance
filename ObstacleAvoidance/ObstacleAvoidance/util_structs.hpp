@@ -1,3 +1,5 @@
+#pragma once
+
 
 namespace util {
 	struct char_chain {

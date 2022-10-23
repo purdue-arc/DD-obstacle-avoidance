@@ -1,5 +1,9 @@
+#pragma once
+
 #include <cstring>
-#include <fstream>
+#include <string>
+//#include <fstream>
+#include <stdio.h>
 
 #include "util_structs.hpp"
 #include "geometry.hpp"
@@ -48,32 +52,35 @@ namespace ocpncy {
 	struct bmap_info {
 		unsigned int log2_tile_w = log2_w;
 		unsigned int depth = 0;
-		long origin[2] = { 0 };
+		gmtry2i::vector2i origin;
 		bmap_info() {
 			unsigned int log2_tile_w = log2_w;
 			depth = 0;
-			origin[0] = 0;
-			origin[1] = 0;
+			origin = gmtry2i::vector2i();
 		}
 	};
 
 	template <unsigned int log2_w>
 	struct bmap {
 		bmap_info<log2_w> info;
-		btile_tree* tree = 0;
+		void* root = 0;
 		~bmap() {
-			delete_btile_tree<log2_w>(tree, info.depth);
-			tree = 0;
+			delete_btile_tree<log2_w>(root, info.depth);
+			root = 0;
 		}
 	};
 
 	template <unsigned int log2_w>
-	class bmap_istream { public: virtual btile<log2_w>* get_tile(int x, int y) = 0; };
+	class bmap_istream { 
+		public: 
+			virtual bool get_tile(const gmtry2i::vector2i& p, btile<log2_w>* tile) = 0;
+	};
 
 	template <unsigned int log2_w>
 	class bmap_ostream { 
 		public: 
-			virtual bool set_tile(int x, int y, btile<log2_w> tile) = 0;
+			virtual bool set_tile(const gmtry2i::vector2i& p, btile<log2_w> tile) = 0;
+			virtual void alloc(const gmtry2i::vector2i& p) = 0;
 			virtual void alloc(const gmtry2i::aligned_box2i& box) = 0;
 	};
 
@@ -91,15 +98,25 @@ namespace ocpncy {
 				bmap_info<log2_w> info;
 				unsigned long root;
 				unsigned long size;
-			};
-			// offset: offset of an item from its parent in the file stream
-			struct offset_tree { 
-				long offset; offset_tree* branch[4];
-				offset_tree(long item_offset) {
-					offset = item_offset;
+				bmap_file_header() {
+					info = bmap_info<log2_w>();
+					root = 0;
+					size = sizeof(bmap_file_header);
+				}
+				bmap_file_header(bmap_info<log2_w> map_info, unsigned long map_root, unsigned long file_size) {
+					info = map_info;
+					root = map_root;
+					size = file_size;
 				}
 			};
-			static void delete_index_tree(offset_tree* tree, unsigned int depth) {
+			// offset: offset of an item from its parent in the file stream
+			struct index_tree { 
+				long pos; index_tree* branch[4];
+				index_tree(long item_pos) {
+					pos = item_pos;
+				}
+			};
+			static void delete_index_tree(index_tree* tree, unsigned int depth) {
 				if (depth > 0 && tree) {
 					for (int i = 0; i < 4; i++)
 						delete_index_tree(tree->branch[i], depth - 1);
@@ -108,134 +125,188 @@ namespace ocpncy {
 			}
 			// pos: position of item in file stream
 			struct item_index {
-				offset_tree* tree;
-				unsigned long pos;
+				index_tree* tree;
 				unsigned int depth;
-				item_index(offset_tree* tree_ptr, unsigned long tree_pos, unsigned int tree_depth) {
+				gmtry2i::vector2i origin;
+				item_index(index_tree* tree_ptr, unsigned int item_depth, gmtry2i::vector2i item_origin) {
 					tree = tree_ptr;
-					pos = tree_pos;
-					depth = tree_depth;
+					depth = item_depth;
+					origin = item_origin;
 				}
 			};
 
 			bmap_file_header map_header;
 
-			std::fstream file;
+			FILE* file;
 			std::string file_name;
-			offset_tree* indices;
+			index_tree* indices;
 
-			void create_file(const std::string& fname, const bmap_info<log2_w>& info) {
-				
-			}
 			void read_file(char* dst, unsigned long pos, unsigned long len) {
+				fseek(file, pos, SEEK_SET);
+				fread(dst, 1, len, file);
+				/*
 				file.seekg(pos);
 				file.read(dst, len);
-			}
-			btile<log2_w>* read_tile(unsigned long pos) {
-				btile<log2_w>* tile = new btile<log2_w>;
-				read_file(reinterpret_cast<char*>(tile), pos, sizeof(btile<log2_w>));
-				return tile;
+				*/
 			}
 			// cannot be used to append
 			void write_file(const char* src, unsigned long pos, unsigned long len) {
+				fseek(file, pos, SEEK_SET);
+				fwrite(src, 1, len, file);
+				/*
 				file.seekp(pos);
 				file.write(src, len);
-			}
-			// cannot be used to append
-			void write_tile(unsigned long pos, const btile<log2_w>* tile) {
-				write_file(reinterpret_cast<const char*>(tile), pos, sizeof(btile<log2_w>));
+				*/
 			}
 			void append_file(const char* src, unsigned long len) {
+				fseek(file, map_header.size, SEEK_SET);
+				fwrite(src, 1, len, file);
+				/*
 				file.seekp(map_header.size);
 				file.write(src, len);
+				*/
 				map_header.size += len;
 			}
-			item_index deepest_indexed_item(long tx, long ty) {
-				offset_tree* tree = indices;
-				offset_tree* next_tree;
-				unsigned long pos = tree->offset;
+			gmtry2i::aligned_box2i get_allocated_bounds() {
+				long map_width = 1 << (map_header.info.depth + map_header.info.log2_tile_w);
+				return gmtry2i::aligned_box2i(map_header.info.origin,
+					map_header.info.origin + gmtry2i::vector2i(map_width, map_width));
+			}
+			void double_map(const gmtry2i::vector2i& direction) {
+				long map_init_width = 1 << (map_header.info.depth + map_header.info.log2_tile_w);
+				unsigned int old_root_index = (direction.x < 0) + 2 * (direction.y < 0);
+				index_tree* new_root = new index_tree(map_header.size);
+				new_root->branch[old_root_index] = indices;
+				indices = new_root;
+
+				unsigned long new_root_branches[4] = { 0 };
+				new_root_branches[old_root_index] = map_header.root;
+				append_file(reinterpret_cast<char*>(new_root_branches), 4 * sizeof(unsigned long));
+
+				map_header.root = new_root->pos;
+				map_header.info.depth += 1;
+				map_header.info.origin -= gmtry2i::vector2i(direction.x < 0, direction.y < 0) * map_init_width;
+				write_file(reinterpret_cast<char*>(&map_header), 0, sizeof(map_header));
+			}
+			item_index deepest_indexed_item(const gmtry2i::vector2i& tp) {
+				index_tree* tree = indices;
+				index_tree* next_tree;
 				unsigned int tree_depth = map_header.info.depth;
-				unsigned long hwidth = (1 << tree_depth) >> 1;
+				gmtry2i::vector2i tree_origin = gmtry2i::vector2i();
+				gmtry2i::vector2i relative_tp;
+				unsigned int hwidth = (1 << tree_depth) >> 1;
 				while (tree_depth) {
-					next_tree = tree->branch[(tx >= hwidth) + 2 * (ty >= hwidth)];
+					relative_tp = tp - tree_origin;
+					next_tree = tree->branch[(relative_tp.x >= hwidth) + 2 * (relative_tp.y >= hwidth)];
 					if (next_tree == 0) break;
 					tree = next_tree;
-					pos += tree->offset;
-					tx -= hwidth * (tx >= hwidth);
-					ty -= hwidth * (ty >= hwidth);
 					tree_depth -= 1;
+					tree_origin += gmtry2i::vector2i(relative_tp.x >= hwidth, relative_tp.y >= hwidth) * hwidth;
 					hwidth >>= 1;
 				}
-				return item_index(tree, pos, tree_depth);
+				return item_index(tree, tree_depth, tree_origin);
 			}
-			item_index seek_deepest_item(long tx, long ty) {
-				item_index deepest_item = deepest_indexed_item(tx, ty);
-				long next_offset;
-				unsigned long hwidth = (1 << deepest_item.depth) >> 1;
-				int branch_offsets_size = 4 * sizeof(unsigned long);
-				long* branch_offsets = new long[branch_offsets_size];
+			item_index seek_deepest_item(const gmtry2i::vector2i& tp) {
+				item_index deepest_item = deepest_indexed_item(tp);
+				unsigned int next_branch_idx;
+				gmtry2i::vector2i relative_tp;
+				unsigned int hwidth = (1 << deepest_item.depth) >> 1;
+				unsigned long branches[4];
 				while (deepest_item.depth) {
-					read_file(reinterpret_cast<char*>(branch_offsets), deepest_item.pos, branch_offsets_size);
-					deepest_item.tree->branch[0] = new offset_tree(branch_offsets[0]);
-					deepest_item.tree->branch[1] = new offset_tree(branch_offsets[1]);
-					deepest_item.tree->branch[2] = new offset_tree(branch_offsets[2]);
-					deepest_item.tree->branch[3] = new offset_tree(branch_offsets[3]);
-					next_offset = branch_offsets[(tx >= hwidth) + 2 * (ty >= hwidth)];
-					if (next_offset == 0) break;
-					deepest_item.tree = deepest_item.tree->branch[(tx >= hwidth) + 2 * (ty >= hwidth)];
-					deepest_item.pos += next_offset;
-					tx -= hwidth * (tx >= hwidth);
-					ty -= hwidth * (ty >= hwidth);
+					relative_tp = tp - deepest_item.origin;
+					read_file(reinterpret_cast<char*>(branches), deepest_item.tree->pos, 4 * sizeof(unsigned long));
+					next_branch_idx = (relative_tp.x >= hwidth) + 2 * (relative_tp.y >= hwidth);
+					if (branches[next_branch_idx] == 0) break;
+					deepest_item.tree = deepest_item.tree->branch[next_branch_idx] = new index_tree(branches[next_branch_idx]);
 					deepest_item.depth -= 1;
+					deepest_item.origin += gmtry2i::vector2i(relative_tp.x >= hwidth, relative_tp.y >= hwidth) * hwidth;
 					hwidth >>= 1;
 				}
-				delete[] branch_offsets;
 				return deepest_item;
+			}
+			void write_deepest_item(const gmtry2i::vector2i tp, const btile<log2_w>* tile) {
+				item_index deepest_item = seek_deepest_item(tp);
+				if (deepest_item.depth == 0) {
+					write_file(reinterpret_cast<const char*>(tile), deepest_item.tree->pos, sizeof(btile<log2_w>));
+					return;
+				}
+				unsigned int hwidth = (1 << deepest_item.depth) >> 1;
+				gmtry2i::vector2i relative_tp = tp - deepest_item.origin;
+				unsigned int next_branch_idx = (relative_tp.x >= hwidth) + 2 * (relative_tp.y >= hwidth);
+				const unsigned int branches_size = 4 * sizeof(unsigned long);
+				write_file(reinterpret_cast<const char*>(map_header.size),
+					deepest_item.tree->pos + next_branch_idx * sizeof(unsigned long), sizeof(map_header.size));
+				deepest_item.tree = deepest_item.tree->branch[next_branch_idx] = new index_tree(map_header.size);
+				deepest_item.depth -= 1;
+				deepest_item.origin += gmtry2i::vector2i(relative_tp.x >= hwidth, relative_tp.y >= hwidth) * hwidth;
+				hwidth >>= 1;
+				while (deepest_item.depth) {
+					relative_tp = tp - deepest_item.origin;
+					unsigned long branches[4] = { 0 };
+					next_branch_idx = (relative_tp.x >= hwidth) + 2 * (relative_tp.y >= hwidth);
+					branches[next_branch_idx] = map_header.size + branches_size;
+					append_file(reinterpret_cast<char*>(branches), branches_size);
+					deepest_item.tree = deepest_item.tree->branch[next_branch_idx] = new index_tree(branches[next_branch_idx]);
+					deepest_item.depth -= 1;
+					deepest_item.origin += gmtry2i::vector2i(relative_tp.x >= hwidth, relative_tp.y >= hwidth) * hwidth;
+					hwidth >>= 1;
+				}
+				append_file(reinterpret_cast<const char*>(tile), sizeof(btile<log2_w>));
 			}
 
 		public:
 			// add constructor for brand new map
 			bmap_fstream(const std::string& fname) {
 				file_name = fname;
-				file.open(file_name);
-				if (!file.is_open()) create_file(fname, bmap_info<log2_w>());
+				file = fopen(file_name.c_str(), "a+");
+				FILE* tmp_file = fopen(file_name.c_str(), "r");
+				if (tmp_file) {
+					fclose(tmp_file);
+				}
+				else {
+					map_header = bmap_file_header();
+					write_file(reinterpret_cast<char*>(&map_header), 0, sizeof(map_header));
+				}
+				if (file == 0) throw - 1;
 
 				read_file(reinterpret_cast<char*>(&map_header), 0, sizeof(map_header));
-				if (log2_w != map_header.info.log2_tile_w) throw - 1;
-				if (map_header.size < 4 * sizeof(unsigned long)) throw - 2;
+				if (log2_w != map_header.info.log2_tile_w) throw - 2;
+				if (map_header.size < sizeof(map_header)) throw - 4;
 
-				indices = new offset_tree { map_header.root };
+				indices = new index_tree { map_header.root };
 			}
-			void alloc(gmtry2i::aligned_box2i box) {
-				unsigned long map_width = 1 << (map_header.info.depth + map_header.info.log2_tile_w);
-				while (map_header.info.origin[0] > box.min[0] || 
-					map_header.info.origin[1] > box.min[1] ||
-					map_header.info.origin[0] + map_width > box.max[0] || 
-					map_header.info.origin[1] + map_width > box.max[1]) {
-
-
-
-					map_width >>= 1;
+			void alloc(gmtry2i::vector2i p) {
+				gmtry2i::aligned_box2i alloc_box = get_allocated_bounds();
+				while (!gmtry2i::contains(alloc_box, p)) {
+					// CHECK FOR ROUNDING ERRORS
+					double_map(p - gmtry2i::center(alloc_box));
+					alloc_box = get_allocated_bounds();
 				}
 			}
-			btile<log2_w>* get_tile(long x, long y) {
-				x = (x - map_header.info.origin[0]) >> map_header.info.log2_tile_w;
-				y = (y - map_header.info.origin[1]) >> map_header.info.log2_tile_w;
-				int map_twidth = 1 << map_header.info.depth;
-				if (x < 0 || y < 0 || x >= map_twidth || y >= map_twidth) return 0;
-				item_index deepest_item = seek_deepest_item(x, y);
-				if (deepest_item.depth > 0) return read_tile(deepest_item.pos);
-				else return 0;
+			void alloc(gmtry2i::aligned_box2i box) {
+				gmtry2i::aligned_box2i alloc_box = get_allocated_bounds();
+				gmtry2i::vector2i box_center = gmtry2i::center(box);
+				while (!gmtry2i::contains(alloc_box, box)) {
+					// CHECK FOR ROUNDING ERRORS
+					double_map(box_center - gmtry2i::center(alloc_box));
+					alloc_box = get_allocated_bounds();
+				}
 			}
-			bool set_tile(long x, long y, btile<log2_w>* tile) {
-				// transform coordinates
-				// alloc necessary space
-				// get deepest item index
-				// at deepest item index, write pointer to end of file
-				// append file with tree that leads to tile
+			bool read(const gmtry2i::vector2i& p, btile<log2_w>* tile) {
+				if (!gmtry2i::contains(get_allocated_bounds(), p)) return false;
+				item_index deepest_item = seek_deepest_item((p - map_header.info.origin) >> map_header.info.log2_tile_w);
+				if (deepest_item.depth == 0) {
+					read_file(reinterpret_cast<char*>(tile), deepest_item.tree->pos, sizeof(btile<log2_w>));
+					return true;
+				} else return false;
+			}
+			bool write(const gmtry2i::vector2i& p, const btile<log2_w>* tile) {
+				alloc(p);
+				write_deepest_item(p, tile);
+				return true;
 			}
 			~bmap_fstream() {
-				if (file.is_open()) file.close();
+				if (file) fclose(file);
 				delete_index_tree(indices, map_header.info.depth);
 			}
 	};
