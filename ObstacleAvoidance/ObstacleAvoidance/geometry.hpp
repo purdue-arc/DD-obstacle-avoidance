@@ -61,6 +61,10 @@ namespace gmtry2i {
 			min = min_v;
 			max = max_v;
 		}
+		aligned_box2i(const vector2i& origin, long width) {
+			min = origin;
+			max = vector2i(origin.x + width, origin.y + width);
+		}
 	};
 
 	inline bool contains(const aligned_box2i& b, const vector2i& v) {
@@ -68,7 +72,7 @@ namespace gmtry2i {
 	}
 
 	inline bool contains(const aligned_box2i& b1, const aligned_box2i& b2) {
-		return b1.min.x <= b2.min.x && b1.min.y <= b2.min.y && b1.max.x > b2.max.x && b1.max.y > b2.max.y;
+		return b1.min.x <= b2.min.x && b1.min.y <= b2.min.y && b1.max.x >= b2.max.x && b1.max.y >= b2.max.y;
 	}
 
 	inline vector2i center(const aligned_box2i& b1) {
