@@ -1,7 +1,7 @@
 #pragma once
 
-
 namespace util {
+	// this struct is used for absolutely nothing and can probably be deleted
 	struct char_chain {
 		unsigned char* chars;
 		unsigned long size;
@@ -19,4 +19,8 @@ namespace util {
 		a->end->next = b;
 		a->end = b->end;
 	}
+
+
+
+	// put heap structs/functions in this namespace
 }
