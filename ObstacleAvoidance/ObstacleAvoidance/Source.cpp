@@ -3,7 +3,7 @@
 
 // other files
 #include "utils.cpp"
-#include "occupancy.hpp"
+#include "occupancy_tests.hpp"
 
 int realsense_test0() {
 	std::string serial;
@@ -34,53 +34,10 @@ int realsense_test0() {
 	return 0;
 }
 
-int occupancy_test0() {
-	try {
-		ocpncy::bmap_fstream<3> mapstream("mymap", gmtry2i::vector2i(4, 5));
-		ocpncy::btile<3> mytile = { { {
-				(0b00000000ULL << 48) +
-				(0b00100100ULL << 40) +
-				(0b00100100ULL << 32) +
-				(0b00000000ULL << 24) +
-				(0b01000010ULL << 16) +
-				(0b00111100ULL << 8) +
-				(0b00000000ULL << 0)
-		} } };
-		ocpncy::PrintTile(mytile);
-		std::cout << mapstream.write(gmtry2i::vector2i(5, 4), &mytile) << std::endl;
-
-		ocpncy::btile<3> mytile_read;
-		std::cout << mapstream.read(gmtry2i::vector2i(5, 4), &mytile_read) << std::endl;
-		// This print should look the same as the last
-		PrintTile(mytile_read);
-		gmtry2i::aligned_box2i mapbox = mapstream.get_bounds();
-		std::cout << mapbox.min.x << ", " << mapbox.min.y << "; " << mapbox.max.x << ", " << mapbox.max.y << std::endl;
-	}
-	catch (int i) {
-		std::cout << i << std::endl;
-	}
-
-	return 0;
-}
-
-int occupancy_test1() {
-	FILE* file;
-	fopen_s(&file, "mymap", "r");
-	if (file == 0) return -1;
-
-	ocpncy::bmap_info<3> info;
-	fseek(file, 0, SEEK_SET);
-	fread(&info, 1, sizeof(info), file);
-	std::cout << "Recorded log2_tile_w: " << info.log2_tile_w << std::endl;
-	std::cout << "Recorded depth: " << info.depth << std::endl;
-	std::cout << "Recorded origin: " << info.origin.x << ", " << info.origin.y << std::endl;
-
-	fclose(file);
-	return 0;
-}
-
 // Main
 int main() {
 	// return realsense_test0();
-	return occupancy_test0();
+	// return occupancy_test0();
+	// return occupancy_test1();
+	return occupancy_test2();
 }

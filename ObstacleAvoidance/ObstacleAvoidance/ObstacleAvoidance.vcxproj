@@ -140,6 +140,7 @@
     <ClInclude Include="dstar.hpp" />
     <ClInclude Include="geometry.hpp" />
     <ClInclude Include="occupancy.hpp" />
+    <ClInclude Include="occupancy_tests.hpp" />
     <ClInclude Include="util_structs.hpp" />
     <ClInclude Include="header.hh" />
   </ItemGroup>

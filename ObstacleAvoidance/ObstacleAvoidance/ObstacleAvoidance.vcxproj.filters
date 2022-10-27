@@ -43,5 +43,8 @@
     <ClInclude Include="geometry.hpp">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="occupancy_tests.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
 </Project>

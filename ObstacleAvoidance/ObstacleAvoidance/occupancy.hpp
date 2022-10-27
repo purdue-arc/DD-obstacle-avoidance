@@ -20,6 +20,7 @@ namespace ocpncy {
 	template <unsigned int log2_w>
 	struct btile {
 		std::uint64_t minis[1 << (log2_w - 3)][1 << (log2_w - 3)];
+		btile() = default;
 	};
 
 	/*
@@ -100,6 +101,7 @@ namespace ocpncy {
 	struct bmap {
 		bmap_info<log2_w> info;
 		void* root = 0;
+		bmap() = default;
 		bmap(const bmap_info<log2_w> map_info, void* map_root) {
 			info = map_info;
 			root = map_root;
@@ -141,6 +143,78 @@ namespace ocpncy {
 	template <unsigned int log2_w>
 	inline gmtry2i::aligned_box2i get_bmap_item_bounds(const bmap_item<log2_w>& item) {
 		return gmtry2i::aligned_box2i(item.origin, 1 << (item.depth + log2_w));
+	}
+
+	template <unsigned int log2_w>
+	void PrintItem(const bmap_item<log2_w>& item) {
+		if (item.depth == 0) {
+			PrintTile(*static_cast<btile<log2_w>*>(item.ptr));
+		}
+
+		unsigned int item_width = 1 << (item.depth + log2_w);
+		char** img = new char*[item_width];
+		for (int y = 0; y < item_width; y++) {
+			img[y] = new char[2 * item_width + 1];
+			for (int x = 0; x < item_width; x++) {
+				img[y][x * 2] = '.';
+				img[y][x * 2 + 1] = ' ';
+			}
+			img[y][2 * item_width] = '\0';
+		}
+
+		btile_tree** parents = new btile_tree* [item.depth];
+		parents[0] = reinterpret_cast<btile_tree*>(item.ptr);
+		std::cout << "Item Branches: " << reinterpret_cast<btile_tree*>(item.ptr)->branch[0] << ", " <<
+										  reinterpret_cast<btile_tree*>(item.ptr)->branch[1] << ", " <<  
+										  reinterpret_cast<btile_tree*>(item.ptr)->branch[2] << ", " <<  
+										  reinterpret_cast<btile_tree*>(item.ptr)->branch[3] << std::endl; //test
+		gmtry2i::vector2i* origins = new gmtry2i::vector2i[item.depth + 1];
+		origins[0] = gmtry2i::vector2i();
+		unsigned int* branch_indices = new unsigned int[item.depth];
+		branch_indices[0] = 0;
+		unsigned int current_level = 0;
+		unsigned int current_depth;
+		while (branch_indices[0] < 4) {
+			std::cout << "Current Depth: " << (item.depth - current_level) << std::endl; //test
+			std::cout << "Branch Index: " << branch_indices[current_level] << std::endl; //test
+			if (branch_indices[current_level] > 3) branch_indices[--current_level]++;
+			else {
+				if (parents[current_level]->branch[branch_indices[current_level]]) {
+					current_depth = item.depth - current_level;
+					origins[current_level + 1] = origins[current_level]
+						+ gmtry2i::vector2i(branch_indices[current_level] & 1, branch_indices[current_level] >> 1)
+						* (1 << (current_depth + log2_w - 1));
+					if (current_depth == 1) {
+						std::cout << "Tile is Being Printed!" << std::endl; //test
+						btile<log2_w>& tile = *reinterpret_cast<btile<log2_w>*>(parents[current_level]->branch[branch_indices[current_level]]);
+						for (int y = 0; y < (1 << log2_w); y++) {
+							for (int x = 0; x < (1 << log2_w); x++) {
+								img[y + origins[current_level + 1].y][2 * (x + origins[current_level + 1].x)] = get_bit(x, y, &tile) ? '@' : '.';
+							}
+						}
+
+						branch_indices[current_level]++;
+					}
+					else {
+						std::cout << "Tree will be processed next" << std::endl; //test
+						parents[current_level + 1] = reinterpret_cast<btile_tree*>(parents[current_level]->branch[branch_indices[current_level]]);
+						branch_indices[current_level + 1] = 0;
+						current_level++;
+					}
+				} 
+				else branch_indices[current_level]++;
+			}
+		}
+		delete[] parents;
+		delete[] origins;
+		delete[] branch_indices;
+
+		for (int y = item_width - 1; y >= 0; y--) {
+			std::cout << img[y] << std::endl;
+			delete[] img[y];
+		}
+		std::cout << "Item origin: " << item.origin.x << ", " << item.origin.y << std::endl;
+		delete[] img;
 	}
 
 	/*
@@ -280,7 +354,7 @@ namespace ocpncy {
 		unsigned int current_level = 0;
 		unsigned int current_depth;
 		while (branch_indices[0] < 4) {
-			if (branch_indices[current_level] == 4) branch_indices[--current_level]++;
+			if (branch_indices[current_level] > 3) branch_indices[--current_level]++;
 			else {
 				if (src_parents[current_level]->branch[branch_indices[current_level]]) {
 					current_depth = src.depth - current_level;
@@ -297,6 +371,7 @@ namespace ocpncy {
 						current_level++;
 					}
 				}
+				else branch_indices[current_level]++;
 			}
 		}
 		min_dst.root = 0;
@@ -414,6 +489,8 @@ namespace ocpncy {
 				file.seekp(map_header.size);
 				file.write(static_cast<const char*>(src), len);
 				map_header.size += len;
+				std::cout << "Added to file size: " << len << std::endl; //test
+				std::cout << "New file size: " << map_header.size << std::endl; //test
 			}
 			inline gmtry2i::aligned_box2i get_map_bounds() {
 				return gmtry2i::aligned_box2i(map_header.info.origin, 
@@ -434,8 +511,8 @@ namespace ocpncy {
 				map_header.root = new_root->pos;
 				map_header.info.depth += 1;
 				map_header.info.origin -= gmtry2i::vector2i(direction.x < 0, direction.y < 0) * map_init_width;
+				std::cout << "Map Expanded!" << std::endl;
 				std::cout << "New root: " << map_header.root << std::endl; //test
-				std::cout << "New file size: " << map_header.size << std::endl; //test
 				std::cout << "New depth: " << map_header.info.depth << std::endl; //test
 				std::cout << "New origin: " << map_header.info.origin.x << ", " << map_header.info.origin.y << std::endl; //test
 			}
@@ -522,23 +599,27 @@ namespace ocpncy {
 				append_file(tile, sizeof(btile<log2_w>));
 			}
 			void* build_item(const item_index& item) {
-				if (item.tree->pos == 0) return 0;
+				if (item.tree == 0 || item.tree->pos == 0) return 0;
 				if (item.depth == 0) {
+					std::cout << "Tile Built!" << std::endl; //test
 					btile<log2_w>* tile = new btile<log2_w>;
 					read_file(tile, item.tree->pos, sizeof(btile<log2_w>));
 					return tile;
 				}
 				else {
-					if (!(item.tree->fully_indexed)) {
-						unsigned long branches[4];
+					if (item.tree->branch[0] == 0) {
+						std::cout << "Tree Being Read" << std::endl; //test
+						unsigned long branches[4] = { 0 };
 						read_file(branches, item.tree->pos, 4 * sizeof(unsigned long));
-						for (int i = 0; i < 4; i++) if (item.tree->branch[i] == 0 && branches[i]) 
-							item.tree->branch[i] = new index_tree(branches[i]);
-						item.tree->fully_indexed = true;
+						for (int i = 0; i < 4; i++) item.tree->branch[i] = new index_tree(branches[i]);
 					}
 					btile_tree* item_tree = new btile_tree;
 					for (int i = 0; i < 4; i++) item_tree->branch[i] = 
-						build_item(item_index(item.tree->branch[0], item.depth - 1, gmtry2i::vector2i()));
+						build_item(item_index(item.tree->branch[i], item.depth - 1, gmtry2i::vector2i()));
+					std::cout << "Tree Built with branches: " << item_tree->branch[0] << ", " <<
+																 item_tree->branch[1] << ", " <<  
+																 item_tree->branch[2] << ", " <<  
+																 item_tree->branch[3] << std::endl; //test
 					return item_tree;
 				}
 			}
@@ -556,16 +637,16 @@ namespace ocpncy {
 					map_header.root = sizeof(bmap_file_header);
 					map_header.size = sizeof(bmap_file_header);
 					write_file(&map_header, 0, sizeof(bmap_file_header));
-					btile<log2_w> tile0;
+					btile<log2_w> tile0 = btile<log2_w>();
 					append_file(&tile0, sizeof(tile0));
 					std::cout << "File created!" << std::endl; //test
 				}
 				else {
+					read_file(&map_header, 0, sizeof(map_header));
 					std::cout << "File already exists!" << std::endl; //test
 				}
 				if (!(file.is_open())) throw - 1;
 
-				read_file(&map_header, 0, sizeof(map_header));
 
 				std::cout << "Recorded log2_tile_w: " << map_header.info.log2_tile_w << std::endl; //test
 				std::cout << "Recorded depth: " << map_header.info.depth << std::endl; //test
@@ -602,7 +683,6 @@ namespace ocpncy {
 			gmtry2i::aligned_box2i get_bounds() { return get_map_bounds(); }
 			bool write(const gmtry2i::vector2i& p, const btile<log2_w>* src) {
 				fit_map(p);
-				std::cout << "New origin: " << map_header.info.origin.x << ", " << map_header.info.origin.y << std::endl; //test
 				write_tile_at_bottom(p, src);
 				return true;
 			}
@@ -614,7 +694,10 @@ namespace ocpncy {
 
 			}
 			~bmap_fstream() {
-				if (file.is_open()) file.close();
+				if (file.is_open()) {
+					write_file(&map_header, 0, sizeof(bmap_file_header));
+					file.close();
+				}
 				delete_index_tree(indices, map_header.info.depth);
 			}
 	};
