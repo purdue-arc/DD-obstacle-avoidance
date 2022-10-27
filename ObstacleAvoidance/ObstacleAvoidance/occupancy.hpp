@@ -4,6 +4,7 @@
 #include <fstream>
 #include <stdio.h>
 #include <stdint.h>
+#include <iostream>
 
 #include "geometry.hpp"
 
@@ -33,7 +34,7 @@ namespace ocpncy {
 	}
 	template <unsigned int log2_w>
 	inline void set_bit(int x, int y, btile<log2_w>* ot, bool value) {
-		ot->minis[x >> 3][y >> 3] |= value * 0b1 << ((x & 0b111) + ((y & 0b111) << 3));
+		ot->minis[x >> 3][y >> 3] |= value * (((std::uint64_t) 0b1) << ((x & 0b111) + ((y & 0b111) << 3)));
 	}
 
 	template <unsigned int log2_w>
@@ -102,6 +103,10 @@ namespace ocpncy {
 		bmap_info<log2_w> info;
 		void* root = 0;
 		bmap() = default;
+		bmap(const gmtry2i::vector2i& origin) {
+			info = bmap_info<log2_w>(origin);
+			root = new btile<log2_w>();
+		}
 		bmap(const bmap_info<log2_w> map_info, void* map_root) {
 			info = map_info;
 			root = map_root;
@@ -153,21 +158,34 @@ namespace ocpncy {
 
 		unsigned int item_width = 1 << (item.depth + log2_w);
 		char** img = new char*[item_width];
-		for (int y = 0; y < item_width; y++) {
+		int x, y;
+		for (int y1 = 0; y1 < (1 << item.depth); y1++) {
+			y = y1 << log2_w;
 			img[y] = new char[2 * item_width + 1];
-			for (int x = 0; x < item_width; x++) {
-				img[y][x * 2] = '.';
-				img[y][x * 2 + 1] = ' ';
-			}
+			for (x = 0; x < item_width * 2; x++) img[y][x] = '-';
 			img[y][2 * item_width] = '\0';
+			for (int y2 = 1; y2 < (1 << log2_w); y2++) {
+				y = (y1 << log2_w) + y2;
+				img[y] = new char[2 * item_width + 1];
+				for (int x1 = 0; x1 < (1 << item.depth); x1++) {
+					x = x1 << log2_w;
+					img[y][x * 2] = '|';
+					img[y][x * 2 + 1] = ' ';
+					for (int x2 = 1; x2 < (1 << log2_w); x2++) {
+						x = (x1 << log2_w) + x2;
+						img[y][x * 2] = '.';
+						img[y][x * 2 + 1] = ' ';
+					}
+				}
+				img[y][2 * item_width] = '\0';
+			}
 		}
+		gmtry2i::aligned_box2i bounds = get_bmap_item_bounds(item);
+		if (gmtry2i::contains(bounds, -item.origin)) 
+			img[(-item.origin.y)][2 * (-item.origin.x)] = 'O';
 
 		btile_tree** parents = new btile_tree* [item.depth];
 		parents[0] = reinterpret_cast<btile_tree*>(item.ptr);
-		std::cout << "Item Branches: " << reinterpret_cast<btile_tree*>(item.ptr)->branch[0] << ", " <<
-										  reinterpret_cast<btile_tree*>(item.ptr)->branch[1] << ", " <<  
-										  reinterpret_cast<btile_tree*>(item.ptr)->branch[2] << ", " <<  
-										  reinterpret_cast<btile_tree*>(item.ptr)->branch[3] << std::endl; //test
 		gmtry2i::vector2i* origins = new gmtry2i::vector2i[item.depth + 1];
 		origins[0] = gmtry2i::vector2i();
 		unsigned int* branch_indices = new unsigned int[item.depth];
@@ -187,11 +205,9 @@ namespace ocpncy {
 					if (current_depth == 1) {
 						std::cout << "Tile is Being Printed!" << std::endl; //test
 						btile<log2_w>& tile = *reinterpret_cast<btile<log2_w>*>(parents[current_level]->branch[branch_indices[current_level]]);
-						for (int y = 0; y < (1 << log2_w); y++) {
-							for (int x = 0; x < (1 << log2_w); x++) {
-								img[y + origins[current_level + 1].y][2 * (x + origins[current_level + 1].x)] = get_bit(x, y, &tile) ? '@' : '.';
-							}
-						}
+						for (int y = 0; y < (1 << log2_w); y++)
+							for (int x = 0; x < (1 << log2_w); x++)
+								if (get_bit(x, y, &tile)) img[y + origins[current_level + 1].y][2 * (x + origins[current_level + 1].x)] = '@';
 
 						branch_indices[current_level]++;
 					}
@@ -208,12 +224,12 @@ namespace ocpncy {
 		delete[] parents;
 		delete[] origins;
 		delete[] branch_indices;
-
 		for (int y = item_width - 1; y >= 0; y--) {
 			std::cout << img[y] << std::endl;
 			delete[] img[y];
 		}
-		std::cout << "Item origin: " << item.origin.x << ", " << item.origin.y << std::endl;
+		std::cout << "Item Bounds: " << bounds.min.x << ", " << bounds.min.y << "; " << 
+										bounds.max.x << ", " << bounds.max.y << std::endl;
 		delete[] img;
 	}
 
