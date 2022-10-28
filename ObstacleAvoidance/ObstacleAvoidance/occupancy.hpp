@@ -47,7 +47,7 @@ namespace ocpncy {
 		}
 	}
 
-	struct btile_tree { void* branch[4]; };
+	struct btile_tree { void* branch[4]; btile_tree() = default; };
 
 	/*
 	* item_ptr: is a btile_tree* if depth > 0 or a btile* if depth == 0
@@ -133,7 +133,7 @@ namespace ocpncy {
 			depth = item_depth;
 			origin = item_origin;
 		}
-		bmap_item(void* item_ptr, unsigned int item_depth, gmtry2i::vector2i item_origin) {
+		bmap_item(void* item_ptr, gmtry2i::vector2i item_origin, unsigned int item_depth) {
 			ptr = item_ptr;
 			depth = item_depth;
 			origin = item_origin;
@@ -214,7 +214,7 @@ namespace ocpncy {
 
 	template <unsigned int log2_w>
 	inline gmtry2i::aligned_box2i get_bmap_bounds(const bmap<log2_w>* map) {
-		return gmtry2i::aligned_box2i(map->info.origin, 1 << (map->info.depth + map->info.log2_w));
+		return gmtry2i::aligned_box2i(map->info.origin, 1 << (map->info.depth + log2_w));
 	}
 
 	template <unsigned int log2_w>
@@ -311,12 +311,35 @@ namespace ocpncy {
 	}
 
 	/*
+	* Returns the virtual item (has no pointer) from the map that most closely fits the given item
+	* Returns a null item (all 0s) if the map does not contain the item
+	* DOES NOT AUTOMATICALLY MODIFY MAP TO FIT THE ITEM
+	*/
+	template <unsigned int log2_w>
+	bmap_item<log2_w> get_matching_virtual_bmap_item(const bmap_info<log2_w>& map_info, const bmap_item<log2_w>& item) {
+		bmap_item<log2_w> virtual_item = bmap_item<log2_w>();
+		bmap_item<log2_w> next_virtual_item(0, map_info.origin, map_info.depth);
+		unsigned int next_branch_index;
+		unsigned int hwidth = 1 << (next_virtual_item.depth + log2_w - 1);
+		gmtry2i::aligned_box2i item_box = get_bmap_item_bounds(item);
+		while (gmtry2i::contains(get_bmap_item_bounds(next_virtual_item), item_box)) {
+			virtual_item = next_virtual_item;
+			next_branch_index = (item.origin.x - virtual_item.origin.x >= hwidth) + 2 * (item.origin.y - virtual_item.origin.y >= hwidth);
+			next_virtual_item.depth = virtual_item.depth - 1;
+			next_virtual_item.origin = virtual_item.origin + gmtry2i::vector2i(next_branch_index & 1, next_branch_index >> 1) * hwidth;
+			hwidth >>= 1;
+		}
+		return virtual_item;
+	}
+
+	/*
 	* Retrieves the map item closest to a given point at a given depth
+	* DOES NOT AUTOMATICALLY MODIFY THE MAP TO FIT THE POINT
 	*/
 	template <unsigned int log2_w>
 	bmap_item<log2_w> get_bmap_item(const bmap<log2_w>* map, const gmtry2i::vector2i& p, unsigned int depth) {
-		bmap_item<log2_w> item;
-		bmap_item<log2_w> next_item(map->root, map->info.depth, map->info.origin);
+		bmap_item<log2_w> item = bmap_item<log2_w>();
+		bmap_item<log2_w> next_item(map->root, map->info.origin, map->info.depth);
 		unsigned int next_branch_index;
 		unsigned int hwidth = (1 << (next_item.depth + log2_w)) >> 1;
 		while (next_item.ptr && next_item.depth > depth) {
@@ -331,47 +354,16 @@ namespace ocpncy {
 	}
 
 	/*
-	* Retrieves the lowest item in the map to contain the target item
-	* Automatically expands the map or extends its branches such that 
-		the returned item will always be the deepest possible map-aligned item to contain the target
+	* Allocates an item in the map at the desired position and depth
+	* DOES NOT AUTOMATICALLY EXPAND MAP TO FIT THE POINT
 	*/
 	template <unsigned int log2_w>
-	bmap_item<log2_w> get_bmap_item(bmap<log2_w>* map, const bmap_item<log2_w>& target) {
-		fit_bmap(map, get_bmap_item_bounds(target));
-		bmap_item<log2_w> item;
-		bmap_item<log2_w> next_item(map->root, map->info.depth, map->info.origin);
-		void** next_item_ptr_ptr;
+	bmap_item<log2_w> alloc_bmap_item(bmap<log2_w>* dst, const gmtry2i::vector2i& p, unsigned int depth) {
+		bmap_item<log2_w> item = bmap_item<log2_w>();
+		bmap_item<log2_w> next_item = get_bmap_item(dst, p, depth);
 		unsigned int next_branch_index;
 		unsigned int hwidth = (1 << (next_item.depth + log2_w)) >> 1;
-		gmtry2i::aligned_box2i target_box = get_bmap_item_bounds(target);
-		while (next_item.ptr && gmtry2i::contains(get_bmap_item_bounds(next_item), target_box)) {
-			item = next_item;
-			next_branch_index = (target.origin.x - item.origin.x >= hwidth) + 2 * (target.origin.y - item.origin.y >= hwidth);
-			next_item_ptr_ptr = &(reinterpret_cast<btile_tree*>(item.ptr)->branch[next_branch_index]);
-			if (*next_item_ptr_ptr == 0) *next_item_ptr_ptr = new btile_tree();
-			next_item.ptr = *next_item_ptr_ptr;
-			next_item.depth = item.depth - 1;
-			next_item.origin = item.origin + gmtry2i::vector2i(next_branch_index & 1, next_branch_index >> 1) * hwidth;
-			hwidth >>= 1;
-		}
-		if (next_item.depth == 0 && map->info.depth != 0) {
-			delete reinterpret_cast<btile_tree*>(*next_item_ptr_ptr);
-			next_item.ptr = *next_item_ptr_ptr = new btile<log2_w>();
-		}
-		return next_item;
-	}
-
-	/*
-	* Copies a tile at a certain position to the map
-	* DOES NOT AUTOMATICALLY EXPAND MAP TO FIT TILE
-	*/
-	template <unsigned int log2_w>
-	void set_bmap_tile(bmap<log2_w>* dst, const gmtry2i::vector2i& p, const btile<log2_w>* src) {
-		bmap_item<log2_w> item;
-		bmap_item<log2_w> next_item = get_bmap_item(dst, p, 0);
-		unsigned int next_branch_index;
-		unsigned int hwidth = (1 << (next_item.depth + log2_w)) >> 1;
-		while (next_item.depth) {
+		while (next_item.depth > depth) {
 			item = next_item;
 			next_branch_index = (p.x - item.origin.x >= hwidth) + 2 * (p.y - item.origin.y >= hwidth);
 			next_item.ptr = reinterpret_cast<btile_tree*>(item.ptr)->branch[next_branch_index] = new btile_tree();
@@ -379,11 +371,11 @@ namespace ocpncy {
 			next_item.origin = item.origin + gmtry2i::vector2i(next_branch_index & 1, next_branch_index >> 1) * hwidth;
 			hwidth >>= 1;
 		}
-		if (item.ptr) {
+		if (depth == 0 && item.ptr) {
 			delete reinterpret_cast<btile_tree*>(next_item.ptr);
 			next_item.ptr = reinterpret_cast<btile_tree*>(item.ptr)->branch[next_branch_index] = new btile<log2_w>();
 		}
-		*(reinterpret_cast<btile<log2_w>*>(next_item.ptr)) = *src;
+		return next_item;
 	}
 
 	/*
@@ -392,11 +384,17 @@ namespace ocpncy {
 	*/
 	template <unsigned int log2_w>
 	void set_bmap_item(bmap<log2_w>* dst, const bmap_item<log2_w>& src) {
-		bmap_item<log2_w> min_dst_item = get_bmap_item(dst, src);
+		fit_bmap(dst, get_bmap_item_bounds(src));
+		bmap_item<log2_w> virtual_min_dst_item = get_matching_virtual_bmap_item(dst->info, src);
+		bmap_item<log2_w> min_dst_item = alloc_bmap_item(dst, virtual_min_dst_item.origin, virtual_min_dst_item.depth);
 		bmap<log2_w> min_dst(bmap_info<log2_w>(min_dst_item.depth, min_dst_item.origin), min_dst_item.ptr);
 		bmap_item_iterator<log2_w> iterator(src);
 		btile<log2_w>* tile;
-		while (tile = iterator.next()) set_bmap_tile(&min_dst, iterator.last_origin(), tile);
+		btile<log2_w>* map_tile;
+		while (tile = iterator.next()) {
+			map_tile = static_cast<btile<log2_w>*>(alloc_bmap_item(dst, iterator.last_origin(), 0).ptr);
+			*map_tile = *tile;
+		}
 		min_dst.root = 0;
 	}
 
@@ -496,21 +494,25 @@ namespace ocpncy {
 			std::string file_name;
 			index_tree* indices;
 
-			void read_file(void* dst, unsigned long pos, unsigned long len) {
+			inline void read_file(void* dst, unsigned long pos, unsigned long len) {
 				file.seekg(pos);
 				file.read(static_cast<char*>(dst), len);
 			}
 			// cannot be used to append
-			void write_file(const void* src, unsigned long pos, unsigned long len) {
+			inline void write_file(const void* src, unsigned long pos, unsigned long len) {
 				file.seekp(pos);
 				file.write(static_cast<const char*>(src), len);
 			}
-			void append_file(const void* src, unsigned long len) {
+			inline void append_file(const void* src, unsigned long len) {
 				file.seekp(map_header.size);
 				file.write(static_cast<const char*>(src), len);
 				map_header.size += len;
 				std::cout << "Added to file size: " << len << std::endl; //test
 				std::cout << "New file size: " << map_header.size << std::endl; //test
+			}
+			inline void write_branch(unsigned long new_branch, unsigned int branch_index, unsigned long tree_pos) {
+				file.seekp(tree_pos + sizeof(new_branch) * branch_index);
+				file.write(reinterpret_cast<char*>(&new_branch), sizeof(new_branch));
 			}
 			inline gmtry2i::aligned_box2i get_map_bounds() {
 				return gmtry2i::aligned_box2i(map_header.info.origin, 
@@ -556,17 +558,20 @@ namespace ocpncy {
 				}
 				write_file(&map_header, 0, sizeof(bmap_file_header));
 			}
+			item_index get_top_item() {
+				return item_index(indices, map_header.info.depth, map_header.info.origin);
+			}
 			/*
 			* Returns the indexed item under start containing the point and closest to the desired depth
 			* Returns a real item if start is real, although it won't contain the point if start doesn't contain the point
 			*/
-			item_index indexed_item_at_depth(const item_index& start, const gmtry2i::vector2i& p, unsigned int gdepth) {
+			item_index indexed_item_at_depth(const item_index& start, const gmtry2i::vector2i& p, unsigned int depth) {
 				item_index item;
 				item_index next_item(start.tree, start.depth, start.origin);
 				unsigned int next_branch_idx;
 				gmtry2i::vector2i relative_p;
 				unsigned int hwidth = 1 << (next_item.depth + log2_w - 1);
-				while (next_item.tree && next_item.tree->pos && next_item.depth > gdepth) {
+				while (next_item.tree && next_item.tree->pos && next_item.depth > depth) {
 					item = next_item;
 					next_branch_idx = (p.x - item.origin.x >= hwidth) + 2 * (p.y - item.origin.y >= hwidth);
 					next_item.tree = item.tree->branch[next_branch_idx];
@@ -580,13 +585,13 @@ namespace ocpncy {
 			* Returns the existing item under start containing the point and closest to the desired depth
 			* Returns a real item if start is real, although it won't contain the point if start doesn't contain the point
 			*/
-			item_index seek_item_at_depth(const item_index& start, const gmtry2i::vector2i& p, unsigned int gdepth) {
+			item_index seek_item_at_depth(const item_index& start, const gmtry2i::vector2i& p, unsigned int depth) {
 				item_index item;
-				item_index next_item = indexed_item_at_depth(start, p, gdepth);
+				item_index next_item = indexed_item_at_depth(start, p, depth);
 				unsigned int next_branch_idx;
 				unsigned int hwidth = 1 << (next_item.depth + log2_w - 1);
 				unsigned long branches[4];
-				while (next_item.tree->pos && next_item.depth > gdepth) {
+				while (next_item.tree->pos && next_item.depth > depth) {
 					item = next_item;
 					read_file(branches, item.tree->pos, 4 * sizeof(unsigned long));
 					next_branch_idx = (p.x - item.origin.x >= hwidth) + 2 * (p.y - item.origin.y >= hwidth);
@@ -599,24 +604,22 @@ namespace ocpncy {
 				return next_item.tree->pos ? next_item : item;
 			}
 			/*
-			* Always successfully writes the tile, but it will be in the wrong place if the map doesn't contain the point
+			* Allocates an item at the desired position and depth and returns its index
+			* Returns a real item if start is real, although it won't contain the point if start doesn't contain the point
 			*/
-			void write_tile_at_bottom(const item_index& start, const gmtry2i::vector2i p, const btile<log2_w>* tile) {
-				item_index item = seek_item_at_depth(start, p, 0);
-				if (item.depth == 0) {
-					write_file(tile, item.tree->pos, sizeof(btile<log2_w>));
-					return;
-				}
+			item_index alloc_item_at_depth(const item_index& start, const gmtry2i::vector2i p, unsigned int depth) {
+				item_index item = seek_item_at_depth(start, p, depth);
+				if (item.depth == depth) return item;
 				unsigned int hwidth = 1 << (item.depth + log2_w - 1);
 				unsigned int next_branch_idx = (p.x - item.origin.x >= hwidth) + 2 * (p.y - item.origin.y >= hwidth);
 				const unsigned int branches_size = 4 * sizeof(unsigned long);
 				// overwrite position of next branch (was 0 before because branch didn't exist)
-				write_file(&(map_header.size), item.tree->pos + next_branch_idx * sizeof(unsigned long), sizeof(map_header.size));
+				write_branch(map_header.size, next_branch_idx, item.tree->pos);
 				item.tree = item.tree->branch[next_branch_idx] = new index_tree(map_header.size);
 				item.depth -= 1;
 				item.origin += gmtry2i::vector2i(next_branch_idx & 1, next_branch_idx >> 1) * hwidth;
 				hwidth >>= 1;
-				while (item.depth) {
+				while (item.depth > depth) {
 					unsigned long branches[4] = { 0 };
 					next_branch_idx = (p.x - item.origin.x >= hwidth) + 2 * (p.y - item.origin.y >= hwidth);
 					branches[next_branch_idx] = map_header.size + branches_size;
@@ -628,8 +631,12 @@ namespace ocpncy {
 					item.origin += gmtry2i::vector2i(next_branch_idx & 1, next_branch_idx >> 1) * hwidth;
 					hwidth >>= 1;
 				}
-				append_file(tile, sizeof(btile<log2_w>));
-				std::cout << "File appended with new tile!" << std::endl; //test
+				if (depth) {
+					unsigned long final_branches[4] = { 0 };
+					append_file(final_branches, branches_size);
+				} 
+				else map_header.size += sizeof(btile<log2_w>);
+				return item;
 			}
 			void* build_item(const item_index& item) {
 				if (item.tree == 0 || item.tree->pos == 0) return 0;
@@ -691,7 +698,7 @@ namespace ocpncy {
 			}
 			bool read(const gmtry2i::vector2i& p, btile<log2_w>* dst) {
 				if (!gmtry2i::contains(get_map_bounds(), p)) return false;
-				item_index deepest_item = seek_item_at_depth(item_index(indices, map_header.info.depth, map_header.info.origin), p, 0);
+				item_index deepest_item = seek_item_at_depth(get_top_item(), p, 0);
 				if (deepest_item.depth == 0) {
 					read_file(dst, deepest_item.tree->pos, sizeof(btile<log2_w>));
 					return true;
@@ -700,8 +707,9 @@ namespace ocpncy {
 			}
 			bool read(const gmtry2i::vector2i& p, unsigned int depth, bmap<log2_w>* dst) {
 				if (!gmtry2i::contains(get_map_bounds(), p)) return false;
-				item_index deepest_item = seek_item_at_depth(item_index(indices, map_header.info.depth, map_header.info.origin), p, depth);
+				item_index deepest_item = seek_item_at_depth(get_top_item(), p, depth);
 				if (deepest_item.depth == depth) {
+					delete_bmap_item<log2_w>(dst->root, dst->info.depth);
 					dst->info = bmap_info<log2_w>(deepest_item.depth, deepest_item.origin);
 					dst->root = build_item(deepest_item);
 					return true;
@@ -710,16 +718,26 @@ namespace ocpncy {
 			}
 			gmtry2i::aligned_box2i get_bounds() { return get_map_bounds(); }
 			bool write(const gmtry2i::vector2i& p, const btile<log2_w>* src) {
+				if (!(file.is_open())) return false;
 				fit_map(p);
-				write_tile_at_bottom(item_index(indices, map_header.info.depth, map_header.info.origin), p, src);
+				item_index tile = alloc_item_at_depth(get_top_item(), p, 0);
+				write_file(src, tile.tree->pos, sizeof(btile<log2_w>));
+				std::cout << "File appended with new tile!" << std::endl; //test
 				return true;
 			}
 			bool write(const bmap_item<log2_w>& src) {
-				// FINISH WRITING THIS FUNCTION
-
+				if (!(file.is_open())) return false;
+				fit_map(get_bmap_item_bounds(src));
+				bmap_item<log2_w> virtual_min_dst = get_matching_virtual_bmap_item(map_header.info, src);
+				item_index min_dst = alloc_item_at_depth(get_top_item(), virtual_min_dst.origin, virtual_min_dst.depth);
+				bmap_item_iterator<log2_w> iterator(src);
+				btile<log2_w>* tile;
+				item_index map_tile;
+				while (tile = iterator.next()) {
+					map_tile = alloc_item_at_depth(min_dst, iterator.last_origin(), 0);
+					write_file(tile, map_tile.tree->pos, sizeof(btile<log2_w>));
+				}
 				return true;
-
-
 			}
 			~bmap_fstream() {
 				if (file.is_open()) {
@@ -729,70 +747,4 @@ namespace ocpncy {
 				delete_index_tree(indices, map_header.info.depth);
 			}
 	};
-
-	// pLEASE dONT uSE tHIS fUNCTION iTS cURSED pLEASE dONT DOiT
-	// This function assumes that dst and src are perfectly aligned
-	// It will still work if they are not, but src will not be written to the expected place in map
-	template <unsigned int log2_w>
-	void add_bmap_item(bmap<log2_w>* dst, const bmap_item<log2_w>& src) {
-		if (src.ptr == 0) return;
-		fit_bmap(dst, get_bmap_item_bounds(src));
-		bmap_item<log2_w> item;
-		bmap_item<log2_w> next_item = get_bmap_item(dst, src.origin, src.depth);
-		// next_item exists and might be the same type & source as src
-		// depth of next_item is greater than or equal to depth of src
-		unsigned int next_branch_index;
-		unsigned int hwidth = (1 << (next_item.depth + log2_w)) >> 1;
-		while (next_item.depth > src.depth) {
-			item = next_item;
-			next_branch_index = (src.origin.x - item.origin.x >= hwidth) + 2 * (src.origin.y - item.origin.y >= hwidth);
-			next_item.ptr = reinterpret_cast<btile_tree*>(item.ptr)->branch[next_branch_index] = new btile_tree();
-			next_item.depth = item.depth - 1;
-			next_item.origin = item.origin + gmtry2i::vector2i(next_branch_index & 1, next_branch_index >> 1) * hwidth;
-			hwidth >>= 1;
-		}
-		// next_item is same depth as src
-		// if item exists then next_item is a tree type (definitely new) (might not be same type as src)
-		// if item does not exist then next_item is the same type as src
-		if (item.ptr) {
-			delete reinterpret_cast<btile_tree*>(next_item.ptr);
-			next_item.ptr = new btile<log2_w>;
-		}
-		// next_item is the same type as src
-		if (next_item.depth == 0) {
-			*reinterpret_cast<btile<log2_w>*>(next_item.ptr) = *reinterpret_cast<btile<log2_w>*>(src.ptr);
-			return;
-		}
-		// next_item/src have depth greater than 0
-
-		btile_tree** dst_levels = new btile_tree * [src.depth] { reinterpret_cast<btile_tree*>(next_item.ptr) };
-		btile_tree** src_levels = new btile_tree * [src.depth] { reinterpret_cast<btile_tree*>(src.ptr) };
-		unsigned int* branch_indices = new unsigned int[src.depth] { 0 };
-		// there must be one level item per tree level (#tree levels = depth)
-		unsigned int current_level = 0;
-		while (branch_indices[0] < 4) {
-			if (branch_indices[current_level] == 4) branch_indices[--current_level]++;
-			else {
-				if (src_levels[current_level]->branch[branch_indices[current_level]]) {
-					if (current_level == src.depth - 1) {
-						if (dst_levels[current_level]->branch[branch_indices[current_level]] == 0)
-							dst_levels[current_level]->branch[branch_indices[current_level]] = new btile<log2_w>;
-						*reinterpret_cast<btile<log2_w>*>(dst_levels[current_level]->branch[branch_indices[current_level]]) =
-							*reinterpret_cast<btile<log2_w>*>(src_levels[current_level]->branch[branch_indices[current_level]]);
-						branch_indices[current_level]++;
-					}
-					else {
-						if (dst_levels[current_level]->branch[branch_indices[current_level]] == 0)
-							dst_levels[current_level]->branch[branch_indices[current_level]] = new btile_tree();
-						dst_levels[current_level] = reinterpret_cast<btile_tree*>(dst_levels[current_level]->branch[branch_indices[current_level]]);
-						src_levels[current_level] = reinterpret_cast<btile_tree*>(src_levels[current_level]->branch[branch_indices[current_level]]);
-						current_level++;
-					}
-				}
-			}
-		}
-
-		delete[] dst_levels;
-		delete[] branch_indices;
-	}
 }

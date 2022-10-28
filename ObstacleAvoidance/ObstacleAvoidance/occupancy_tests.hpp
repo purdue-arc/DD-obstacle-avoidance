@@ -24,6 +24,7 @@ const ocpncy::btile<3> frownytile = { { {
 } } };
 
 ocpncy::btile<4> cattile = ocpncy::btile<4>();
+ocpncy::btile<4> dogtile = ocpncy::btile<4>();
 
 int render_cat() {
 	int circlex = 4;
@@ -43,6 +44,30 @@ int render_cat() {
 	return 0;
 }
 
+int render_dog() {
+	int circlex = 4;
+	int circley = 9;
+	int circler = 2;
+	for (int x = 0; x < 16; x++) for (int y = 0; y < 16; y++)
+		if (((x - circlex) * (x - circlex) + (y - circley) * (y - circley) - circler * circler) >> 1 == 0)
+			ocpncy::set_bit(x, y, &dogtile, true);
+	for (int x = circlex + circler; x < 15; x++) ocpncy::set_bit(x, circley, &dogtile, true);
+	for (int leg = 0; leg < 4; leg++) {
+		int x = (((10 - circlex + circler) * leg) / 4) + circlex + circler;
+		for (int y = circley; y > 0; y--) ocpncy::set_bit(x, y, &dogtile, true);
+	}
+	ocpncy::set_bit(3, 12, &dogtile, true); ocpncy::set_bit(3, 13, &dogtile, true);
+	ocpncy::set_bit(5, 12, &dogtile, true); ocpncy::set_bit(5, 13, &dogtile, true);
+	for (int x = circlex - circler; x >= 0; x--) {
+		ocpncy::set_bit(x, circley, &dogtile, true);
+		ocpncy::set_bit(x, circley - 1, &dogtile, true);
+	}
+	//PrintTile(dogtile);
+	return 0;
+}
+
+// writes the smileytile to the mymap file at (14, 14), reads it back, and prints it
+// writes the frowneytile to the mymap file at (5, 4), reads it back, and prints it
 int occupancy_test0() { // PASSED!
 	try {
 		ocpncy::bmap_fstream<3> mapstream("mymap", gmtry2i::vector2i(4, 5));
@@ -80,6 +105,7 @@ int occupancy_test0() { // PASSED!
 	return 0;
 }
 
+// Reads the mymap file's bmap_file_header without going through the bmap_fstream
 int occupancy_test1() { // PASSED!
 	FILE* file;
 	fopen_s(&file, "mymap", "r");
@@ -109,12 +135,13 @@ int occupancy_test1() { // PASSED!
 }
 
 // RUN AFTER TEST 0
+// Reads the mymap file and prints part of its contents
 int occupancy_test2() { // PASSED!
 	ocpncy::bmap_fstream<3> mapstream("mymap", gmtry2i::vector2i(4, 5));
 	ocpncy::bmap<3> map;
 
 	std::cout << "Reading Success: " << mapstream.read(gmtry2i::vector2i(0, 0), 2, &map) << std::endl;
-	ocpncy::bmap_item<3> item(map.root, map.info.depth, map.info.origin);
+	ocpncy::bmap_item<3> item(map.root, map.info.origin, map.info.depth);
 	std::cout << "Retrieved Item Depth: " << item.depth << std::endl;
 	std::cout << "Retrieved Item Origin: " << item.origin.x << ", " << item.origin.y << std::endl;
 	ocpncy::PrintItem(item);
@@ -122,6 +149,7 @@ int occupancy_test2() { // PASSED!
 	return 0;
 }
 
+// Writes cattile to the mymap4 file at (-70, 30), reads the tile back, and prints it
 int occupancy_test3() { // PASSED!
 	render_cat();
 
@@ -144,12 +172,39 @@ int occupancy_test3() { // PASSED!
 }
 
 // RUN AFTER TEST 3
+// Reads the mymap4 file and prints part of its contents
 int occupancy_test4() { // PASSED!
 	ocpncy::bmap_fstream<4> mapstream("mymap4", gmtry2i::vector2i());
 	ocpncy::bmap<4> map;
 
 	std::cout << "Reading Success: " << mapstream.read(gmtry2i::vector2i(-20, 0), 2, &map) << std::endl;
-	ocpncy::bmap_item<4> item(map.root, map.info.depth, map.info.origin);
+	ocpncy::bmap_item<4> item(map.root, map.info.origin, map.info.depth);
+	std::cout << "Retrieved Item Depth: " << item.depth << std::endl;
+	std::cout << "Retrieved Item Origin: " << item.origin.x << ", " << item.origin.y << std::endl;
+	ocpncy::PrintItem(item);
+
+	return 0;
+}
+
+// RUN AFTER TEST 3
+// Writes dogtile to a map at (-25, 5), writes the map to the mymap4 file, reads the file, and prints part of its contents
+int occupancy_test5() { // PASSED!
+	render_dog();
+
+	ocpncy::bmap_fstream<4> mapstream("mymap4", gmtry2i::vector2i());
+
+	gmtry2i::vector2i dogtilecoords(-25, 5);
+	ocpncy::bmap<4> map(gmtry2i::vector2i(26, 19));
+	ocpncy::fit_bmap(&map, dogtilecoords);
+	ocpncy::bmap_item<4> map_dogtile = ocpncy::alloc_bmap_item(&map, dogtilecoords, 0);
+	*static_cast<ocpncy::btile<4>*>(map_dogtile.ptr) = dogtile;
+
+	std::cout << "Tile to Write: " << std::endl;
+	PrintTile(dogtile);
+	std::cout << "Writing Success: " << mapstream.write(ocpncy::bmap_item<4>(map.root, map.info.origin, map.info.depth)) << std::endl;
+
+	std::cout << "Reading Success: " << mapstream.read(gmtry2i::vector2i(-20, 0), 2, &map) << std::endl;
+	ocpncy::bmap_item<4> item(map.root, map.info.origin, map.info.depth);
 	std::cout << "Retrieved Item Depth: " << item.depth << std::endl;
 	std::cout << "Retrieved Item Origin: " << item.origin.x << ", " << item.origin.y << std::endl;
 	ocpncy::PrintItem(item);
