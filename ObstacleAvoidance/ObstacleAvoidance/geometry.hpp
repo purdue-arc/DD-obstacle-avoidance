@@ -1,5 +1,7 @@
 #pragma once
 
+#define MIN(a, b) (a < b) ? a : b
+#define MAX(a, b) (a > b) ? a : b
 
 // 2D integer geometry
 namespace gmtry2i {
@@ -54,6 +56,22 @@ namespace gmtry2i {
 		return vector2i(v.x >> i, v.y >> i);
 	}
 
+	inline vector2i operator &(const vector2i& v, long s) {
+		return vector2i(v.x & s, v.y & s);
+	}
+
+	inline vector2i operator |(const vector2i& v, long s) {
+		return vector2i(v.x | s, v.y | s);
+	}
+
+	inline vector2i operator >(const vector2i& v, long s) {
+		return vector2i(v.x > s, v.y > s);
+	}
+
+	inline vector2i operator <(const vector2i& v, long s) {
+		return vector2i(v.x < s, v.y < s);
+	}
+
 	struct aligned_box2i {
 		vector2i min, max;
 		aligned_box2i() = default;
@@ -66,6 +84,11 @@ namespace gmtry2i {
 			max = vector2i(origin.x + width, origin.y + width);
 		}
 	};
+
+	inline aligned_box2i intersection(const aligned_box2i& b1, const aligned_box2i& b2) {
+		return aligned_box2i(vector2i(MAX(b1.min.x, b2.min.x), MAX(b1.min.y, b2.min.y)),
+							 vector2i(MIN(b1.max.x, b2.max.x), MIN(b1.max.y, b2.max.y)));
+	}
 
 	inline bool contains(const aligned_box2i& b, const vector2i& v) {
 		return b.min.x <= v.x && b.min.y <= v.y && b.max.x > v.x && b.max.y > v.y;
@@ -88,5 +111,13 @@ namespace gmtry2i {
 		vector2i max1min2dif = b1.max - b2.min;
 		bool thingy = min1max2dif.x < max1min2dif.x || min1max2dif.y < max1min2dif.y;
 		return aligned_box2i(thingy ? min1max2dif : max1min2dif, thingy ? max1min2dif : min1max2dif);
+	}
+
+	inline aligned_box2i operator +(const aligned_box2i& b, const vector2i& v) {
+		return aligned_box2i(b.min + v, b.max + v);
+	}
+
+	inline aligned_box2i operator -(const aligned_box2i& b, const vector2i& v) {
+		return aligned_box2i(b.min - v, b.max - v);
 	}
 }

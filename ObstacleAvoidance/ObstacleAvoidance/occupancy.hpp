@@ -9,43 +9,180 @@
 #include "geometry.hpp"
 
 namespace ocpncy {
+
+	typedef std::uint64_t btile_mini;
 	/*
 	* A square of bits with a width of 2 ^ n 
 		(this is so the tile can be evenly cut in half all the way down to the bit level, 
 		which makes certain opertions faster)
 	* log2_w: base-2 logarithm of tile width; tile width = w = 2 ^ log2_w = 1 << log2_w
 	* log2_w MUST BE GREATER THAN OR EQUAL TO 3!!!
-	*	This is because the bit tiles are composed of 8x8 bit squares (stored as unsigned longs),
+	*	This is because the bit tiles are composed of 8x8 bit squares (stored as 64-bit integers),
 	*	so the minimum width of the tile is the width of one square, which is 8 or 2 ^ 3
 	*/
 	template <unsigned int log2_w>
 	struct btile {
-		std::uint64_t minis[1 << (log2_w - 3)][1 << (log2_w - 3)];
+		btile_mini minis[1 << (log2_w - 3)][1 << (log2_w - 3)];
 		btile() = default;
 	};
 
 	/*
 	* Functions for getting or setting an individual bit in a tile
-	* Not ideal for iterative access
 	*/
 	template <unsigned int log2_w>
-	inline bool get_bit(int x, int y, const btile<log2_w>* ot) {
-		return ((ot->minis[x >> 3][y >> 3]) >> ((x & 0b111) + ((y & 0b111) << 3))) & 0b1;
+	inline bool get_bit(int x, int y, const btile<log2_w>& ot) {
+		return ((ot.minis[x >> 3][y >> 3]) >> ((x & 0b111) + ((y & 0b111) << 3))) & 0b1;
 	}
 	template <unsigned int log2_w>
-	inline void set_bit(int x, int y, btile<log2_w>* ot, bool value) {
-		ot->minis[x >> 3][y >> 3] |= value * (((std::uint64_t) 0b1) << ((x & 0b111) + ((y & 0b111) << 3)));
+	inline void set_bit(int x, int y, btile<log2_w>& ot, bool value) {
+		ot.minis[x >> 3][y >> 3] |= value * (((btile_mini) 0b1) << ((x & 0b111) + ((y & 0b111) << 3)));
 	}
 
 	template <unsigned int log2_w>
 	void PrintTile(const btile<log2_w>& tile) {
 		for (int y = (1 << log2_w) - 1; y >= 0; y--) {
 			for (int x = 0; x < (1 << log2_w); x++) {
-				std::cout << (get_bit(x, y, &tile) ? "@" : ".") << " ";
+				std::cout << (get_bit(x, y, tile) ? "@" : ".") << " ";
 			}
 			std::cout << std::endl;
 		}
 	}
+
+	struct bimage {
+		unsigned int width;
+		char** img;
+		gmtry2i::vector2i origin;
+		std::string caption;
+		gmtry2i::aligned_box2i bounds;
+		bimage(unsigned int log2_w, unsigned int log2_tw, gmtry2i::vector2i new_origin) {
+			origin = new_origin;
+			width = 1 << (log2_tw + log2_w);
+			img = new char* [width];
+			int x, y;
+			for (int y1 = 0; y1 < (1 << log2_tw); y1++) {
+				y = y1 << log2_w;
+				img[y] = new char[2 * width + 1];
+				for (x = 0; x < width * 2; x++) img[y][x] = '-';
+				img[y][2 * width] = '\0';
+				for (int y2 = 1; y2 < (1 << log2_w); y2++) {
+					y = (y1 << log2_w) + y2;
+					img[y] = new char[2 * width + 1];
+					for (int x1 = 0; x1 < (1 << log2_tw); x1++) {
+						x = x1 << log2_w;
+						img[y][x * 2] = '|'; img[y][x * 2 + 1] = ' ';
+						for (int x2 = 1; x2 < (1 << log2_w); x2++) {
+							x = (x1 << log2_w) + x2;
+							img[y][x * 2] = '.'; img[y][x * 2 + 1] = ' ';
+						}
+					}
+					img[y][2 * width] = '\0';
+				}
+			}
+			if (gmtry2i::contains(gmtry2i::aligned_box2i(origin, width), -origin)) 
+				img[-(origin.y)][-(2 * origin.x)] = 'O';
+			bounds = gmtry2i::aligned_box2i(origin, width);
+			caption = std::string("Item Bounds: ") + std::to_string(bounds.min.x) + std::string(", ") + std::to_string(bounds.min.y) + 
+								 std::string("; ") + std::to_string(bounds.max.x) + std::string(", ") + std::to_string(bounds.max.y);
+		}
+		char* operator [](int i) { return img[i]; }
+		const char* operator [](int i) const { return img[i]; }
+		~bimage() {
+			for (int y = width - 1; y >= 0; y--) delete[] img[y];
+			delete[] img;
+		}
+	};
+	template <unsigned int log2_w>
+	void WriteImage(bimage& img, const gmtry2i::vector2i& tile_origin, const btile<log2_w>& tile) {
+		for (int y = 0; y < (1 << log2_w); y++)
+			for (int x = 0; x < (1 << log2_w); x++)
+				if (get_bit(x, y, tile)) img[y + tile_origin.y - img.origin.y][2 * (x + tile_origin.x - img.origin.x)] = '@';
+	}
+	void PrintImage(const bimage& img) {
+		for (int y = img.width - 1; y >= 0; y--) std::cout << img[y] << std::endl;
+		std::cout << img.caption << std::endl;
+	}
+	
+	/*
+	* Allows for easy iteration over a stream of tiles
+	* reset(): returns the stream to its initial conditions
+	* next(): returns the next tile in the stream
+	*		Returns 0 if all tiles have been retrieved over
+	* last_origin(): returns the origin of the last tile retrieved from next()
+	*		Behavior undefined when next() has not been called first
+	* DOES NOT AUTOMATICALLY DELETE SOURCE MATERIAL
+	*/
+	template <unsigned int log2_w>
+	class btile_istream {
+		public:
+			virtual void reset() = 0;
+			virtual btile<log2_w>* next() = 0;
+			virtual gmtry2i::vector2i last_origin() = 0;
+			virtual gmtry2i::aligned_box2i get_bounds() = 0;
+	};
+
+	template <unsigned int log2_w>
+	void WriteImage(bimage& img, btile_istream<log2_w>* tiles) {
+		btile<log2_w>* tile;
+		while (tile = tiles->next()) 
+			if (gmtry2i::contains(img.bounds, tiles->last_origin())) 
+				WriteImage(img, tiles->last_origin(), *tile);
+	}
+
+	/*
+	* occ_mat_iterator(T* T_mat, unsigned int, unsigned int, 
+					   const gmtry2i::vector2i& mat_origin, const gmtry2i::vector2i& any_tile_origin)
+			any_tile_origin: origin of any tile that is tile-aligned with the destination of outgoing tiles
+	*/
+	template <unsigned int log2_w, typename T>
+	class occ_mat_iterator : public btile_istream<log2_w> {
+		private:
+			T* mat;
+			unsigned int dims[2];
+			gmtry2i::vector2i origin;
+			btile<log2_w> last_tile;
+			// all geometric objects below are positioned relative to mat_bounds
+			gmtry2i::aligned_box2i mat_bounds;
+			gmtry2i::vector2i tilewise_origin;
+			gmtry2i::vector2i tile_origin;
+			gmtry2i::vector2i last_tile_origin;
+		public:
+			void reset() {
+				tile_origin = tilewise_origin;
+			}
+			occ_mat_iterator(T* T_mat, unsigned int width, unsigned int height, 
+							 const gmtry2i::vector2i& mat_origin, const gmtry2i::vector2i& any_tile_origin) {
+				mat = T_mat;
+				dims[0] = width;
+				dims[1] = height;
+				origin = mat_origin;
+				mat_bounds = gmtry2i::aligned_box2i(gmtry2i::vector2i(), gmtry2i::vector2i(width, height));
+				tilewise_origin = ((((mat_origin - any_tile_origin) >> log2_w) << log2_w) + any_tile_origin) - mat_origin;
+				reset();
+			}
+			btile<log2_w>* next() {
+				if (tile_origin.y >= mat_bounds.max.y) return 0;
+				btile<log2_w> tile = btile<log2_w>();
+				gmtry2i::aligned_box2i readbox = gmtry2i::intersection(mat_bounds, gmtry2i::aligned_box2i(tile_origin, 1 << log2_w));
+				for (int x = readbox.min.x; x < readbox.max.x; x++)
+					for (int y = readbox.min.y; y < readbox.max.y; y++)
+						if (mat[x + y * dims[0]])
+							set_bit(x - tile_origin.x, y - tile_origin.y, tile, true);
+				last_tile_origin = tile_origin;
+				tile_origin.x += 1 << log2_w;
+				if (tile_origin.x >= mat_bounds.max.x) {
+					tile_origin.x = tilewise_origin.x;
+					tile_origin.y += 1 << log2_w;
+				}
+				last_tile = tile;
+				return &last_tile;
+			}
+			gmtry2i::vector2i last_origin() {
+				return last_tile_origin + origin;
+			}
+			gmtry2i::aligned_box2i get_bounds() {
+				return mat_bounds + origin;
+			}
+	};
 
 	struct btile_tree { void* branch[4]; btile_tree() = default; };
 
@@ -140,16 +277,18 @@ namespace ocpncy {
 		}
 	};
 
-	/*
-	* Allows for easy iteration over the tiles of a map item
-	* reset(): returns the iterator to its initial conditions
-	* next(const bmap_item<log2_w>): returns the next tile in the item
-	*		Returns 0 if all items have been iterated over
-	*		Accepts items of any depth
-	* last_origin(): returns the origin of the last tile retrieved from next()
-	*/
 	template <unsigned int log2_w>
-	class bmap_item_iterator {
+	inline gmtry2i::aligned_box2i get_bmap_bounds(const bmap<log2_w>* map) {
+		return gmtry2i::aligned_box2i(map->info.origin, 1 << (map->info.depth + log2_w));
+	}
+
+	template <unsigned int log2_w>
+	inline gmtry2i::aligned_box2i get_bmap_item_bounds(const bmap_item<log2_w>& item) {
+		return gmtry2i::aligned_box2i(item.origin, 1 << (item.depth + log2_w));
+	}
+
+	template <unsigned int log2_w>
+	class bmap_item_iterator : public btile_istream<log2_w> {
 		private:
 			bmap_item<log2_w> item;
 			btile_tree** parents;
@@ -173,7 +312,7 @@ namespace ocpncy {
 				if (item.depth == 0) {
 					if (branch_indices[0]) return 0;
 					else {
-						branch_indices[0] = 1;
+						branch_indices[0]++;
 						return static_cast<btile<log2_w>*>(item.ptr);
 					}
 				}
@@ -200,75 +339,31 @@ namespace ocpncy {
 						else branch_indices[current_level]++;
 					}
 				}
-				return 0;
+				return static_cast<btile<log2_w>*>(0);
 			}
 			gmtry2i::vector2i last_origin() {
 				return origins[current_level + 1];
 			}
+			gmtry2i::aligned_box2i get_bounds() {
+				return get_bmap_item_bounds(item);
+			}
 			~bmap_item_iterator() {
+				for (int i = 0; i < item.depth; i++) parents[i] = 0;
 				delete[] parents;
 				delete[] origins;
 				delete[] branch_indices;
 			}
 	};
 
-	template <unsigned int log2_w>
-	inline gmtry2i::aligned_box2i get_bmap_bounds(const bmap<log2_w>* map) {
-		return gmtry2i::aligned_box2i(map->info.origin, 1 << (map->info.depth + log2_w));
-	}
-
-	template <unsigned int log2_w>
-	inline gmtry2i::aligned_box2i get_bmap_item_bounds(const bmap_item<log2_w>& item) {
-		return gmtry2i::aligned_box2i(item.origin, 1 << (item.depth + log2_w));
-	}
-
 	/*
-	* Prints out a full map item with dividers separating the tiles
-	* Prints the item bounds
+	* Prints out a full map item and a report of its bounds
 	*/
 	template <unsigned int log2_w>
 	void PrintItem(const bmap_item<log2_w>& item) {
-		unsigned int item_width = 1 << (item.depth + log2_w);
-		char** img = new char*[item_width];
-		int x, y;
-		for (int y1 = 0; y1 < (1 << item.depth); y1++) {
-			y = y1 << log2_w;
-			img[y] = new char[2 * item_width + 1];
-			for (x = 0; x < item_width * 2; x++) img[y][x] = '-';
-			img[y][2 * item_width] = '\0';
-			for (int y2 = 1; y2 < (1 << log2_w); y2++) {
-				y = (y1 << log2_w) + y2;
-				img[y] = new char[2 * item_width + 1];
-				for (int x1 = 0; x1 < (1 << item.depth); x1++) {
-					x = x1 << log2_w;
-					img[y][x * 2] = '|'; img[y][x * 2 + 1] = ' ';
-					for (int x2 = 1; x2 < (1 << log2_w); x2++) {
-						x = (x1 << log2_w) + x2;
-						img[y][x * 2] = '.'; img[y][x * 2 + 1] = ' ';
-					}
-				}
-				img[y][2 * item_width] = '\0';
-			}
-		}
-		gmtry2i::aligned_box2i bounds = get_bmap_item_bounds(item);
-		if (gmtry2i::contains(bounds, -item.origin)) 
-			img[(-item.origin.y)][2 * (-item.origin.x)] = 'O';
-		
+		bimage img(log2_w, item.depth, item.origin);
 		bmap_item_iterator<log2_w> iterator(item);
-		btile<log2_w>* tile;
-		while (tile = iterator.next())
-			for (int y = 0; y < (1 << log2_w); y++)
-				for (int x = 0; x < (1 << log2_w); x++)
-					if (get_bit(x, y, tile)) img[y + iterator.last_origin().y - item.origin.y]
-												[2 * (x + iterator.last_origin().x - item.origin.x)] = '@';
-
-		for (int y = item_width - 1; y >= 0; y--) {
-			std::cout << img[y] << std::endl;
-			delete[] img[y];
-		}
-		std::cout << "Item Bounds: " << bounds.min.x << ", " << bounds.min.y << "; " << 
-										bounds.max.x << ", " << bounds.max.y << std::endl;
-		delete[] img;
+		WriteImage(img, &iterator);
+		PrintImage(img);
 	}
 
 	/*
@@ -311,20 +406,19 @@ namespace ocpncy {
 	}
 
 	/*
-	* Returns the virtual item (has no pointer) from the map that most closely fits the given item
+	* Returns the virtual item (has no pointer) from the map that most closely fits the item with the given bounds
 	* Returns a null item (all 0s) if the map does not contain the item
 	* DOES NOT AUTOMATICALLY MODIFY MAP TO FIT THE ITEM
 	*/
 	template <unsigned int log2_w>
-	bmap_item<log2_w> get_matching_virtual_bmap_item(const bmap_info<log2_w>& map_info, const bmap_item<log2_w>& item) {
+	bmap_item<log2_w> get_matching_virtual_bmap_item(const bmap_info<log2_w>& map_info, const gmtry2i::aligned_box2i& item_box) {
 		bmap_item<log2_w> virtual_item = bmap_item<log2_w>();
 		bmap_item<log2_w> next_virtual_item(0, map_info.origin, map_info.depth);
 		unsigned int next_branch_index;
 		unsigned int hwidth = 1 << (next_virtual_item.depth + log2_w - 1);
-		gmtry2i::aligned_box2i item_box = get_bmap_item_bounds(item);
 		while (gmtry2i::contains(get_bmap_item_bounds(next_virtual_item), item_box)) {
 			virtual_item = next_virtual_item;
-			next_branch_index = (item.origin.x - virtual_item.origin.x >= hwidth) + 2 * (item.origin.y - virtual_item.origin.y >= hwidth);
+			next_branch_index = (item_box.min.x - virtual_item.origin.x >= hwidth) + 2 * (item_box.min.y - virtual_item.origin.y >= hwidth);
 			next_virtual_item.depth = virtual_item.depth - 1;
 			next_virtual_item.origin = virtual_item.origin + gmtry2i::vector2i(next_branch_index & 1, next_branch_index >> 1) * hwidth;
 			hwidth >>= 1;
@@ -358,9 +452,9 @@ namespace ocpncy {
 	* DOES NOT AUTOMATICALLY EXPAND MAP TO FIT THE POINT
 	*/
 	template <unsigned int log2_w>
-	bmap_item<log2_w> alloc_bmap_item(bmap<log2_w>* dst, const gmtry2i::vector2i& p, unsigned int depth) {
+	bmap_item<log2_w> alloc_bmap_item(bmap<log2_w>* map, const gmtry2i::vector2i& p, unsigned int depth) {
 		bmap_item<log2_w> item = bmap_item<log2_w>();
-		bmap_item<log2_w> next_item = get_bmap_item(dst, p, depth);
+		bmap_item<log2_w> next_item = get_bmap_item(map, p, depth);
 		unsigned int next_branch_index;
 		unsigned int hwidth = (1 << (next_item.depth + log2_w)) >> 1;
 		while (next_item.depth > depth) {
@@ -383,16 +477,15 @@ namespace ocpncy {
 	* Automatically expands the map or extends its branches such that it will contain all tiles from the item
 	*/
 	template <unsigned int log2_w>
-	void set_bmap_item(bmap<log2_w>* dst, const bmap_item<log2_w>& src) {
-		fit_bmap(dst, get_bmap_item_bounds(src));
-		bmap_item<log2_w> virtual_min_dst_item = get_matching_virtual_bmap_item(dst->info, src);
+	void set_bmap_item(bmap<log2_w>* dst, btile_istream<log2_w>* src) {
+		fit_bmap(dst, src->get_bounds());
+		bmap_item<log2_w> virtual_min_dst_item = get_matching_virtual_bmap_item(dst->info, src->get_bounds());
 		bmap_item<log2_w> min_dst_item = alloc_bmap_item(dst, virtual_min_dst_item.origin, virtual_min_dst_item.depth);
 		bmap<log2_w> min_dst(bmap_info<log2_w>(min_dst_item.depth, min_dst_item.origin), min_dst_item.ptr);
-		bmap_item_iterator<log2_w> iterator(src);
 		btile<log2_w>* tile;
 		btile<log2_w>* map_tile;
-		while (tile = iterator.next()) {
-			map_tile = static_cast<btile<log2_w>*>(alloc_bmap_item(dst, iterator.last_origin(), 0).ptr);
+		while (tile = src->next()) {
+			map_tile = static_cast<btile<log2_w>*>(alloc_bmap_item(dst, src->last_origin(), 0).ptr);
 			*map_tile = *tile;
 		}
 		min_dst.root = 0;
@@ -420,15 +513,15 @@ namespace ocpncy {
 	* write(const gmtry2i::vector2i&, const btile<log2_w>*):
 	*		Writes the tile to the given position in the map
 	*		Expands or extends map as necessary
-	* write(const bmap_item<log2_w>&):
-	*		Writes the full item to the map, assuming only tile-level allignment
+	* write(btile_istream<log2_w>*):
+	*		Writes every tile from the tile stream to the map, assuming only tile-level allignment
 	*		Expands or extends map as necessary
 	*/
 	template <unsigned int log2_w>
 	class bmap_ostream { 
 		public: 
 			virtual bool write(const gmtry2i::vector2i& p, const btile<log2_w>* src) = 0;
-			virtual bool write(const bmap_item<log2_w>& src) = 0;
+			virtual bool write(btile_istream<log2_w>* src) = 0;
 	};
 
 	template <unsigned int log2_w>
@@ -725,16 +818,15 @@ namespace ocpncy {
 				std::cout << "File appended with new tile!" << std::endl; //test
 				return true;
 			}
-			bool write(const bmap_item<log2_w>& src) {
+			bool write(btile_istream<log2_w>* src) {
 				if (!(file.is_open())) return false;
-				fit_map(get_bmap_item_bounds(src));
-				bmap_item<log2_w> virtual_min_dst = get_matching_virtual_bmap_item(map_header.info, src);
+				fit_map(src->get_bounds());
+				bmap_item<log2_w> virtual_min_dst = get_matching_virtual_bmap_item(map_header.info, src->get_bounds());
 				item_index min_dst = alloc_item_at_depth(get_top_item(), virtual_min_dst.origin, virtual_min_dst.depth);
-				bmap_item_iterator<log2_w> iterator(src);
 				btile<log2_w>* tile;
 				item_index map_tile;
-				while (tile = iterator.next()) {
-					map_tile = alloc_item_at_depth(min_dst, iterator.last_origin(), 0);
+				while (tile = src->next()) {
+					map_tile = alloc_item_at_depth(min_dst, src->last_origin(), 0);
 					write_file(tile, map_tile.tree->pos, sizeof(btile<log2_w>));
 				}
 				return true;
@@ -747,4 +839,12 @@ namespace ocpncy {
 				delete_index_tree(indices, map_header.info.depth);
 			}
 	};
+
+	/*
+	* TODO
+	*	Make branch positions and map_info have a platform-independent size
+	*	Make geometric objects have a platform-independent size
+	*	
+	*	Give option to combine tiles instead of overwriting them
+	*/
 }

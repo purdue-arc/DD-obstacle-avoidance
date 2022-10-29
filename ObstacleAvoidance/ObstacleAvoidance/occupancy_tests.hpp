@@ -25,6 +25,8 @@ const ocpncy::btile<3> frownytile = { { {
 
 ocpncy::btile<4> cattile = ocpncy::btile<4>();
 ocpncy::btile<4> dogtile = ocpncy::btile<4>();
+bool forgy[300] = { 0 };
+unsigned int forgydims[2] = { 20, 15 };
 
 int render_cat() {
 	int circlex = 4;
@@ -32,14 +34,14 @@ int render_cat() {
 	int circler = 2;
 	for (int x = 0; x < 16; x++) for (int y = 0; y < 16; y++) 
 		if (((x - circlex) * (x - circlex) + (y - circley) * (y - circley) - circler * circler) >> 1 == 0)
-			ocpncy::set_bit(x, y, &cattile, true);
-	for (int x = circlex + circler; x < 15; x++) ocpncy::set_bit(x, circley, &cattile, true);
+			ocpncy::set_bit(x, y, cattile, true);
+	for (int x = circlex + circler; x < 15; x++) ocpncy::set_bit(x, circley, cattile, true);
 	for (int leg = 0; leg < 4; leg++) {
 		int x = (((10 - circlex + circler) * leg) / 4) + circlex + circler;
-		for (int y = circley; y > 0; y--) ocpncy::set_bit(x, y, &cattile, true);
+		for (int y = circley; y > 0; y--) ocpncy::set_bit(x, y, cattile, true);
 	}
-	ocpncy::set_bit(3, 12, &cattile, true);
-	ocpncy::set_bit(5, 12, &cattile, true);
+	ocpncy::set_bit(3, 12, cattile, true);
+	ocpncy::set_bit(5, 12, cattile, true);
 	//PrintTile(cattile);
 	return 0;
 }
@@ -50,19 +52,49 @@ int render_dog() {
 	int circler = 2;
 	for (int x = 0; x < 16; x++) for (int y = 0; y < 16; y++)
 		if (((x - circlex) * (x - circlex) + (y - circley) * (y - circley) - circler * circler) >> 1 == 0)
-			ocpncy::set_bit(x, y, &dogtile, true);
-	for (int x = circlex + circler; x < 15; x++) ocpncy::set_bit(x, circley, &dogtile, true);
+			ocpncy::set_bit(x, y, dogtile, true);
+	for (int x = circlex + circler; x < 15; x++) ocpncy::set_bit(x, circley, dogtile, true);
 	for (int leg = 0; leg < 4; leg++) {
 		int x = (((10 - circlex + circler) * leg) / 4) + circlex + circler;
-		for (int y = circley; y > 0; y--) ocpncy::set_bit(x, y, &dogtile, true);
+		for (int y = circley; y > 0; y--) ocpncy::set_bit(x, y, dogtile, true);
 	}
-	ocpncy::set_bit(3, 12, &dogtile, true); ocpncy::set_bit(3, 13, &dogtile, true);
-	ocpncy::set_bit(5, 12, &dogtile, true); ocpncy::set_bit(5, 13, &dogtile, true);
+	ocpncy::set_bit(3, 12, dogtile, true); ocpncy::set_bit(3, 13, dogtile, true);
+	ocpncy::set_bit(5, 12, dogtile, true); ocpncy::set_bit(5, 13, dogtile, true);
 	for (int x = circlex - circler; x >= 0; x--) {
-		ocpncy::set_bit(x, circley, &dogtile, true);
-		ocpncy::set_bit(x, circley - 1, &dogtile, true);
+		ocpncy::set_bit(x, circley, dogtile, true);
+		ocpncy::set_bit(x, circley - 1, dogtile, true);
 	}
 	//PrintTile(dogtile);
+	return 0;
+}
+
+int render_forgy() {
+	int ovalx = forgydims[0]/2 - 1;
+	int ovaly = 1 + forgydims[1]/2;
+	int ovalrx = 5;
+	int ovalry = 3;
+	for (int x = 0; x < forgydims[0]; x++) for (int y = 0; y < forgydims[1]; y++)
+		if (( (x - ovalx) * (x - ovalx) * ovalry * ovalry + (y - ovaly) * (y - ovaly) * ovalrx * ovalrx
+			   - ovalrx * ovalrx * ovalry * ovalry ) >> 7 == 0)
+			forgy[x + y * forgydims[0]] = true;
+	for (int leg = 0; leg < 4; leg++) {
+		int x = ovalx - ovalrx/2 + (leg * ovalrx) / 2;
+		for (int y = ovaly - ovalry; y > ovaly - ovalry * 2; y--) forgy[x + y * forgydims[0]] = true;
+	}
+	forgy[7 + (ovaly + 1) * forgydims[0]] = true;
+	forgy[6 + (ovaly - 1) * forgydims[0]] = true;
+	forgy[7 + (ovaly - 1) * forgydims[0]] = true;
+	forgy[8 + (ovaly - 1) * forgydims[0]] = true;
+
+	ocpncy::occ_mat_iterator<4, bool> iterator(forgy, forgydims[0], forgydims[1], gmtry2i::vector2i(5, 5), gmtry2i::vector2i(42, 35));
+	ocpncy::bimage img(4, 2, gmtry2i::vector2i(-6, -29));
+	WriteImage(img, &iterator);
+	// Prints X at min point (inclusive)
+	img[iterator.get_bounds().min.y - img.bounds.min.y][2 * (iterator.get_bounds().min.x - img.bounds.min.x)] = 'X';
+	// Prints X at max point (exclusive)
+	img[iterator.get_bounds().max.y - img.bounds.min.y][2 * (iterator.get_bounds().max.x - img.bounds.min.x)] = 'X';
+	PrintImage(img);
+
 	return 0;
 }
 
@@ -198,15 +230,41 @@ int occupancy_test5() { // PASSED!
 	ocpncy::fit_bmap(&map, dogtilecoords);
 	ocpncy::bmap_item<4> map_dogtile = ocpncy::alloc_bmap_item(&map, dogtilecoords, 0);
 	*static_cast<ocpncy::btile<4>*>(map_dogtile.ptr) = dogtile;
+	ocpncy::bmap_item<4> item(map.root, map.info.origin, map.info.depth);
+	ocpncy::bmap_item_iterator<4> iterator(item);
 
 	std::cout << "Tile to Write: " << std::endl;
 	PrintTile(dogtile);
-	std::cout << "Writing Success: " << mapstream.write(ocpncy::bmap_item<4>(map.root, map.info.origin, map.info.depth)) << std::endl;
+	std::cout << "Writing Success: " << mapstream.write(&iterator) << std::endl;
 
 	std::cout << "Reading Success: " << mapstream.read(gmtry2i::vector2i(-20, 0), 2, &map) << std::endl;
-	ocpncy::bmap_item<4> item(map.root, map.info.origin, map.info.depth);
+	item = ocpncy::bmap_item<4>(map.root, map.info.origin, map.info.depth);
 	std::cout << "Retrieved Item Depth: " << item.depth << std::endl;
 	std::cout << "Retrieved Item Origin: " << item.origin.x << ", " << item.origin.y << std::endl;
+	ocpncy::PrintItem(item);
+
+	return 0;
+}
+
+// RUN AFTER TEST 3 OR 3 AND 5
+// Uses a tile stream to read tiles out from the boolean occupancy array (a matrix stored in row-major order)
+// Writes the tiles to the file as they are read out from the array
+// Reads back both the pre-existing and new parts of the map file and prints them
+int occupancy_test6() { // PASSED!
+	std::cout << "Tiles to Write: " << std::endl;
+	render_forgy();
+	ocpncy::occ_mat_iterator<4, bool> iterator(forgy, forgydims[0], forgydims[1], gmtry2i::vector2i(5, 5), gmtry2i::vector2i(42, 35));
+
+	ocpncy::bmap_fstream<4> mapstream("mymap4", gmtry2i::vector2i());
+	mapstream.write(&iterator);
+
+	ocpncy::bmap<4> map;
+	std::cout << "Reading Success: " << mapstream.read(gmtry2i::vector2i(5, 5), 2, &map) << std::endl;
+	ocpncy::bmap_item<4> item(map.root, map.info.origin, map.info.depth);
+	ocpncy::PrintItem(item);
+
+	std::cout << "Reading Success: " << mapstream.read(gmtry2i::vector2i(-20, 0), 2, &map) << std::endl;
+	item = ocpncy::bmap_item<4>(map.root, map.info.origin, map.info.depth);
 	ocpncy::PrintItem(item);
 
 	return 0;
