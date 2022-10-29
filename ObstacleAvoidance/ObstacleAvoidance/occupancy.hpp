@@ -24,7 +24,30 @@ namespace ocpncy {
 	struct btile {
 		btile_mini minis[1 << (log2_w - 3)][1 << (log2_w - 3)];
 		btile() = default;
+		inline btile& operator +=(const btile& tile) {
+			for (int x = 0; x < 1 << (log2_w - 3); x++)
+				for (int y = 0; y < 1 << (log2_w - 3); y++)
+					minis[x][y] |= tile.minis[x][y];
+			return *this;
+
+		}
+		inline operator bool() const {
+			bool exists = false;
+			for (int x = 0; x < 1 << (log2_w - 3); x++)
+				for (int y = 0; y < 1 << (log2_w - 3); y++)
+					exists |= minis[x][y];
+			return exists;
+		}
 	};
+
+	template <unsigned int log2_w>
+	btile<log2_w> operator +(const btile<log2_w>& t1, const btile<log2_w>& t2) {
+		btile<log2_w> sum;
+		for (int x = 0; x < 1 << (log2_w - 3); x++)
+			for (int y = 0; y < 1 << (log2_w - 3); y++)
+				sum.minis[x][y] = t1.minis[x][y] | t2.minis[x][y];
+		return sum;
+	}
 
 	/*
 	* Functions for getting or setting an individual bit in a tile
@@ -50,55 +73,65 @@ namespace ocpncy {
 
 	struct bimage {
 		unsigned int width;
-		char** img;
+		char** buf;
+		char out_of_bounds_pixel;
 		gmtry2i::vector2i origin;
 		std::string caption;
 		gmtry2i::aligned_box2i bounds;
+		char& operator ()(gmtry2i::vector2i p) {
+			if (gmtry2i::contains(bounds, p)) return buf[p.y - origin.y][2 * (p.x - origin.x)];
+			else return out_of_bounds_pixel;
+		}
+		char& operator ()(unsigned int x, unsigned int y) {
+			if (x < width && y < width) return buf[y][2 * x];
+			else return out_of_bounds_pixel;
+		}
+		const char* line(int i) const {
+			if (i < width) return buf[width - (i + 1)];
+			else return &out_of_bounds_pixel;
+		}
 		bimage(unsigned int log2_w, unsigned int log2_tw, gmtry2i::vector2i new_origin) {
 			origin = new_origin;
 			width = 1 << (log2_tw + log2_w);
-			img = new char* [width];
+			buf = new char* [width];
 			int x, y;
 			for (int y1 = 0; y1 < (1 << log2_tw); y1++) {
 				y = y1 << log2_w;
-				img[y] = new char[2 * width + 1];
-				for (x = 0; x < width * 2; x++) img[y][x] = '-';
-				img[y][2 * width] = '\0';
+				buf[y] = new char[2 * width + 1];
+				for (x = 0; x < width * 2; x++) buf[y][x] = '-';
+				buf[y][2 * width] = '\0';
 				for (int y2 = 1; y2 < (1 << log2_w); y2++) {
 					y = (y1 << log2_w) + y2;
-					img[y] = new char[2 * width + 1];
+					buf[y] = new char[2 * width + 1];
 					for (int x1 = 0; x1 < (1 << log2_tw); x1++) {
 						x = x1 << log2_w;
-						img[y][x * 2] = '|'; img[y][x * 2 + 1] = ' ';
+						buf[y][x * 2] = '|'; buf[y][x * 2 + 1] = ' ';
 						for (int x2 = 1; x2 < (1 << log2_w); x2++) {
 							x = (x1 << log2_w) + x2;
-							img[y][x * 2] = '.'; img[y][x * 2 + 1] = ' ';
+							buf[y][x * 2] = '.'; buf[y][x * 2 + 1] = ' ';
 						}
 					}
-					img[y][2 * width] = '\0';
+					buf[y][2 * width] = '\0';
 				}
 			}
-			if (gmtry2i::contains(gmtry2i::aligned_box2i(origin, width), -origin)) 
-				img[-(origin.y)][-(2 * origin.x)] = 'O';
 			bounds = gmtry2i::aligned_box2i(origin, width);
-			caption = std::string("Item Bounds: ") + std::to_string(bounds.min.x) + std::string(", ") + std::to_string(bounds.min.y) + 
-								 std::string("; ") + std::to_string(bounds.max.x) + std::string(", ") + std::to_string(bounds.max.y);
+			(*this)(gmtry2i::vector2i()) = 'O';
+			caption = std::string("Image Bounds: ") + std::to_string(bounds.min.x) + std::string(", ") + std::to_string(bounds.min.y) + 
+								  std::string("; ") + std::to_string(bounds.max.x) + std::string(", ") + std::to_string(bounds.max.y);
 		}
-		char* operator [](int i) { return img[i]; }
-		const char* operator [](int i) const { return img[i]; }
 		~bimage() {
-			for (int y = width - 1; y >= 0; y--) delete[] img[y];
-			delete[] img;
+			for (int y = width - 1; y >= 0; y--) delete[] buf[y];
+			delete[] buf;
 		}
 	};
 	template <unsigned int log2_w>
 	void WriteImage(bimage& img, const gmtry2i::vector2i& tile_origin, const btile<log2_w>& tile) {
 		for (int y = 0; y < (1 << log2_w); y++)
 			for (int x = 0; x < (1 << log2_w); x++)
-				if (get_bit(x, y, tile)) img[y + tile_origin.y - img.origin.y][2 * (x + tile_origin.x - img.origin.x)] = '@';
+				if (get_bit(x, y, tile)) img(gmtry2i::vector2i(x, y) + tile_origin) = '@';
 	}
 	void PrintImage(const bimage& img) {
-		for (int y = img.width - 1; y >= 0; y--) std::cout << img[y] << std::endl;
+		for (int y = 0; y < img.width; y++) std::cout << img.line(y) << std::endl;
 		std::cout << img.caption << std::endl;
 	}
 	
@@ -339,7 +372,7 @@ namespace ocpncy {
 						else branch_indices[current_level]++;
 					}
 				}
-				return static_cast<btile<log2_w>*>(0);
+				return 0;
 			}
 			gmtry2i::vector2i last_origin() {
 				return origins[current_level + 1];
@@ -497,6 +530,7 @@ namespace ocpncy {
 	*		Returns false if no tile contains the position
 	* read(const gmtry2i::vector2i&, unsigned int, bmap<log2_w>*):
 	*		Reads the pre-existing item, which contains the given position, that is closest to the given depth
+	*		Deletes any contents originally stored at the destination (you should pass the function a default-constructed map)
 	*		Return false if no item contains the position
 	* get_bounds(): 
 	*		Returns the current bounds of the map
@@ -509,6 +543,11 @@ namespace ocpncy {
 			virtual gmtry2i::aligned_box2i get_bounds() = 0;
 	};
 
+	enum bmap_ostream_write_mode {
+		BMAP_OSTREAM_OVERWRITE_MODE = 0,
+		BMAP_OSTREAM_ADD_MODE = 1
+	};
+
 	/*
 	* write(const gmtry2i::vector2i&, const btile<log2_w>*):
 	*		Writes the tile to the given position in the map
@@ -516,12 +555,15 @@ namespace ocpncy {
 	* write(btile_istream<log2_w>*):
 	*		Writes every tile from the tile stream to the map, assuming only tile-level allignment
 	*		Expands or extends map as necessary
+	* write_mode():
+	*		Retrieves a reference to the stream's write mode (add/overwrite)
 	*/
 	template <unsigned int log2_w>
 	class bmap_ostream { 
 		public: 
 			virtual bool write(const gmtry2i::vector2i& p, const btile<log2_w>* src) = 0;
 			virtual bool write(btile_istream<log2_w>* src) = 0;
+			virtual bmap_ostream_write_mode& mode() = 0;
 	};
 
 	template <unsigned int log2_w>
@@ -586,6 +628,7 @@ namespace ocpncy {
 			std::fstream file;
 			std::string file_name;
 			index_tree* indices;
+			bmap_ostream_write_mode write_mode;
 
 			inline void read_file(void* dst, unsigned long pos, unsigned long len) {
 				file.seekg(pos);
@@ -606,6 +649,15 @@ namespace ocpncy {
 			inline void write_branch(unsigned long new_branch, unsigned int branch_index, unsigned long tree_pos) {
 				file.seekp(tree_pos + sizeof(new_branch) * branch_index);
 				file.write(reinterpret_cast<char*>(&new_branch), sizeof(new_branch));
+			}
+			inline void write_tile(const btile<log2_w>* src, unsigned long pos) {
+				if (write_mode) {
+					btile<log2_w> current_tile = btile<log2_w>();
+					read_file(&current_tile, pos, sizeof(btile<log2_w>));
+					current_tile += *src;
+					write_file(&current_tile, pos, sizeof(btile<log2_w>));
+				}
+				else write_file(src, pos, sizeof(btile<log2_w>));
 			}
 			inline gmtry2i::aligned_box2i get_map_bounds() {
 				return gmtry2i::aligned_box2i(map_header.info.origin, 
@@ -728,6 +780,10 @@ namespace ocpncy {
 					unsigned long final_branches[4] = { 0 };
 					append_file(final_branches, branches_size);
 				} 
+				else if (write_mode) {
+					btile<log2_w> blanktile = btile<log2_w>();
+					append_file(&blanktile, sizeof(blanktile));
+				}
 				else map_header.size += sizeof(btile<log2_w>);
 				return item;
 			}
@@ -735,7 +791,7 @@ namespace ocpncy {
 				if (item.tree == 0 || item.tree->pos == 0) return 0;
 				if (item.depth == 0) {
 					std::cout << "Tile Built!" << std::endl; //test
-					btile<log2_w>* tile = new btile<log2_w>;
+					btile<log2_w>* tile = new btile<log2_w>();
 					read_file(tile, item.tree->pos, sizeof(btile<log2_w>));
 					return tile;
 				}
@@ -787,6 +843,7 @@ namespace ocpncy {
 				if (log2_w != map_header.info.log2_tile_w) throw - 2;
 				if (map_header.size < sizeof(bmap_file_header)) throw - 4;
 
+				write_mode = BMAP_OSTREAM_OVERWRITE_MODE;
 				indices = new index_tree(map_header.root);
 			}
 			bool read(const gmtry2i::vector2i& p, btile<log2_w>* dst) {
@@ -809,12 +866,11 @@ namespace ocpncy {
 				}
 				else return false;
 			}
-			gmtry2i::aligned_box2i get_bounds() { return get_map_bounds(); }
 			bool write(const gmtry2i::vector2i& p, const btile<log2_w>* src) {
 				if (!(file.is_open())) return false;
 				fit_map(p);
 				item_index tile = alloc_item_at_depth(get_top_item(), p, 0);
-				write_file(src, tile.tree->pos, sizeof(btile<log2_w>));
+				write_tile(src, tile.tree->pos);
 				std::cout << "File appended with new tile!" << std::endl; //test
 				return true;
 			}
@@ -825,11 +881,17 @@ namespace ocpncy {
 				item_index min_dst = alloc_item_at_depth(get_top_item(), virtual_min_dst.origin, virtual_min_dst.depth);
 				btile<log2_w>* tile;
 				item_index map_tile;
-				while (tile = src->next()) {
+				while (tile = src->next()) if (*tile) {
 					map_tile = alloc_item_at_depth(min_dst, src->last_origin(), 0);
-					write_file(tile, map_tile.tree->pos, sizeof(btile<log2_w>));
+					write_tile(tile, map_tile.tree->pos);
 				}
 				return true;
+			}
+			gmtry2i::aligned_box2i get_bounds() { 
+				return get_map_bounds(); 
+			}
+			bmap_ostream_write_mode& mode() {
+				return write_mode;
 			}
 			~bmap_fstream() {
 				if (file.is_open()) {

@@ -27,8 +27,10 @@ ocpncy::btile<4> cattile = ocpncy::btile<4>();
 ocpncy::btile<4> dogtile = ocpncy::btile<4>();
 bool forgy[300] = { 0 };
 unsigned int forgydims[2] = { 20, 15 };
+gmtry2i::vector2i forgyorigin = gmtry2i::vector2i(-69, 9); // (5, 5)
 
 int render_cat() {
+	cattile = ocpncy::btile<4>();
 	int circlex = 4;
 	int circley = 9;
 	int circler = 2;
@@ -47,6 +49,7 @@ int render_cat() {
 }
 
 int render_dog() {
+	dogtile = ocpncy::btile<4>();
 	int circlex = 4;
 	int circley = 9;
 	int circler = 2;
@@ -86,13 +89,13 @@ int render_forgy() {
 	forgy[7 + (ovaly - 1) * forgydims[0]] = true;
 	forgy[8 + (ovaly - 1) * forgydims[0]] = true;
 
-	ocpncy::occ_mat_iterator<4, bool> iterator(forgy, forgydims[0], forgydims[1], gmtry2i::vector2i(5, 5), gmtry2i::vector2i(42, 35));
-	ocpncy::bimage img(4, 2, gmtry2i::vector2i(-6, -29));
+	ocpncy::occ_mat_iterator<4, bool> iterator(forgy, forgydims[0], forgydims[1], forgyorigin, gmtry2i::vector2i(42, 35));
+	ocpncy::bimage img(4, 2, gmtry2i::vector2i(42 - 16 * 7, 35 - 16 * 4));
 	WriteImage(img, &iterator);
 	// Prints X at min point (inclusive)
-	img[iterator.get_bounds().min.y - img.bounds.min.y][2 * (iterator.get_bounds().min.x - img.bounds.min.x)] = 'X';
+	img(iterator.get_bounds().min) = 'X';
 	// Prints X at max point (exclusive)
-	img[iterator.get_bounds().max.y - img.bounds.min.y][2 * (iterator.get_bounds().max.x - img.bounds.min.x)] = 'X';
+	img(iterator.get_bounds().max) = 'X';
 	PrintImage(img);
 
 	return 0;
@@ -258,11 +261,14 @@ int occupancy_test5() { // PASSED!
 // Reads back both the pre-existing and new parts of the map file and prints them
 int occupancy_test6() { // PASSED!
 	std::cout << "OCCUPANCY TEST 6" << std::endl;
-	std::cout << "Tiles to Write: " << std::endl;
-	render_forgy();
-	ocpncy::occ_mat_iterator<4, bool> iterator(forgy, forgydims[0], forgydims[1], gmtry2i::vector2i(5, 5), gmtry2i::vector2i(42, 35));
 
 	ocpncy::bmap_fstream<4> mapstream("mymap4", gmtry2i::vector2i());
+	mapstream.mode() = ocpncy::BMAP_OSTREAM_ADD_MODE;
+
+	std::cout << "Tiles to Write: " << std::endl;
+	render_forgy();
+	ocpncy::occ_mat_iterator<4, bool> iterator(forgy, forgydims[0], forgydims[1], forgyorigin, mapstream.get_bounds().min);
+
 	mapstream.write(&iterator);
 
 	ocpncy::bmap<4> map;
