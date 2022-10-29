@@ -37,10 +37,11 @@ int realsense_test0() {
 // Main
 int main() {
 	// return realsense_test0();
-	// return occupancy_test0();
-	// return occupancy_test2();
-	//occupancy_test3();
-	// return occupancy_test4();
-	// return occupancy_test5();
+	occupancy_test0();
+	occupancy_test1();
+	occupancy_test2();
+	occupancy_test3();
+	occupancy_test4();
+	occupancy_test5();
 	return occupancy_test6();
 }

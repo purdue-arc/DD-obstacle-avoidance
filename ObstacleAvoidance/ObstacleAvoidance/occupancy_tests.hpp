@@ -101,6 +101,7 @@ int render_forgy() {
 // writes the smileytile to the mymap file at (14, 14), reads it back, and prints it
 // writes the frowneytile to the mymap file at (5, 4), reads it back, and prints it
 int occupancy_test0() { // PASSED!
+	std::cout << "OCCUPANCY TEST 0" << std::endl;
 	try {
 		ocpncy::bmap_fstream<3> mapstream("mymap", gmtry2i::vector2i(4, 5));
 		ocpncy::btile<3> mytile;
@@ -139,6 +140,7 @@ int occupancy_test0() { // PASSED!
 
 // Reads the mymap file's bmap_file_header without going through the bmap_fstream
 int occupancy_test1() { // PASSED!
+	std::cout << "OCCUPANCY TEST 1" << std::endl;
 	FILE* file;
 	fopen_s(&file, "mymap", "r");
 	if (file == 0) return -1;
@@ -169,6 +171,7 @@ int occupancy_test1() { // PASSED!
 // RUN AFTER TEST 0
 // Reads the mymap file and prints part of its contents
 int occupancy_test2() { // PASSED!
+	std::cout << "OCCUPANCY TEST 2" << std::endl;
 	ocpncy::bmap_fstream<3> mapstream("mymap", gmtry2i::vector2i(4, 5));
 	ocpncy::bmap<3> map;
 
@@ -183,6 +186,7 @@ int occupancy_test2() { // PASSED!
 
 // Writes cattile to the mymap4 file at (-70, 30), reads the tile back, and prints it
 int occupancy_test3() { // PASSED!
+	std::cout << "OCCUPANCY TEST 3" << std::endl;
 	render_cat();
 
 	ocpncy::bmap_fstream<4> mapstream("mymap4", gmtry2i::vector2i(42, 35));
@@ -206,6 +210,7 @@ int occupancy_test3() { // PASSED!
 // RUN AFTER TEST 3
 // Reads the mymap4 file and prints part of its contents
 int occupancy_test4() { // PASSED!
+	std::cout << "OCCUPANCY TEST 4" << std::endl;
 	ocpncy::bmap_fstream<4> mapstream("mymap4", gmtry2i::vector2i());
 	ocpncy::bmap<4> map;
 
@@ -221,6 +226,7 @@ int occupancy_test4() { // PASSED!
 // RUN AFTER TEST 3
 // Writes dogtile to a map at (-25, 5), writes the map to the mymap4 file, reads the file, and prints part of its contents
 int occupancy_test5() { // PASSED!
+	std::cout << "OCCUPANCY TEST 5" << std::endl;
 	render_dog();
 
 	ocpncy::bmap_fstream<4> mapstream("mymap4", gmtry2i::vector2i());
@@ -251,6 +257,7 @@ int occupancy_test5() { // PASSED!
 // Writes the tiles to the file as they are read out from the array
 // Reads back both the pre-existing and new parts of the map file and prints them
 int occupancy_test6() { // PASSED!
+	std::cout << "OCCUPANCY TEST 6" << std::endl;
 	std::cout << "Tiles to Write: " << std::endl;
 	render_forgy();
 	ocpncy::occ_mat_iterator<4, bool> iterator(forgy, forgydims[0], forgydims[1], gmtry2i::vector2i(5, 5), gmtry2i::vector2i(42, 35));
