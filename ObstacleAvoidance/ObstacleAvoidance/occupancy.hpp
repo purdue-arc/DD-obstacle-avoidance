@@ -31,19 +31,21 @@ namespace ocpncy {
 			return *this;
 
 		}
-		inline operator bool() const {
-			bool exists = false;
-			for (int x = 0; x < 1 << (log2_w - 3); x++)
-				for (int y = 0; y < 1 << (log2_w - 3); y++)
-					exists |= minis[x][y];
-			return exists;
-		}
 	};
 
 	enum btile_write_mode {
 		BTILE_OVERWRITE_MODE = 0,
 		BTILE_ADD_MODE = 1
 	};
+
+	template <unsigned int log2_w>
+	bool exists(const btile<log2_w>& t) {
+		bool exists = false;
+		for (int x = 0; x < 1 << (log2_w - 3); x++)
+			for (int y = 0; y < 1 << (log2_w - 3); y++)
+				exists |= t.minis[x][y];
+		return exists;
+	}
 
 	template <unsigned int log2_w>
 	btile<log2_w> operator +(const btile<log2_w>& t1, const btile<log2_w>& t2) {
@@ -92,6 +94,18 @@ namespace ocpncy {
 			}
 			std::cout << std::endl;
 		}
+	}
+
+	template <unsigned int log2_w>
+	inline gmtry2i::vector2i align_down(const gmtry2i::vector2i& p, const gmtry2i::vector2i any_tile_origin) {
+		return (((p - any_tile_origin) >> log2_w) << log2_w) + any_tile_origin;
+	}
+
+	template <unsigned int log2_w>
+	inline gmtry2i::vector2i align_up(const gmtry2i::vector2i& p, const gmtry2i::vector2i any_tile_origin) {
+		gmtry2i::vector2i dif = p - any_tile_origin;
+		gmtry2i::vector2i shifted_dif = dif >> log2_w;
+		return ((shifted_dif + (dif - (shifted_dif << log2_w) > 0)) << log2_w) + any_tile_origin;
 	}
 
 	struct bimage {
@@ -159,25 +173,27 @@ namespace ocpncy {
 	}
 	
 	/*
-	* Allows for easy iteration over a stream of tiles
-	* reset(): returns the stream to its initial conditions
-	* next(): returns the next tile in the stream
-	*		Returns 0 if all tiles have been retrieved over
-	* last_origin(): returns the origin of the last tile retrieved from next()
-	*		Behavior undefined when next() has not been called first
-	* DOES NOT AUTOMATICALLY DELETE SOURCE MATERIAL
+	* Allows for easy iteration over a source of tiles
+	* Might contain nothing
+	* DOES NOT AUTOMATICALLY DELETE TILE SOURCE
 	*/
 	template <unsigned int log2_w>
-	class btile_istream {
+	class btile_stream {
 		public:
+			// Returns the stream to its initial conditions
 			virtual void reset() = 0;
+			// Returns the next tile in the stream, or 0 if all tiles have been retrieved
 			virtual btile<log2_w>* next() = 0;
+			// Returns the origin of the last tile retrieved from next()
 			virtual gmtry2i::vector2i last_origin() = 0;
+			// Returns a bounds on all of the outgoing tiles
 			virtual gmtry2i::aligned_box2i get_bounds() = 0;
+			// Sets a bounds on the outgoing tiles. Detail beyond the tile level may be ignored
+			virtual void set_bounds(const gmtry2i::aligned_box2i& new_bounds) = 0;
 	};
 
 	template <unsigned int log2_w>
-	void WriteImage(bimage& img, btile_istream<log2_w>* tiles) {
+	void WriteImage(bimage& img, btile_stream<log2_w>* tiles) {
 		btile<log2_w>* tile;
 		while (tile = tiles->next()) 
 			if (gmtry2i::contains(img.bounds, tiles->last_origin())) 
@@ -185,14 +201,15 @@ namespace ocpncy {
 	}
 
 	template <unsigned int log2_w, typename T>
-	class occ_mat_iterator : public btile_istream<log2_w> {
+	class mat_tile_stream : public btile_stream<log2_w> {
 		private:
 			T* mat;
 			unsigned int dims[2];
 			gmtry2i::vector2i origin;
 			btile<log2_w> last_tile;
-			// all geometric objects below are positioned relative to mat_bounds
+			// all geometric objects below are positioned relative to origin
 			gmtry2i::aligned_box2i mat_bounds;
+			gmtry2i::aligned_box2i bounds;
 			gmtry2i::vector2i tilewise_origin;
 			gmtry2i::vector2i tile_origin;
 			gmtry2i::vector2i last_tile_origin;
@@ -200,27 +217,29 @@ namespace ocpncy {
 			void reset() {
 				tile_origin = tilewise_origin;
 			}
-			occ_mat_iterator(T* T_mat, unsigned int width, unsigned int height, 
+			mat_tile_stream(T* T_mat, unsigned int width, unsigned int height, 
 							 const gmtry2i::vector2i& mat_origin, const gmtry2i::vector2i& any_tile_origin) {
 				mat = T_mat;
 				dims[0] = width;
 				dims[1] = height;
 				origin = mat_origin;
 				mat_bounds = gmtry2i::aligned_box2i(gmtry2i::vector2i(), gmtry2i::vector2i(width, height));
-				tilewise_origin = ((((mat_origin - any_tile_origin) >> log2_w) << log2_w) + any_tile_origin) - mat_origin;
+				bounds = mat_bounds;
+				tilewise_origin = align_down<log2_w>(mat_origin, any_tile_origin) - mat_origin;
+				// = align_down<log2_w>(bounds.min, any_tile_origin - mat_origin);
 				reset();
 			}
 			btile<log2_w>* next() {
-				if (tile_origin.y >= mat_bounds.max.y) return 0;
+				if (tile_origin.y >= bounds.max.y) return 0;
 				btile<log2_w> tile = btile<log2_w>();
-				gmtry2i::aligned_box2i readbox = gmtry2i::intersection(mat_bounds, gmtry2i::aligned_box2i(tile_origin, 1 << log2_w));
+				gmtry2i::aligned_box2i readbox = gmtry2i::intersection(bounds, gmtry2i::aligned_box2i(tile_origin, 1 << log2_w));
 				for (int x = readbox.min.x; x < readbox.max.x; x++)
 					for (int y = readbox.min.y; y < readbox.max.y; y++)
 						if (mat[x + y * dims[0]])
 							set_bit(x - tile_origin.x, y - tile_origin.y, tile, true);
 				last_tile_origin = tile_origin;
 				tile_origin.x += 1 << log2_w;
-				if (tile_origin.x >= mat_bounds.max.x) {
+				if (tile_origin.x >= bounds.max.x) {
 					tile_origin.x = tilewise_origin.x;
 					tile_origin.y += 1 << log2_w;
 				}
@@ -231,7 +250,11 @@ namespace ocpncy {
 				return last_tile_origin + origin;
 			}
 			gmtry2i::aligned_box2i get_bounds() {
-				return mat_bounds + origin;
+				return bounds + origin;
+			}
+			void set_bounds(const gmtry2i::aligned_box2i& new_bounds) {
+				bounds = gmtry2i::intersection(mat_bounds, new_bounds - origin);
+				tilewise_origin = align_down<log2_w>(bounds.min, tilewise_origin);
 			}
 	};
 
@@ -253,30 +276,24 @@ namespace ocpncy {
 	}
 
 	/*
-	* Holds information about a map
-	* log2_tile_w: the base-2 logarithm of the tile width (must be >= 3)
+	* Holds information about a map item
 	* depth: depth of the map (# of layers in the map above the tile layer)
 	* origin: origin (bottom left corner position) of map
 	*/
-	template <unsigned int log2_w>
-	struct bmap_info {
-		unsigned int log2_tile_w = log2_w;
-		unsigned int depth = 0;
+	struct bmap_item_info {
 		gmtry2i::vector2i origin;
-		bmap_info() {
-			unsigned int log2_tile_w = log2_w;
-			depth = 0;
+		unsigned int depth;
+		bmap_item_info() {
 			origin = gmtry2i::vector2i();
-		}
-		bmap_info(const gmtry2i::vector2i map_origin) {
-			unsigned int log2_tile_w = log2_w;
 			depth = 0;
-			origin = map_origin;
 		}
-		bmap_info(unsigned int map_depth, const gmtry2i::vector2i map_origin) {
-			unsigned int log2_tile_w = log2_w;
-			depth = map_depth;
+		bmap_item_info(const gmtry2i::vector2i map_origin) {
 			origin = map_origin;
+			depth = 0;
+		}
+		bmap_item_info(const gmtry2i::vector2i map_origin, unsigned int map_depth) {
+			origin = map_origin;
+			depth = map_depth;
 		}
 	};
 
@@ -284,27 +301,22 @@ namespace ocpncy {
 	* Holds main copy of map data
 	* All map data is properly disposed of when the map is deleted
 	* info: holds the depth and origin of the root
-	* root: root item of map (a tree if depth > 0 or tile if depth == 0)
+	* root: non-null btile_tree pointer
 	*/
 	template <unsigned int log2_w>
 	struct bmap {
-		bmap_info<log2_w> info;
-		void* root = 0;
+		bmap_item_info info;
+		btile_tree* root;
 		bmap() {
-			info = bmap_info<log2_w>(gmtry2i::vector2i());
-			root = new btile<log2_w>();
+			info = bmap_item_info(gmtry2i::vector2i(), 1);
+			root = new btile_tree();
 		}
 		bmap(const gmtry2i::vector2i& origin) {
-			info = bmap_info<log2_w>(origin);
-			root = new btile<log2_w>();
-		}
-		bmap(const bmap_info<log2_w> map_info, void* map_root) {
-			info = map_info;
-			root = map_root;
+			info = bmap_item_info(origin, 1);
+			root = new btile_tree();
 		}
 		~bmap() {
 			delete_bmap_item<log2_w>(root, info.depth);
-			root = 0;
 		}
 	};
 
@@ -312,6 +324,7 @@ namespace ocpncy {
 	* Temporarily holds information about a part of the map (either a tree or a tile)
 	* Holds same data as a map, but it shouldn't be used to hold the primary pointers to things
 	*		When deleted, the actual item isn't deleted
+	* Ptr is always non-null, and the item it points to can have any depth
 	*/
 	template <unsigned int log2_w>
 	struct bmap_item {
@@ -337,60 +350,73 @@ namespace ocpncy {
 	};
 
 	template <unsigned int log2_w>
-	inline gmtry2i::aligned_box2i get_bmap_bounds(const bmap<log2_w>* map) {
-		return gmtry2i::aligned_box2i(map->info.origin, 1 << (map->info.depth + log2_w));
-	}
-
-	template <unsigned int log2_w>
 	inline gmtry2i::aligned_box2i get_bmap_item_bounds(const bmap_item<log2_w>& item) {
 		return gmtry2i::aligned_box2i(item.origin, 1 << (item.depth + log2_w));
 	}
 
 	template <unsigned int log2_w>
-	class bmap_item_iterator : public btile_istream<log2_w> {
-		private:
-			bmap_item<log2_w> item;
-			btile_tree** parents;
+	inline gmtry2i::aligned_box2i get_bmap_item_bounds(const bmap_item_info& info) {
+		return gmtry2i::aligned_box2i(info.origin, 1 << (info.depth + log2_w));
+	}
+
+	template <unsigned int log2_w>
+	class bmap_tile_stream : public btile_stream<log2_w> {
+		protected:
+			bmap_item_info info;
+			void** items;
 			gmtry2i::vector2i* origins;
 			unsigned int* branch_indices;
-			unsigned int current_level = 0;
+			unsigned int current_level;
+			gmtry2i::aligned_box2i bounds;
+			void update_next_item() {
+				items[current_level + 1] = static_cast<btile_tree*>(items[current_level])->branch[branch_indices[current_level]];
+			}
+			btile<log2_w>* next_tile() {
+				return static_cast<btile<log2_w>*>(items[current_level + 1]);
+			}
 		public:
 			void reset() {
-				if (item.depth) parents[0] = static_cast<btile_tree*>(item.ptr);
-				origins[0] = item.origin;
-				branch_indices[0] = 0;
+				origins[0] = info.origin;
+				branch_indices[0] = 0; 
+				current_level = 0;
 			}
-			bmap_item_iterator(const bmap_item<log2_w> new_item) {
-				item = new_item;
-				parents = new btile_tree * [item.depth];
+			bmap_tile_stream(const bmap_item<log2_w>& item) {
+				info.origin = item.origin;
+				info.depth = item.depth;
+				items = new void * [item.depth + 1];
+				items[0] = item.ptr;
 				origins = new gmtry2i::vector2i[item.depth + 1];
 				branch_indices = new unsigned int[item.depth];
+				bounds = get_bmap_item_bounds(item);
 				reset();
 			}
 			btile<log2_w>* next() {
-				if (item.depth == 0) {
+				if (info.depth == 0) {
 					if (branch_indices[0]) return 0;
 					else {
 						branch_indices[0]++;
-						return static_cast<btile<log2_w>*>(item.ptr);
+						return static_cast<btile<log2_w>*>(items[0]);
 					}
 				}
 				unsigned int current_depth;
 				while (branch_indices[0] < 4) {
 					if (branch_indices[current_level] > 3) branch_indices[--current_level]++;
 					else {
-						if (parents[current_level]->branch[branch_indices[current_level]]) {
-							current_depth = item.depth - current_level;
-							origins[current_level + 1] = origins[current_level]
-								+ gmtry2i::vector2i(branch_indices[current_level] & 1, branch_indices[current_level] >> 1)
-								* (1 << (current_depth + log2_w - 1));
+						current_depth = info.depth - current_level;
+						origins[current_level + 1] = origins[current_level]
+							+ gmtry2i::vector2i(branch_indices[current_level] & 1, branch_indices[current_level] >> 1)
+							* (1 << (current_depth + log2_w - 1));
+						update_next_item();
+						if (items[current_level + 1] && gmtry2i::area(gmtry2i::intersection(bounds,
+														gmtry2i::aligned_box2i(origins[current_level + 1], 1 << (current_depth + log2_w))))) {
 							if (current_depth == 1) {
-								btile<log2_w>* tile = static_cast<btile<log2_w>*>(parents[current_level]->branch[branch_indices[current_level]]);
+								btile<log2_w>* tile = next_tile();
 								branch_indices[current_level]++;
+								std::cout << "Tile streamed out at " << gmtry2i::to_string(origins[current_level + 1]) << std::endl; //test
+								PrintTile(*tile); //test
 								return tile;
 							}
 							else {
-								parents[current_level + 1] = static_cast<btile_tree*>(parents[current_level]->branch[branch_indices[current_level]]);
 								branch_indices[current_level + 1] = 0;
 								current_level++;
 							}
@@ -404,11 +430,16 @@ namespace ocpncy {
 				return origins[current_level + 1];
 			}
 			gmtry2i::aligned_box2i get_bounds() {
-				return get_bmap_item_bounds(item);
+				return bounds;
 			}
-			~bmap_item_iterator() {
-				for (int i = 0; i < item.depth; i++) parents[i] = 0;
-				delete[] parents;
+			void set_bounds(const gmtry2i::aligned_box2i& new_bounds) {
+				bounds = gmtry2i::intersection(get_bmap_item_bounds<log2_w>(info), 
+											   gmtry2i::aligned_box2i(align_down<log2_w>(new_bounds.min, info.origin), 
+																	  align_up<log2_w>(new_bounds.max, info.origin)));
+			}
+			~bmap_tile_stream() {
+				for (int i = 0; i < info.depth; i++) items[i] = 0;
+				delete[] items;
 				delete[] origins;
 				delete[] branch_indices;
 			}
@@ -420,7 +451,7 @@ namespace ocpncy {
 	template <unsigned int log2_w>
 	void PrintItem(const bmap_item<log2_w>& item) {
 		bimage img(log2_w, item.depth, item.origin);
-		bmap_item_iterator<log2_w> iterator(item);
+		bmap_tile_stream<log2_w> iterator(item);
 		WriteImage(img, &iterator);
 		PrintImage(img);
 	}
@@ -430,7 +461,7 @@ namespace ocpncy {
 	*/
 	template <unsigned int log2_w>
 	void expand_bmap(bmap<log2_w>* map, const gmtry2i::vector2i& direction) {
-		long map_init_width = 1 << (map->info.depth + map->info.log2_tile_w);
+		long map_init_width = 1 << (map->info.depth + log2_w);
 		unsigned int old_root_index = (direction.x < 0) + 2 * (direction.y < 0);
 		btile_tree* new_root = new btile_tree();
 		new_root->branch[old_root_index] = map->root;
@@ -444,10 +475,10 @@ namespace ocpncy {
 	*/
 	template <unsigned int log2_w>
 	void fit_bmap(bmap<log2_w>* map, const gmtry2i::vector2i p) {
-		gmtry2i::aligned_box2i alloc_box = get_bmap_bounds(map);
+		gmtry2i::aligned_box2i alloc_box = get_bmap_item_bounds<log2_w>(map->info);
 		while (!gmtry2i::contains(alloc_box, p)) {
 			expand_bmap(map, p - gmtry2i::center(alloc_box));
-			alloc_box = get_bmap_bounds(map);
+			alloc_box = get_bmap_item_bounds<log2_w>(map->info);
 		}
 	}
 
@@ -456,26 +487,26 @@ namespace ocpncy {
 	*/
 	template <unsigned int log2_w>
 	void fit_bmap(bmap<log2_w>* map, const gmtry2i::aligned_box2i box) {
-		gmtry2i::aligned_box2i alloc_box = get_bmap_bounds(map);
+		gmtry2i::aligned_box2i alloc_box = get_bmap_item_bounds<log2_w>(map->info);
 		gmtry2i::vector2i box_center = gmtry2i::center(box);
 		while (!gmtry2i::contains(alloc_box, box)) {
 			expand_bmap(map, box_center - gmtry2i::center(alloc_box));
-			alloc_box = get_bmap_bounds(map);
+			alloc_box = get_bmap_item_bounds<log2_w>(map->info);
 		}
 	}
 
 	/*
-	* Returns the virtual item (has no pointer) from the map that most closely fits the item with the given bounds
-	* Returns a null item (all 0s) if the map does not contain the item's boundary box
+	* Returns the info of the virtual item from the map that most closely fits the item with the given bounds
+	* Returns a null item info (all 0s) if the map does not contain the item's boundary box
 	* DOES NOT AUTOMATICALLY MODIFY MAP TO FIT THE ITEM
 	*/
 	template <unsigned int log2_w>
-	bmap_item<log2_w> get_matching_virtual_bmap_item(const bmap_info<log2_w>& map_info, const gmtry2i::aligned_box2i& item_box) {
-		bmap_item<log2_w> virtual_item = bmap_item<log2_w>();
-		bmap_item<log2_w> next_virtual_item(map_info.origin, map_info.depth);
+	bmap_item_info get_matching_virtual_bmap_item_info(const bmap_item_info& item_info, const gmtry2i::aligned_box2i& item_box) {
+		bmap_item_info virtual_item = bmap_item_info();
+		bmap_item_info next_virtual_item(item_info.origin, item_info.depth);
 		unsigned int next_branch_index;
 		unsigned int hwidth = 1 << (next_virtual_item.depth + log2_w - 1);
-		while (gmtry2i::contains(get_bmap_item_bounds(next_virtual_item), item_box)) {
+		while (gmtry2i::contains(get_bmap_item_bounds<log2_w>(next_virtual_item), item_box)) {
 			virtual_item = next_virtual_item;
 			next_branch_index = (item_box.min.x - virtual_item.origin.x >= hwidth) + 2 * (item_box.min.y - virtual_item.origin.y >= hwidth);
 			next_virtual_item.depth = virtual_item.depth - 1;
@@ -490,9 +521,9 @@ namespace ocpncy {
 	* DOES NOT AUTOMATICALLY MODIFY THE MAP
 	*/
 	template <unsigned int log2_w>
-	bmap_item<log2_w> get_bmap_item(const bmap<log2_w>* map, const gmtry2i::vector2i& p, unsigned int depth) {
+	bmap_item<log2_w> get_bmap_item(const bmap_item<log2_w>& src, const gmtry2i::vector2i& p, unsigned int depth) {
 		bmap_item<log2_w> item = bmap_item<log2_w>();
-		bmap_item<log2_w> next_item(map->root, map->info.origin, map->info.depth);
+		bmap_item<log2_w> next_item = src;
 		unsigned int next_branch_index;
 		unsigned int hwidth = (1 << (next_item.depth + log2_w)) >> 1;
 		while (next_item.ptr && next_item.depth > depth) {
@@ -508,13 +539,13 @@ namespace ocpncy {
 
 	/*
 	* Allocates an item in the map at the desired position and depth and retrieves it
-	* Extends branches as necessary
-	* DOES NOT AUTOMATICALLY EXPAND MAP TO FIT THE POINT
+	* Returns a null item (all 0s) if the map does not contain the item's boundary box
+	* DOES NOT AUTOMATICALLY MODIFY MAP TO FIT THE ITEM
 	*/
 	template <unsigned int log2_w>
-	bmap_item<log2_w> alloc_bmap_item(bmap<log2_w>* map, const gmtry2i::vector2i& p, unsigned int depth) {
+	bmap_item<log2_w> alloc_bmap_item(bmap_item<log2_w> src, const gmtry2i::vector2i& p, unsigned int depth) {
 		bmap_item<log2_w> item = bmap_item<log2_w>();
-		bmap_item<log2_w> next_item = get_bmap_item(map, p, depth);
+		bmap_item<log2_w> next_item = get_bmap_item(src, p, depth);
 		unsigned int next_branch_index;
 		unsigned int hwidth = (1 << (next_item.depth + log2_w)) >> 1;
 		while (next_item.depth > depth) {
@@ -537,19 +568,20 @@ namespace ocpncy {
 	* Automatically expands the map or extends its branches such that it will contain all tiles from the item
 	*/
 	template <unsigned int log2_w>
-	void set_bmap_item(bmap<log2_w>* dst, btile_istream<log2_w>* src, btile_write_mode mode) {
+	void set_bmap_tiles(bmap<log2_w>* dst, btile_stream<log2_w>* src, btile_write_mode mode) {
+		if (gmtry2i::area(src->get_bounds()) == 0) return;
 		fit_bmap(dst, src->get_bounds());
-		bmap_item<log2_w> virtual_min_dst_item = get_matching_virtual_bmap_item(dst->info, src->get_bounds());
-		bmap_item<log2_w> min_dst_item = alloc_bmap_item(dst, virtual_min_dst_item.origin, virtual_min_dst_item.depth);
-		bmap<log2_w> min_dst(bmap_info<log2_w>(min_dst_item.depth, min_dst_item.origin), min_dst_item.ptr);
+		bmap_item_info virtual_min_dst_item = get_matching_virtual_bmap_item_info<log2_w>(dst->info, src->get_bounds());
+		std::cout << "Virtual destination: " << virtual_min_dst_item.depth << "; " << gmtry2i::to_string(virtual_min_dst_item.origin) << std::endl; //test
+		bmap_item<log2_w> min_dst_item = bmap_item<log2_w>(dst);
+		bmap_item<log2_w> min_dst = alloc_bmap_item(min_dst_item, virtual_min_dst_item.origin, virtual_min_dst_item.depth);
 		btile<log2_w>* tile;
 		btile<log2_w>* map_tile;
 		while (tile = src->next()) {
-			map_tile = static_cast<btile<log2_w>*>(alloc_bmap_item(dst, src->last_origin(), 0).ptr);
+			map_tile = static_cast<btile<log2_w>*>(alloc_bmap_item(min_dst, src->last_origin(), 0).ptr);
 			if (mode) *map_tile += *tile;
 			else *map_tile = *tile;
 		}
-		min_dst.root = 0;
 	}
 
 	template <unsigned int log2_w>
@@ -563,9 +595,11 @@ namespace ocpncy {
 
 			/*
 			* Reads the pre-existing item, which contains the given position, that is closest to the given depth
-			* Return false if no item contains the position
+			* Returns false if the position lies outside the map's bounds
 			*/
 			virtual bool read(const gmtry2i::vector2i& p, unsigned int depth, bmap<log2_w>* dst) = 0;
+
+			virtual bool read(const gmtry2i::aligned_box2i& box, btile_stream<log2_w>** dst) = 0;
 
 			/*
 			* Retrieves a reference to the stream's read mode (whether to add to or overwrite the map being read to)
@@ -591,7 +625,7 @@ namespace ocpncy {
 			* Writes every tile from the tile stream to the map, assuming only tile-level allignment
 			* Expands or extends map as necessary
 			*/
-			virtual bool write(btile_istream<log2_w>* src) = 0;
+			virtual bool write(btile_stream<log2_w>* src) = 0;
 
 			/*
 			* Retrieves a reference to the stream's write mode (whether to add to or overwrite the map being written to)
@@ -610,7 +644,8 @@ namespace ocpncy {
 			* size: size of file
 			*/
 			struct bmap_file_header {
-				bmap_info<log2_w> info;
+				bmap_item_info info;
+				unsigned int log2_tile_w;
 				unsigned long root;
 				unsigned long size;
 			};
@@ -663,6 +698,7 @@ namespace ocpncy {
 			index_tree* indices;
 			btile_write_mode readmode;
 			btile_write_mode writemode;
+			const btile<log2_w> blank = btile<log2_w>();
 
 			inline void read_file(void* dst, unsigned long pos, unsigned long len) {
 				file.seekg(pos);
@@ -681,24 +717,30 @@ namespace ocpncy {
 				std::cout << "New file size: " << map_header.size << std::endl; //test
 			}
 			inline void write_branch(unsigned long new_branch, unsigned int branch_index, unsigned long tree_pos) {
+				std::cout << new_branch << " written to branch " << branch_index << " of tree at " << tree_pos << std::endl; //test
 				file.seekp(tree_pos + sizeof(new_branch) * branch_index);
 				file.write(reinterpret_cast<char*>(&new_branch), sizeof(new_branch));
 			}
 			inline void write_tile(const btile<log2_w>* src, unsigned long pos) {
+				std::cout << "Tile written to file at " << pos << ":" << std::endl; //test
 				if (writemode) {
 					btile<log2_w> current_tile = btile<log2_w>();
 					read_file(&current_tile, pos, sizeof(btile<log2_w>));
 					current_tile += *src;
 					write_file(&current_tile, pos, sizeof(btile<log2_w>));
+					PrintTile(current_tile);
 				}
-				else write_file(src, pos, sizeof(btile<log2_w>));
+				else {
+					write_file(src, pos, sizeof(btile<log2_w>));
+					PrintTile(*src);
+				}
 			}
 			inline gmtry2i::aligned_box2i get_map_bounds() {
 				return gmtry2i::aligned_box2i(map_header.info.origin, 
-					1 << (map_header.info.depth + map_header.info.log2_tile_w));
+					1 << (map_header.info.depth + log2_w));
 			}
 			void expand_map(const gmtry2i::vector2i& direction) {
-				long map_init_width = 1 << (map_header.info.depth + map_header.info.log2_tile_w);
+				long map_init_width = 1 << (map_header.info.depth + log2_w);
 				unsigned int old_root_index = (direction.x < 0) + 2 * (direction.y < 0);
 				index_tree* new_root = new index_tree(map_header.size);
 				new_root->branch[old_root_index] = indices;
@@ -741,7 +783,7 @@ namespace ocpncy {
 				return item_index(indices, map_header.info.depth, map_header.info.origin);
 			}
 			/*
-			* Returns the indexed item under start containing the point and closest to the desired depth
+			* Returns the indexed item closest to the desired depth that contains the given point and is descended from start
 			* Returns a real item if start is real, although it won't contain the point if start doesn't contain the point
 			*/
 			item_index indexed_item_at_depth(const item_index& start, const gmtry2i::vector2i& p, unsigned int depth) {
@@ -761,7 +803,7 @@ namespace ocpncy {
 				return (next_item.tree && next_item.tree->pos) ? next_item : item;
 			}
 			/*
-			* Returns the existing item under start containing the point and closest to the desired depth
+			* Returns the pre-existing item closest to the desired depth that contains the given point and is descended from start
 			* Returns a real item if start is real, although it won't contain the point if start doesn't contain the point
 			*/
 			item_index seek_item_at_depth(const item_index& start, const gmtry2i::vector2i& p, unsigned int depth) {
@@ -799,34 +841,28 @@ namespace ocpncy {
 				item.origin += gmtry2i::vector2i(next_branch_idx & 1, next_branch_idx >> 1) * hwidth;
 				hwidth >>= 1;
 				while (item.depth > depth) {
-					unsigned long branches[4] = { 0 };
+					unsigned long branches[4] = { 0, 0, 0, 0 };
 					next_branch_idx = (p.x - item.origin.x >= hwidth) + 2 * (p.y - item.origin.y >= hwidth);
 					branches[next_branch_idx] = map_header.size + branches_size;
 					append_file(branches, branches_size);
-					std::cout << "File appended with new tree!" << std::endl; //test
+					std::cout << "File appended with tree at " << (branches[next_branch_idx] - branches_size) << ":" << std::endl; //test
+					std::cout << "{ " << branches[0] << ", " << branches[1] << ", " << branches[2] << ", " << branches[3] << " }" << std::endl; //test
 					for (int i = 0; i < 4; i++) item.tree->branch[i] = new index_tree(branches[i]);
 					item.tree = item.tree->branch[next_branch_idx];
 					item.depth -= 1;
 					item.origin += gmtry2i::vector2i(next_branch_idx & 1, next_branch_idx >> 1) * hwidth;
 					hwidth >>= 1;
 				}
-				if (depth) {
-					unsigned long final_branches[4] = { 0 };
-					append_file(final_branches, branches_size);
-				} 
-				else if (writemode) {
-					btile<log2_w> blanktile = btile<log2_w>();
-					append_file(&blanktile, sizeof(blanktile));
-				}
-				else map_header.size += sizeof(btile<log2_w>);
+				append_file(&blank, depth ? branches_size : sizeof(btile<log2_w>));
 				return item;
 			}
 			void* build_item(const item_index& item) {
 				if (item.tree == 0 || item.tree->pos == 0) return 0;
 				if (item.depth == 0) {
-					std::cout << "Tile Built!" << std::endl; //test
+					std::cout << "Tile built from " << item.tree->pos << ":" << std::endl; //test
 					btile<log2_w>* tile = new btile<log2_w>();
 					read_file(tile, item.tree->pos, sizeof(btile<log2_w>));
+					PrintTile(*tile); //test
 					return tile;
 				}
 				else {
@@ -842,6 +878,38 @@ namespace ocpncy {
 					return item_tree;
 				}
 			}
+			/*
+			class bmap_fstream_tile_stream : public bmap_tile_stream<log2_w> {
+				protected:
+					bmap_fstream* src;
+					btile<log2_w> last_tile;
+					void update_next_item() {
+						index_tree* current = static_cast<index_tree*>(items[current_level]);
+						if (current->branch[0] == 0) {
+							unsigned long branches[4] = { 0 };
+							src->read_file(branches, current->pos, 4 * sizeof(unsigned long));
+							for (int i = 0; i < 4; i++) current->branch[i] = new index_tree(branches[i]);
+						}
+						items[current_level + 1] = current->branch[branch_indices[current_level]];
+						if (items[current_level + 1]->pos == 0) items[current_level + 1] = 0;
+					}
+					btile<log2_w>* next_tile() {
+						src->read_file(&last_tile, static_cast<index_tree*>(items[current_level + 1])->pos, sizeof(last_tile));
+						return &last_tile;
+					}
+				public:
+					bmap_fstream_tile_stream(item_index item) {
+						info.origin = item.origin;
+						info.depth = item.depth;
+						items = new void* [item.depth + 1];
+						items[0] = item.tree;
+						origins = new gmtry2i::vector2i[item.depth + 1];
+						branch_indices = new unsigned int[item.depth];
+						bounds = get_bmap_item_bounds(item);
+						reset();
+					}
+			};
+			*/
 
 		public:
 			bmap_fstream(const std::string& fname, const gmtry2i::vector2i& origin) {
@@ -852,12 +920,14 @@ namespace ocpncy {
 					fopen_s(&tmp_file, file_name.c_str(), "w");
 					fclose(tmp_file);
 					file.open(file_name);
-					map_header.info = bmap_info<log2_w>(origin);
+					map_header.info = bmap_item_info(origin, 0); // 1
+					map_header.log2_tile_w = log2_w;
 					map_header.root = sizeof(bmap_file_header);
 					map_header.size = sizeof(bmap_file_header);
 					write_file(&map_header, 0, sizeof(bmap_file_header));
-					btile<log2_w> tile0 = btile<log2_w>();
-					append_file(&tile0, sizeof(tile0));
+					//unsigned long root_branches[4] = { 0, 0, 0, 0 };
+					//append_file(root_branches, 4 * sizeof(unsigned long));
+					append_file(&blank, sizeof(blank));
 					std::cout << "File created!" << std::endl; //test
 				}
 				else {
@@ -867,14 +937,14 @@ namespace ocpncy {
 				if (!(file.is_open())) throw - 1;
 
 
-				std::cout << "Recorded log2_tile_w: " << map_header.info.log2_tile_w << std::endl; //test
+				std::cout << "Recorded log2_tile_w: " << map_header.log2_tile_w << std::endl; //test
 				std::cout << "Recorded depth: " << map_header.info.depth << std::endl; //test
 				std::cout << "Recorded origin: " << map_header.info.origin.x << ", " << map_header.info.origin.y << std::endl; //test
 				std::cout << "Recorded root: " << map_header.root << std::endl; //test
 				std::cout << "Recorded file length: " << map_header.size << std::endl; //test
 
 
-				if (log2_w != map_header.info.log2_tile_w) throw - 2;
+				if (log2_w != map_header.log2_tile_w) throw - 2;
 				if (map_header.size < sizeof(bmap_file_header)) throw - 4;
 
 				readmode = BTILE_OVERWRITE_MODE;
@@ -899,11 +969,14 @@ namespace ocpncy {
 				if (!gmtry2i::contains(get_map_bounds(), p)) return false;
 				item_index deepest_item = seek_item_at_depth(get_top_item(), p, depth);
 				if (deepest_item.depth == depth) {
-					bmap_item_iterator<log2_w> iterator(bmap_item<log2_w>(build_item(deepest_item), deepest_item.origin, deepest_item.depth));
-					set_bmap_item(dst, &iterator, readmode);
+					bmap_tile_stream<log2_w> iterator(bmap_item<log2_w>(build_item(deepest_item), deepest_item.origin, deepest_item.depth));
+					set_bmap_tiles(dst, &iterator, readmode);
 					return true;
 				}
 				else return false;
+			}
+			bool read(const gmtry2i::aligned_box2i& box, btile_stream<log2_w>** dst) {
+				return false;
 			}
 			bool write(const gmtry2i::vector2i& p, const btile<log2_w>* src) {
 				if (!(file.is_open())) return false;
@@ -913,14 +986,15 @@ namespace ocpncy {
 				std::cout << "File appended with new tile!" << std::endl; //test
 				return true;
 			}
-			bool write(btile_istream<log2_w>* src) {
+			bool write(btile_stream<log2_w>* src) {
 				if (!(file.is_open())) return false;
+				if (gmtry2i::area(src->get_bounds()) == 0) return true;
 				fit_map(src->get_bounds());
-				bmap_item<log2_w> virtual_min_dst = get_matching_virtual_bmap_item(map_header.info, src->get_bounds());
+				bmap_item_info virtual_min_dst = get_matching_virtual_bmap_item_info<log2_w>(map_header.info, src->get_bounds());
 				item_index min_dst = alloc_item_at_depth(get_top_item(), virtual_min_dst.origin, virtual_min_dst.depth);
 				btile<log2_w>* tile;
 				item_index map_tile;
-				while (tile = src->next()) if (*tile) {
+				while (tile = src->next()) if (exists(*tile)) {
 					map_tile = alloc_item_at_depth(min_dst, src->last_origin(), 0);
 					write_tile(tile, map_tile.tree->pos);
 				}

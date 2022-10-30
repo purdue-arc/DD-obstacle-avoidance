@@ -91,7 +91,7 @@ int render_forgy() {
 	forgy[7 + (ovaly - 1) * forgydims[0]] = true;
 	forgy[8 + (ovaly - 1) * forgydims[0]] = true;
 
-	ocpncy::occ_mat_iterator<4, bool> iterator(forgy, forgydims[0], forgydims[1], forgyorigin, gmtry2i::vector2i(42, 35));
+	ocpncy::mat_tile_stream<4, bool> iterator(forgy, forgydims[0], forgydims[1], forgyorigin, gmtry2i::vector2i(42, 35));
 	ocpncy::bimage img(4, 2, gmtry2i::vector2i(42 - 16 * 7, 35 - 16 * 4));
 	WriteImage(img, &iterator);
 	// Prints X at min point (inclusive)
@@ -143,36 +143,6 @@ int occupancy_test0() { // PASSED!
 	return 0;
 }
 
-// Reads the mymap file's bmap_file_header without going through the bmap_fstream
-int occupancy_test1() { // PASSED!
-	std::cout << "OCCUPANCY TEST 1" << std::endl;
-	FILE* file;
-	fopen_s(&file, "mymap", "r");
-	if (file == 0) return -1;
-
-	ocpncy::bmap_info<3> info;
-	fseek(file, 0, SEEK_SET);
-	fread(&info, 1, sizeof(info), file);
-	std::cout << "Recorded log2_tile_w: " << info.log2_tile_w << std::endl;
-	std::cout << "Recorded depth: " << info.depth << std::endl;
-	std::cout << "Recorded origin: " << info.origin.x << ", " << info.origin.y << std::endl;
-
-	unsigned long root;
-	fread(&root, 1, sizeof(root), file);
-	std::cout << "Recorded root: " << root << std::endl;
-
-	unsigned long size;
-	fread(&size, 1, sizeof(size), file);
-	std::cout << "Recorded file size: " << size << std::endl;
-
-	fpos_t final_position;
-	fgetpos(file, &final_position);
-	std::cout << "Position of tile0: " << final_position << std::endl;
-
-	fclose(file);
-	return 0;
-}
-
 // RUN AFTER TEST 0
 // Reads the mymap file and prints part of its contents
 int occupancy_test2() { // PASSED!
@@ -220,7 +190,7 @@ int occupancy_test4() { // PASSED!
 	ocpncy::bmap<4> map(mapstream.get_bounds().min);
 
 	std::cout << "Reading Success: " << mapstream.read(gmtry2i::vector2i(-20, 0), 2, &map) << std::endl;
-	ocpncy::bmap_item<4> item = ocpncy::alloc_bmap_item(&map, (cattileorigin + dogtileorigin)/2, 2);
+	ocpncy::bmap_item<4> item = ocpncy::alloc_bmap_item(ocpncy::bmap_item<4>(&map), (cattileorigin + dogtileorigin) / 2, 2);
 	std::cout << "Retrieved Item Depth: " << item.depth << std::endl;
 	std::cout << "Retrieved Item Origin: " << item.origin.x << ", " << item.origin.y << std::endl;
 	ocpncy::PrintItem(item);
@@ -238,24 +208,28 @@ int occupancy_test5() { // PASSED!
 
 	ocpncy::bmap<4> map(mapstream.get_bounds().min);
 	ocpncy::fit_bmap(&map, dogtileorigin);
-	ocpncy::bmap_item<4> map_dogtile = ocpncy::alloc_bmap_item(&map, dogtileorigin, 0);
+	ocpncy::bmap_item<4> map_dogtile = ocpncy::alloc_bmap_item(ocpncy::bmap_item<4>(&map), dogtileorigin, 0);
 	*static_cast<ocpncy::btile<4>*>(map_dogtile.ptr) = dogtile;
 	ocpncy::bmap_item<4> item(&map);
-	ocpncy::bmap_item_iterator<4> iterator(item);
+	ocpncy::bmap_tile_stream<4> iterator(item);
+	dogtileorigin = ocpncy::align_down<4>(dogtileorigin, item.origin);
+
+	std::cout << "New Dogtile Origin: " << dogtileorigin.x << ", " << dogtileorigin.y << std::endl;
+	iterator.set_bounds(gmtry2i::aligned_box2i(dogtileorigin + gmtry2i::vector2i(15, 15), dogtileorigin + gmtry2i::vector2i(1 << 4, 1 << 4)));
+	gmtry2i::aligned_box2i newbounds = iterator.get_bounds();
+	std::cout << "New Map Iterator Bounds: " << newbounds.min.x << ", " << newbounds.min.y << "; " <<
+												newbounds.max.x << ", " << newbounds.max.y << std::endl;
 
 	std::cout << "Tile to Write: " << std::endl;
 	PrintTile(dogtile);
 	std::cout << "Writing Success: " << mapstream.write(&iterator) << std::endl;
 
-	/*
 	ocpncy::delete_bmap_item<4>(map.root, map.info.depth);
-	map.root = new ocpncy::btile<4>();
-	map.info.depth = 0;
-	*/
+	map.root = new ocpncy::btile_tree();
+	map.info.depth = 1;
 
 	std::cout << "Reading Success: " << mapstream.read(dogtileorigin, 2, &map) << std::endl;
-	item = ocpncy::alloc_bmap_item(&map, dogtileorigin, 2);
-	//item = ocpncy::bmap_item<4>(map.root, map.info.origin, map.info.depth);
+	item = ocpncy::alloc_bmap_item(ocpncy::bmap_item<4>(&map), dogtileorigin, 2);
 	std::cout << "Retrieved Item Depth: " << item.depth << std::endl;
 	std::cout << "Retrieved Item Origin: " << item.origin.x << ", " << item.origin.y << std::endl;
 	ocpncy::PrintItem(item);
@@ -275,15 +249,16 @@ int occupancy_test6() { // PASSED!
 
 	std::cout << "Tiles to Write: " << std::endl;
 	render_forgy();
-	ocpncy::occ_mat_iterator<4, bool> iterator(forgy, forgydims[0], forgydims[1], forgyorigin, mapstream.get_bounds().min);
+	ocpncy::mat_tile_stream<4, bool> iterator(forgy, forgydims[0], forgydims[1], forgyorigin, mapstream.get_bounds().min);
+	//iterator.set_bounds(gmtry2i::aligned_box2i(forgyorigin + gmtry2i::vector2i(7, 0), forgyorigin + gmtry2i::vector2i(forgydims[0], forgydims[1])));
 
 	std::cout << "Writing Success: " << mapstream.write(&iterator) << std::endl;
 
 	ocpncy::bmap<4> map(mapstream.get_bounds().min);
-	ocpncy::bmap_item<4> item(&map);
+	ocpncy::bmap_item<4> item;
 
-	std::cout << "Reading Success: " << mapstream.read(gmtry2i::vector2i(-20, 0), 2, &map) << std::endl;
-	item = ocpncy::alloc_bmap_item(&map, forgyorigin, 2);
+	std::cout << "Reading Success: " << mapstream.read(dogtileorigin, 2, &map) << std::endl;
+	item = ocpncy::bmap_item<4>(&map);
 	ocpncy::PrintItem(item);
 
 	return 0;

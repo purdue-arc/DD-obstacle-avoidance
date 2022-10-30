@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 #define MIN(a, b) (a < b) ? a : b
 #define MAX(a, b) (a > b) ? a : b
 
@@ -72,6 +74,10 @@ namespace gmtry2i {
 		return vector2i(v.x < s, v.y < s);
 	}
 
+	std::string to_string(const vector2i& v) {
+		return std::to_string(v.x) + std::string(", ") + std::to_string(v.y);
+	}
+
 	struct aligned_box2i {
 		vector2i min, max;
 		aligned_box2i() = default;
@@ -102,6 +108,10 @@ namespace gmtry2i {
 		return (b1.min + b1.max) >> 1;
 	}
 
+	inline long area(const aligned_box2i& b) {
+		return (b.max.x - b.min.x) * (b.max.y - b.min.y);
+	}
+
 	inline aligned_box2i operator +(const aligned_box2i& b1, const aligned_box2i& b2) {
 		return aligned_box2i(b1.min + b2.min, b1.max + b2.max);
 	}
@@ -119,5 +129,9 @@ namespace gmtry2i {
 
 	inline aligned_box2i operator -(const aligned_box2i& b, const vector2i& v) {
 		return aligned_box2i(b.min - v, b.max - v);
+	}
+
+	std::string to_string(const aligned_box2i& b) {
+		return to_string(b.min) + std::string("; ") + to_string(b.max);
 	}
 }
