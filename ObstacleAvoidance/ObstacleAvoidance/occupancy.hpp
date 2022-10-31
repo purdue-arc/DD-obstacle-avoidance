@@ -412,8 +412,10 @@ namespace ocpncy {
 							if (current_depth == 1) {
 								btile<log2_w>* tile = next_tile();
 								branch_indices[current_level]++;
+								/*
 								std::cout << "Tile streamed out at " << gmtry2i::to_string(origins[current_level + 1]) << std::endl; //test
 								PrintTile(*tile); //test
+								*/
 								return tile;
 							}
 							else {
@@ -878,38 +880,40 @@ namespace ocpncy {
 					return item_tree;
 				}
 			}
-			/*
 			class bmap_fstream_tile_stream : public bmap_tile_stream<log2_w> {
 				protected:
 					bmap_fstream* src;
 					btile<log2_w> last_tile;
 					void update_next_item() {
-						index_tree* current = static_cast<index_tree*>(items[current_level]);
+						index_tree* current = static_cast<index_tree*>(bmap_tile_stream<log2_w>::items[bmap_tile_stream<log2_w>::current_level]);
 						if (current->branch[0] == 0) {
 							unsigned long branches[4] = { 0 };
 							src->read_file(branches, current->pos, 4 * sizeof(unsigned long));
 							for (int i = 0; i < 4; i++) current->branch[i] = new index_tree(branches[i]);
 						}
-						items[current_level + 1] = current->branch[branch_indices[current_level]];
-						if (items[current_level + 1]->pos == 0) items[current_level + 1] = 0;
+						bmap_tile_stream<log2_w>::items[bmap_tile_stream<log2_w>::current_level + 1] = 
+							current->branch[bmap_tile_stream<log2_w>::branch_indices[bmap_tile_stream<log2_w>::current_level]];
+						if (static_cast<index_tree*>(bmap_tile_stream<log2_w>::items[bmap_tile_stream<log2_w>::current_level + 1])->pos == 0)
+							bmap_tile_stream<log2_w>::items[bmap_tile_stream<log2_w>::current_level + 1] = 0;
 					}
 					btile<log2_w>* next_tile() {
-						src->read_file(&last_tile, static_cast<index_tree*>(items[current_level + 1])->pos, sizeof(last_tile));
+						src->read_file(&last_tile, 
+							static_cast<index_tree*>(bmap_tile_stream<log2_w>::items[bmap_tile_stream<log2_w>::current_level + 1])->pos, 
+							sizeof(last_tile));
 						return &last_tile;
 					}
 				public:
 					bmap_fstream_tile_stream(item_index item) {
-						info.origin = item.origin;
-						info.depth = item.depth;
-						items = new void* [item.depth + 1];
-						items[0] = item.tree;
-						origins = new gmtry2i::vector2i[item.depth + 1];
-						branch_indices = new unsigned int[item.depth];
-						bounds = get_bmap_item_bounds(item);
-						reset();
+						bmap_tile_stream<log2_w>::info.origin = item.origin;
+						bmap_tile_stream<log2_w>::info.depth = item.depth;
+						bmap_tile_stream<log2_w>::items = new void* [item.depth + 1];
+						bmap_tile_stream<log2_w>::items[0] = item.tree;
+						bmap_tile_stream<log2_w>::origins = new gmtry2i::vector2i[item.depth + 1];
+						bmap_tile_stream<log2_w>::branch_indices = new unsigned int[item.depth];
+						bmap_tile_stream<log2_w>::bounds = get_bmap_item_bounds(item);
+						bmap_tile_stream<log2_w>::reset();
 					}
 			};
-			*/
 
 		public:
 			bmap_fstream(const std::string& fname, const gmtry2i::vector2i& origin) {
@@ -976,6 +980,7 @@ namespace ocpncy {
 				else return false;
 			}
 			bool read(const gmtry2i::aligned_box2i& box, btile_stream<log2_w>** dst) {
+				// *dst = new bmap_fstream_tile_stream(get_top_item());
 				return false;
 			}
 			bool write(const gmtry2i::vector2i& p, const btile<log2_w>* src) {
