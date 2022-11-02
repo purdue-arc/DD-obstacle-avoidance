@@ -11,3 +11,6 @@ old_python_code/__pycache__
 
 # Ignoring all the dll files as size is too large and system specific (assumption)
 ObstacleAvoidance/x64/Debug/*
+
+# Ignoring .vs cache files + version control
+.vs/*
