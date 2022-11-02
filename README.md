@@ -57,7 +57,6 @@
 7) Place the file in your git repository with relative path: "\DroneDelivery\ObstacleAvoidance\x64\Debug"
 8) Finally, navigate within git repository to relative path: "\DroneDelivery\ObstacleAvoidance"
 9) Open the "ObstacleAvoidance.sln" VS project file
-10) Follow instuctions on to configure project: "https://docs.google.com/document/d/1myfsQhaJrfRXf1rcWCboaPYjYce16MSWIf7sAMnLKaw/edit?usp=sharing"
 
 ### Configuring Project Paths
 1) First, navigate to Properties (right-click on Project Name):
