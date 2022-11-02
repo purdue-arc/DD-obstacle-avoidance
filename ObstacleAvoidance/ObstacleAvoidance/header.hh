@@ -1,3 +1,7 @@
+<<<<<<< HEAD
+// Prevents multiple definitions
+=======
+>>>>>>> 739537df27c7139f8fe0150cca3e5588bedc96c3
 #pragma once
 
 // Standard Libraries
@@ -8,10 +12,17 @@
 #include <chrono>
 #include <thread>
 #include <mutex> 
+#include <malloc.h>
+#include <vector>
+#include <tuple>
+#include <limits>
 
 // Primary Libraries
 #include <librealsense2/rs.hpp>
 #include <opencv2/opencv.hpp>
+
+// Internal files
+#include "compare.cpp"
 
 // Namespaces
 using namespace std;
@@ -19,8 +30,10 @@ using namespace rs2;
 using namespace cv;
 
 // Constants
-const int WIDTH = 640;
-const int HEIGHT = 480;
+#define WIDTH (640)
+#define HEIGHT (480)
+#define ARR_SIZE (6)
+#define COST (2)
 
 // Function Prototypes
 // utils.cpp
