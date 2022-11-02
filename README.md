@@ -58,3 +58,12 @@
 8) Finally, navigate within git repository to relative path: "\DroneDelivery\ObstacleAvoidance"
 9) Open the "ObstacleAvoidance.sln" VS project file
 10) Follow instuctions on to configure project: "https://docs.google.com/document/d/1myfsQhaJrfRXf1rcWCboaPYjYce16MSWIf7sAMnLKaw/edit?usp=sharing"
+
+### Configuring Project Paths
+1) First, navigate to Properties (right-click on Project Name):
+2) Click on C/C++ and add to “Additional Include Directories” the following:
+  "C:\git\librealsense;C:\git\librealsense\build;C:\git\librealsense\include;C:\git\librealsense\third-party\glfw\include;%(AdditionalIncludeDirectories);C:\opencv\build\include"
+3) Next, navigate to linker, general and to "Additional Library Directories" add:
+  "%(AdditionalLibraryDirectories);C:\opencv\build\x64\vc15\lib"
+4) Navigate to linker, input and to "Additional Dependencies" add:
+  "C:\git\librealsense\build\Debug\realsense2d.lib;C:\git\librealsense\build\third-party\glfw\src\Debug\glfw3d.lib;opengl32.lib;glu32.lib;kernel32.lib;user32.lib;gdi32.lib;winspool.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;comdlg32.lib;advapi32.lib;$(CoreLibraryDependencies);%(AdditionalDependencies);opencv_world460d.lib"
