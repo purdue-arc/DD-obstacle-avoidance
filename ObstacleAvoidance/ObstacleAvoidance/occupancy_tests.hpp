@@ -240,7 +240,7 @@ int occupancy_test5() { // PASSED!
 // RUN AFTER TEST 3 OR 3 AND 5
 // Uses a tile stream to read tiles out from the boolean occupancy array (a matrix stored in row-major order)
 // Writes the tiles to the file as they are read out from the array
-// Reads back both the pre-existing and new parts of the map file and prints them
+// Reads back both the pre-existing and new parts of the map file to a map structure and prints them
 int occupancy_test6() { // PASSED!
 	std::cout << "OCCUPANCY TEST 6" << std::endl;
 
@@ -260,6 +260,32 @@ int occupancy_test6() { // PASSED!
 	std::cout << "Reading Success: " << mapstream.read(dogtileorigin, 2, &map) << std::endl;
 	item = ocpncy::bmap_item<4>(&map);
 	ocpncy::PrintItem(item);
+
+	return 0;
+}
+
+// RUN AFTER TEST 3 OR 3 AND 5
+// Uses a tile stream to read tiles out from the boolean occupancy array (a matrix stored in row-major order)
+// Writes the tiles to the file as they are read out from the array
+// Uses a stream to read back all of the file's tiles straight to the image before it's printed
+int occupancy_test7() {
+	std::cout << "OCCUPANCY TEST 7" << std::endl;
+
+	ocpncy::bmap_fstream<4> mapstream("mymap4", gmtry2i::vector2i());
+	mapstream.write_mode() = ocpncy::BTILE_ADD_MODE;
+
+	std::cout << "Tiles to Write: " << std::endl;
+	render_forgy();
+
+	ocpncy::mat_tile_stream<4, bool> iterator(forgy, forgydims[0], forgydims[1], forgyorigin, mapstream.get_bounds().min);
+	std::cout << "Writing Success: " << mapstream.write(&iterator) << std::endl;
+
+	ocpncy::btile_stream<4>* file_tile_stream;
+	mapstream.read(&file_tile_stream);
+	file_tile_stream->set_bounds(gmtry2i::aligned_box2i(forgyorigin, 1 << (6)));
+	
+	ocpncy::PrintItem(file_tile_stream, 2);
+	delete file_tile_stream;
 
 	return 0;
 }
