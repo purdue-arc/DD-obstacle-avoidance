@@ -1,7 +1,4 @@
-<<<<<<< HEAD
 // Prevents multiple definitions
-=======
->>>>>>> 739537df27c7139f8fe0150cca3e5588bedc96c3
 #pragma once
 
 // Standard Libraries
@@ -22,7 +19,7 @@
 #include <opencv2/opencv.hpp>
 
 // Internal files
-#include "compare.cpp"
+// #include "compare.cpp" // DOESN'T EXIST?
 
 // Namespaces
 using namespace std;
