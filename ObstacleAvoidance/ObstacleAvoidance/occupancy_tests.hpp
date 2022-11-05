@@ -92,8 +92,8 @@ int render_forgy() {
 	forgy[8 + (ovaly - 1) * forgydims[0]] = true;
 
 	ocpncy::mat_tile_stream<4, bool> iterator(forgy, forgydims[0], forgydims[1], forgyorigin, gmtry2i::vector2i(42, 35));
-	ocpncy::bimage img(4, 2, gmtry2i::vector2i(42 - 16 * 7, 35 - 16 * 4));
-	WriteImage(img, &iterator);
+	ocpncy::bimage img(4, 2, tmaps2::align_down<4>(forgyorigin, gmtry2i::vector2i(42, 35)));
+	WriteImageTiles(img, &iterator);
 	// Prints X at min point (inclusive)
 	img(iterator.get_bounds().min) = 'X';
 	// Prints X at max point (exclusive)
@@ -108,7 +108,7 @@ int render_forgy() {
 int occupancy_test0() { // PASSED!
 	std::cout << "OCCUPANCY TEST 0" << std::endl;
 	try {
-		ocpncy::bmap_fstream<3> mapstream("mymap", gmtry2i::vector2i(4, 5));
+		tmaps2::map_fstream<3, ocpncy::btile<3>> mapstream("mymap", gmtry2i::vector2i(4, 5));
 		ocpncy::btile<3> mytile;
 
 		// Running the program with enable_write = true allows it to write the smiley and frowny tiles
@@ -143,28 +143,18 @@ int occupancy_test0() { // PASSED!
 	return 0;
 }
 
-// RUN AFTER TEST 0
-// Reads the mymap file and prints part of its contents
-int occupancy_test2() { // PASSED!
-	std::cout << "OCCUPANCY TEST 2" << std::endl;
-	ocpncy::bmap_fstream<3> mapstream("mymap", gmtry2i::vector2i(4, 5));
-	ocpncy::bmap<3> map;
-
-	std::cout << "Reading Success: " << mapstream.read(gmtry2i::vector2i(0, 0), 2, &map) << std::endl;
-	ocpncy::bmap_item<3> item(map.root, map.info.origin, map.info.depth);
-	std::cout << "Retrieved Item Depth: " << item.depth << std::endl;
-	std::cout << "Retrieved Item Origin: " << item.origin.x << ", " << item.origin.y << std::endl;
-	ocpncy::PrintItem(item);
-
-	return 0;
-}
+typedef tmaps2::map_fstream<4, ocpncy::btile<4>> bmap_fstream4;
+typedef tmaps2::map<ocpncy::btile<4>> bmap4;
+typedef tmaps2::map_item<ocpncy::btile<4>> bmap_item4;
+typedef tmaps2::tile_stream<ocpncy::btile<4>> btile_stream4;
+typedef tmaps2::map_tstream<4, ocpncy::btile<4>> bmap_tstream4;
 
 // Writes cattile to the mymap4 file at (-70, 30), reads the tile back, and prints it
 int occupancy_test3() { // PASSED!
 	std::cout << "OCCUPANCY TEST 3" << std::endl;
 	render_cat();
 
-	ocpncy::bmap_fstream<4> mapstream("mymap4", gmtry2i::vector2i(42, 35));
+	bmap_fstream4 mapstream("mymap4", gmtry2i::vector2i(42, 35));
 	ocpncy::btile<4> mytile;
 
 	std::cout << "Tile to Write: " << std::endl;
@@ -186,14 +176,14 @@ int occupancy_test3() { // PASSED!
 // Reads the mymap4 file and prints part of its contents
 int occupancy_test4() { // PASSED!
 	std::cout << "OCCUPANCY TEST 4" << std::endl;
-	ocpncy::bmap_fstream<4> mapstream("mymap4", gmtry2i::vector2i());
-	ocpncy::bmap<4> map(mapstream.get_bounds().min);
+	bmap_fstream4 mapstream("mymap4", gmtry2i::vector2i());
+	bmap4 map(mapstream.get_bounds().min);
 
-	std::cout << "Reading Success: " << mapstream.read(gmtry2i::vector2i(-20, 0), 2, &map) << std::endl;
-	ocpncy::bmap_item<4> item = ocpncy::alloc_bmap_item(ocpncy::bmap_item<4>(&map), (cattileorigin + dogtileorigin) / 2, 2);
-	std::cout << "Retrieved Item Depth: " << item.depth << std::endl;
-	std::cout << "Retrieved Item Origin: " << item.origin.x << ", " << item.origin.y << std::endl;
-	ocpncy::PrintItem(item);
+	btile_stream4* file_tile_stream;
+	std::cout << "Reading Success: " << mapstream.read(&file_tile_stream) << std::endl;
+	file_tile_stream->set_bounds(gmtry2i::aligned_box2i(gmtry2i::vector2i(-20, 0), 1 << (4 + 2)));
+	ocpncy::PrintItem(tmaps2::set_map_tiles<4>(&map, file_tile_stream, tmaps2::TILE_ADD_MODE));
+	delete file_tile_stream;
 
 	return 0;
 }
@@ -204,15 +194,15 @@ int occupancy_test5() { // PASSED!
 	std::cout << "OCCUPANCY TEST 5" << std::endl;
 	render_dog();
 
-	ocpncy::bmap_fstream<4> mapstream("mymap4", gmtry2i::vector2i());
+	bmap_fstream4 mapstream("mymap4", gmtry2i::vector2i());
 
-	ocpncy::bmap<4> map(mapstream.get_bounds().min);
-	ocpncy::fit_bmap(&map, dogtileorigin);
-	ocpncy::bmap_item<4> map_dogtile = ocpncy::alloc_bmap_item(ocpncy::bmap_item<4>(&map), dogtileorigin, 0);
+	bmap4 map(mapstream.get_bounds().min);
+	tmaps2::fit_map<4>(&map, dogtileorigin);
+	bmap_item4 map_dogtile = tmaps2::alloc_map_item<4>(bmap_item4(&map), dogtileorigin, 0);
 	*static_cast<ocpncy::btile<4>*>(map_dogtile.ptr) = dogtile;
-	ocpncy::bmap_item<4> item(&map);
-	ocpncy::bmap_tile_stream<4> iterator(item);
-	dogtileorigin = ocpncy::align_down<4>(dogtileorigin, item.origin);
+	bmap_item4 item(&map);
+	bmap_tstream4 iterator(item);
+	dogtileorigin = tmaps2::align_down<4>(dogtileorigin, item.info.origin);
 
 	std::cout << "New Dogtile Origin: " << dogtileorigin.x << ", " << dogtileorigin.y << std::endl;
 	iterator.set_bounds(gmtry2i::aligned_box2i(dogtileorigin + gmtry2i::vector2i(15, 15), dogtileorigin + gmtry2i::vector2i(1 << 4, 1 << 4)));
@@ -224,42 +214,17 @@ int occupancy_test5() { // PASSED!
 	PrintTile(dogtile);
 	std::cout << "Writing Success: " << mapstream.write(&iterator) << std::endl;
 
-	ocpncy::delete_bmap_item<4>(map.root, map.info.depth);
-	map.root = new ocpncy::btile_tree();
+	tmaps2::delete_map_tree<ocpncy::btile<4>>(map.root, map.info.depth);
+	map.root = new tmaps2::map_tree();
 	map.info.depth = 1;
 
-	std::cout << "Reading Success: " << mapstream.read(dogtileorigin, 2, &map) << std::endl;
-	item = ocpncy::alloc_bmap_item(ocpncy::bmap_item<4>(&map), dogtileorigin, 2);
-	std::cout << "Retrieved Item Depth: " << item.depth << std::endl;
-	std::cout << "Retrieved Item Origin: " << item.origin.x << ", " << item.origin.y << std::endl;
-	ocpncy::PrintItem(item);
-
-	return 0;
-}
-
-// RUN AFTER TEST 3 OR 3 AND 5
-// Uses a tile stream to read tiles out from the boolean occupancy array (a matrix stored in row-major order)
-// Writes the tiles to the file as they are read out from the array
-// Reads back both the pre-existing and new parts of the map file to a map structure and prints them
-int occupancy_test6() { // PASSED!
-	std::cout << "OCCUPANCY TEST 6" << std::endl;
-
-	ocpncy::bmap_fstream<4> mapstream("mymap4", gmtry2i::vector2i());
-	mapstream.write_mode() = ocpncy::BTILE_ADD_MODE;
-
-	std::cout << "Tiles to Write: " << std::endl;
-	render_forgy();
-	ocpncy::mat_tile_stream<4, bool> iterator(forgy, forgydims[0], forgydims[1], forgyorigin, mapstream.get_bounds().min);
-	//iterator.set_bounds(gmtry2i::aligned_box2i(forgyorigin + gmtry2i::vector2i(7, 0), forgyorigin + gmtry2i::vector2i(forgydims[0], forgydims[1])));
-
-	std::cout << "Writing Success: " << mapstream.write(&iterator) << std::endl;
-
-	ocpncy::bmap<4> map(mapstream.get_bounds().min);
-	ocpncy::bmap_item<4> item;
-
-	std::cout << "Reading Success: " << mapstream.read(dogtileorigin, 2, &map) << std::endl;
-	item = ocpncy::bmap_item<4>(&map);
-	ocpncy::PrintItem(item);
+	btile_stream4* file_tile_stream;
+	std::cout << "Reading Success: " << mapstream.read(&file_tile_stream) << std::endl;
+	file_tile_stream->set_bounds(gmtry2i::aligned_box2i(dogtileorigin, 1 << (4 + 2)));
+	bmap_tstream4 reading_iterator(tmaps2::set_map_tiles<4>(&map, file_tile_stream, tmaps2::TILE_ADD_MODE));
+	reading_iterator.set_bounds(gmtry2i::aligned_box2i(dogtileorigin, 1 << (4 + 2)));
+	ocpncy::PrintTiles(&reading_iterator, 2);
+	delete file_tile_stream;
 
 	return 0;
 }
@@ -271,8 +236,8 @@ int occupancy_test6() { // PASSED!
 int occupancy_test7() {
 	std::cout << "OCCUPANCY TEST 7" << std::endl;
 
-	ocpncy::bmap_fstream<4> mapstream("mymap4", gmtry2i::vector2i());
-	mapstream.write_mode() = ocpncy::BTILE_ADD_MODE;
+	bmap_fstream4 mapstream("mymap4", gmtry2i::vector2i());
+	mapstream.write_mode() = tmaps2::TILE_ADD_MODE;
 
 	std::cout << "Tiles to Write: " << std::endl;
 	render_forgy();
@@ -280,12 +245,42 @@ int occupancy_test7() {
 	ocpncy::mat_tile_stream<4, bool> iterator(forgy, forgydims[0], forgydims[1], forgyorigin, mapstream.get_bounds().min);
 	std::cout << "Writing Success: " << mapstream.write(&iterator) << std::endl;
 
-	ocpncy::btile_stream<4>* file_tile_stream;
+	btile_stream4* file_tile_stream;
 	mapstream.read(&file_tile_stream);
 	file_tile_stream->set_bounds(gmtry2i::aligned_box2i(forgyorigin, 1 << (6)));
 	
-	ocpncy::PrintItem(file_tile_stream, 2);
+	ocpncy::PrintTiles(file_tile_stream, 2);
 	delete file_tile_stream;
+
+	return 0;
+}
+
+template <int i>
+class A {
+protected:
+	const char* hidden_message = "Class a's hidden message";
+public:
+	A() = default;
+	virtual const char* message() { return "Class a's message"; }
+	void print_message() { std::cout << message() << std::endl; }
+};
+
+template <int i>
+class B : public A<i> {
+public:
+	B() = default;
+	virtual const char* message() { return A<i>::hidden_message; }
+};
+
+int template_inheritance_test() {
+	A<4> a = A<4>();
+	a.print_message();
+	B<4> b = B<4>();
+	b.print_message();
+
+	A<4>* undercoverB = new B<4>();
+	undercoverB->print_message();
+	delete undercoverB;
 
 	return 0;
 }

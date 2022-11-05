@@ -40,9 +40,9 @@ int main() {
 	/*
 	occupancy_test0();
 	occupancy_test1();
-	occupancy_test2();
 	occupancy_test4();
 
+	return template_inheritance_test();
 	*/
 	occupancy_test3();
 	occupancy_test5();
