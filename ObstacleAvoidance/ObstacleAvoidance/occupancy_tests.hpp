@@ -284,3 +284,13 @@ int template_inheritance_test() {
 
 	return 0;
 }
+
+int geometry_test0() {
+	gmtry3::rotor3 r = gmtry3::unit_make_rotor(gmtry3::vector3(0, 1, 0), 3.1415F / 2.0F);
+	gmtry3::matrix3 M = gmtry3::make_rotation(1, 3.1415 / 2.0F);
+	std::cout << gmtry3::to_string(r.b) << std::endl;
+	std::cout << gmtry3::to_string(r * gmtry3::vector3(1.5, 2, 1)) << std::endl;
+	std::cout << gmtry3::to_string(M * gmtry3::vector3(1.5, 2, 1)) << std::endl;
+
+	return 0;
+}

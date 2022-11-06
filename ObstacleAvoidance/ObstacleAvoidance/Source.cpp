@@ -43,6 +43,7 @@ int main() {
 	occupancy_test4();
 
 	return template_inheritance_test();
+	return geometry_test0();
 	*/
 	occupancy_test3();
 	occupancy_test5();
