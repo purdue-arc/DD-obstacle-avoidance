@@ -19,7 +19,6 @@
 #include <opencv2/opencv.hpp>
 
 // Internal files
-// #include "compare.cpp" // DOESN'T EXIST?
 
 // Namespaces
 using namespace std;

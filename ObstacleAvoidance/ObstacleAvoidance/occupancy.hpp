@@ -30,7 +30,12 @@ namespace ocpncy {
 				for (int y = 0; y < 1 << (log2_w - 3); y++)
 					minis[x][y] |= tile.minis[x][y];
 			return *this;
-
+		}
+		inline btile& operator -=(const btile& tile) {
+			for (int x = 0; x < 1 << (log2_w - 3); x++)
+				for (int y = 0; y < 1 << (log2_w - 3); y++)
+					minis[x][y] &= ~tile.minis[x][y];
+			return *this;
 		}
 	};
 
@@ -61,14 +66,15 @@ namespace ocpncy {
 		return dif;
 	}
 
-	// t1 is the known tile
-	// t2 is purely observed
+	// t1 is purely observed
+	// t2 is the known tile
+	// t1 - t2 = unexpectedly observed occupancies
 	template <unsigned int log2_w>
 	btile<log2_w> operator -(const btile<log2_w>& t1, const btile<log2_w>& t2) {
 		btile<log2_w> dif;
 		for (int x = 0; x < 1 << (log2_w - 3); x++)
 			for (int y = 0; y < 1 << (log2_w - 3); y++)
-				dif.minis[x][y] = t2.minis[x][y] & (~(t1.minis[x][y]));
+				dif.minis[x][y] = t1.minis[x][y] & (~(t2.minis[x][y]));
 		return dif;
 	}
 
@@ -77,11 +83,11 @@ namespace ocpncy {
 	*/
 	template <unsigned int log2_w>
 	inline bool get_bit(int x, int y, const btile<log2_w>& ot) {
-		return ((ot.minis[x >> 3][y >> 3]) >> ((x & 0b111) + ((y & 0b111) << 3))) & 0b1;
+		return ((ot.minis[y >> 3][x >> 3]) >> ((x & 0b111) + ((y & 0b111) << 3))) & 0b1;
 	}
 	template <unsigned int log2_w>
 	inline void set_bit(int x, int y, btile<log2_w>& ot, bool value) {
-		ot.minis[x >> 3][y >> 3] |= value * (((btile_mini) 0b1) << ((x & 0b111) + ((y & 0b111) << 3)));
+		ot.minis[y >> 3][x >> 3] |= value * (((btile_mini) 0b1) << ((x & 0b111) + ((y & 0b111) << 3)));
 	}
 
 	template <unsigned int log2_w>
@@ -236,6 +242,138 @@ namespace ocpncy {
 			}
 			~mat_tile_stream() { }
 	};
+
+	template <unsigned int log2_w, unsigned int num_layers>
+	struct btile3 {
+		btile<log2_w> layers[num_layers];
+		btile3() = default;
+		inline btile3& operator +=(const btile3<log2_w, num_layers>& tile) {
+			for (int z = 0; z < num_layers; z++)
+				layers[z] += tile.layers[z];
+			return *this;
+		}
+		inline btile3& operator +=(const btile3<log2_w, num_layers>* tile) {
+			for (int z = 0; z < num_layers; z++)
+				layers[z] += tile->layers[z];
+			return *this;
+		}
+		inline btile3& operator -=(const btile3<log2_w, num_layers>& tile) {
+			for (int z = 0; z < num_layers; z++)
+				layers[z] -= tile.layers[z];
+			return *this;
+		}
+		inline btile3& operator -=(const btile3<log2_w, num_layers>* tile) {
+			for (int z = 0; z < num_layers; z++)
+				layers[z] -= tile->layers[z];
+			return *this;
+		}
+		inline btile3 operator =(const btile<log2_w>& tile) {
+			for (int z = 0; z < num_layers; z++)
+				layers[z] = tile;
+			return *this;
+		}
+	};
+
+	template <unsigned int log2_w, unsigned int num_layers>
+	inline bool get_bit(int x, int y, int z, const btile3<log2_w, num_layers>& ot) {
+		return get_bit(x, y, ot.layers[z]);
+	}
+
+	template <unsigned int log2_w, unsigned int num_layers>
+	inline void set_bit(int x, int y, int z, btile3<log2_w, num_layers>& ot, bool value) {
+		set_bit(x, y, ot.layers[z], value);
+	}
+
+	template <unsigned int log2_w>
+	inline unsigned int compress_coords3(const gmtry3::vector3& p) {
+		return static_cast<unsigned int>(p.x) + 
+			 ((static_cast<unsigned int>(p.y) +
+			  (static_cast<unsigned int>(p.z) << log2_w)) << log2_w);
+	}
+
+	template <unsigned int log2_w>
+	inline gmtry3::vector3 decompress_coords3(unsigned int idx) {
+		unsigned int mask = (1 << log2_w) - 1;
+		return gmtry3::vector3(idx & mask, (idx >> log2_w) & mask, idx >> (2 * log2_w));
+	}
+
+	template <unsigned int log2_w>
+	inline unsigned int compress_coords2(const gmtry2i::vector2i& p) {
+		return p.x + (p.y << log2_w);
+	}
+
+	template <unsigned int log2_w>
+	inline gmtry2i::vector2i decompress_coords2(unsigned int idx) {
+		unsigned int mask = (1 << log2_w) - 1;
+		return gmtry2i::vector2i(idx & mask, (idx >> log2_w) & mask);
+	}
+
+	template <typename tile>
+	class local_occ_idcs_ostream {
+	public:
+		virtual void write(tile* source, unsigned int idx) = 0;
+	};
+
+	template <unsigned int log2_w, unsigned int num_layers>
+	void project(const float* depths, float fov, unsigned int width, unsigned int height, 
+		gmtry3::transform3 cam_pose, tmaps2::nbrng_tile<btile3<log2_w, num_layers>>* dst, gmtry3::vector3 dst_origin, 
+		local_occ_idcs_ostream<tmaps2::nbrng_tile<btile3<log2_w, num_layers>>>* changes_ostream) {
+		btile3<log2_w, num_layers> projected[9];
+		for (int i = 0; i < 9; i++) projected[i] = btile3<log2_w, num_layers>();
+		gmtry3::vector3 projected_origin = dst_origin - gmtry3::vector3(1 << log2_w, 1 << log2_w, 0);
+		unsigned int proj_width = 3 * (1 << log2_w);
+		unsigned int mask = (1 << log2_w) - 1;
+
+		gmtry3::vector3 cam_space_point;
+		gmtry3::vector3 projected_point;
+		long px, py, pz;
+		float xy_scale;
+		gmtry3::transform3 to_projected = cam_pose.T() - projected_origin;
+		int hwidth = width / 2;
+		int hheight = height / 2;
+		float img_scale = std::tan(fov) / MAX(hwidth, hheight);
+		for (int x = 0; x < width; x++) for (int y = 0; y < height; y++) {
+			cam_space_point.z = depths[x + y * width];
+			xy_scale = img_scale * cam_space_point.z;
+			cam_space_point.x = (x - hwidth) * xy_scale;
+			cam_space_point.y = (hheight - y) * xy_scale; // negate if image is oriented upside down
+			projected_point = to_projected * cam_space_point;
+			px = projected_point.x; py = projected_point.y; pz = projected_point.z;
+			if (0 <= px && px < proj_width && 0 <= py && py < proj_width && 0 <= pz && pz < num_layers)
+				set_bit(px & mask, py & mask, pz, projected[(px >> log2_w) + 3 * (py >> log2_w)], true);
+		}
+		for (int i = 0; i < 9; i++) projected[i] -= (i != 4) ? dst->nbrs[i - (i > 4)] : dst;
+
+		// To do: determine newly-occpupied blocks and stream them out through the changes_stream
+	}
+
+	// Don't look at this yet; I paused work on it to finish the one above
+	template <unsigned int log2_w>
+	void project(const float* depths, float fov,
+		unsigned int width, unsigned int height,
+		gmtry3::transform3 to_cam, tmaps2::map_item<btile<log2_w>> dst,
+		local_occ_idcs_ostream<btile<log2_w>>* changes_ostream) { // ALSO PASS A QUEUE OR SOMETHING
+		gmtry3::vector3 cam_space_point;
+		gmtry2i::vector2i point2D;
+		float xy_scale;
+		gmtry3::transform3 to_world = to_cam.T();
+		int hwidth = width / 2;
+		int hheight = height / 2;
+		float img_scale = std::tan(fov) / MAX(hwidth, hheight);
+		for (int x = 0; x < width; x++) for (int y = 0; y < height; y++) {
+			cam_space_point.z = depths[x + y * width];
+			xy_scale = img_scale * cam_space_point.z;
+			cam_space_point.x = (x - hwidth) * xy_scale;
+			cam_space_point.y = (hheight - y) * xy_scale; // negate if image is oriented upside down
+			point2D.x = to_world.R.n[0][0] * cam_space_point.x +
+						to_world.R.n[1][0] * cam_space_point.y +
+						to_world.R.n[2][0] * cam_space_point.z + to_world.t.x;
+			point2D.y = to_world.R.n[0][1] * cam_space_point.x +
+						to_world.R.n[1][1] * cam_space_point.y +
+						to_world.R.n[2][1] * cam_space_point.z + to_world.t.y;
+			// PUT 2D POINT IN MAP
+		}
+	}
 
 	/*
 	* TODO

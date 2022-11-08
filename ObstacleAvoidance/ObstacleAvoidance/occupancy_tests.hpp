@@ -294,3 +294,30 @@ int geometry_test0() {
 
 	return 0;
 }
+
+// So far only prints out the bottom left tile of the map
+// If you try to write the tile to the file, the map_fstream allocates a tree and then writes the tile there
+//			THAT'S NOT SUPPOSED TO HAPPEN!!
+//			Also sometimes it doesn't record the file's new length in the map file header
+template <unsigned int log2_w>
+void generate_map_file(const gmtry2i::vector2i& map_origin, const gmtry2i::vector2i& any_tile_origin) {
+	std::fstream file;
+	file.open("map.b");
+	if (!file.is_open()) return;
+	std::uint32_t width, height;
+	file.read(reinterpret_cast<char*>(&width), 4);
+	file.read(reinterpret_cast<char*>(&height), 4);
+	std::uint32_t* pixels = new std::uint32_t[width * height];
+	file.read(reinterpret_cast<char*>(pixels), width * height * 4);
+	file.close();
+	ocpncy::mat_tile_stream<log2_w, std::uint32_t> tiles_in(pixels, width, height, map_origin, any_tile_origin);
+	tiles_in.set_bounds(gmtry2i::aligned_box2i(map_origin, 1 << log2_w));
+	tmaps2::map_fstream<log2_w, ocpncy::btile<log2_w>> map_file("map" + std::to_string(1 << log2_w), any_tile_origin);
+	map_file.write(&tiles_in);
+	/*
+	*/
+	tiles_in.reset();
+	ocpncy::PrintTiles(&tiles_in, 0);
+
+	delete[] pixels;
+}

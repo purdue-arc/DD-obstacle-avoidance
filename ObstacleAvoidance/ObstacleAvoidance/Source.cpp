@@ -103,10 +103,14 @@ int main()try {
 
 	return template_inheritance_test();
 	return geometry_test0();
-	*/
+
 	occupancy_test3();
 	occupancy_test5();
 	return occupancy_test7();
+	*/
+
+	generate_map_file<8>(gmtry2i::vector2i(), gmtry2i::vector2i());
+	return 0;
 }
 catch (const rs2::error& e)
 {

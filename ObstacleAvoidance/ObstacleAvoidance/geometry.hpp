@@ -214,6 +214,14 @@ namespace gmtry3 {
 		return transform3(A.R * B.R, A.R * B.t + A.t);
 	}
 
+	inline transform3 operator +(const transform3& T, const vector3& v) {
+		return transform3(T.R, T.t + v);
+	}
+
+	inline transform3 operator -(const transform3& T, const vector3& v) {
+		return transform3(T.R, T.t - v);
+	}
+
 	struct rotor3 {
 		float a;
 		vector3 b;

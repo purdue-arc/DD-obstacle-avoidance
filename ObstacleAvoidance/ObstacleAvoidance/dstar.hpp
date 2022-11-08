@@ -13,22 +13,28 @@ namespace dstar {
 
 	typedef unsigned int dcosttype;
 
+	template <unsigned int log2_w>
+	struct dtile2 : ocpncy::btile<log2_w> {
+		dcosttype g[1 << log2_w][1 << log2_w];
+		dcosttype rhs[1 << log2_w][1 << log2_w];
+		void* queue_items[1 << log2_w][1 << log2_w];
+		dtile2* nbrs[8];
+	};
+
+	template <unsigned int log2_w>
 	struct queue_item {
 		dcosttype k1;
 		dcosttype k2;
-		void* tile;
+		dtile2<log2_w>* tile;
 		unsigned char state_idx;
 	};
 
-	// log2_w MUST BE GREATER THAN OR EQUAL TO 4 (unless dangerzone field is removed)!!!
 	template <unsigned int log2_w>
-	struct dtile2 {
-		ocpncy::btile<log2_w> occupied;
-		ocpncy::btile<log2_w - 1> dangerzone; // might not need this?
-		dcosttype g[1 << log2_w][1 << log2_w];
-		dcosttype rhs[1 << log2_w][1 << log2_w];
-		queue_item* queue_items[1 << log2_w][1 << log2_w];
-		dtile2* nbrs[8];
+	class priority_queue {
+	public:
+		virtual void* insert(const queue_item<log2_w>& item) = 0;
+		virtual void remove(void* item) = 0;
+		virtual void change_key(void* item) = 0;
 	};
 
 
