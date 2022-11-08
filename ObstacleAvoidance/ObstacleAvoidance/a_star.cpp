@@ -1,28 +1,13 @@
 // General include
 #include "header.hh"
 
-// Node struct
-typedef struct node {
-	int x, y;
-	/*
-	 * Using final bit of cost to store occupancy(1 if occupied and 0
-	 * otherwise). Final bit is unused becasue the blocks are stored
-	 * in units of 2. Also, since units of 2, messing with final bit
-	 * will still allow correct comparision. Finally, we can use "&"
-	 * to get occupancy.
-	 */
-	unsigned int cost;
-	float heuristic;
-} node_t;
-
-
 // AStar Class
 class AStar {
 private:
 	// Attributes
 	int rows, cols, start_x, start_y, goal_x, goal_y;
 	node_t** node_map;
-	priority_queue<node_t*, vector<node_t*>, Compare> pq;
+	priority_queue<node_t*, vector<node_t*>, nodeComp> pq;
 
 	// allocates memory for nodes and initializes them
 	node_t** initialize_nodes() {
@@ -86,14 +71,6 @@ private:
 		return neigbors;
 	}
 
-	// Compare function determines which node is a better choice to expand upon
-	bool comp(const node_t* n1, const node_t* n2) {
-		if ((n1->heuristic + n1->cost) > (n2->heuristic + n2->cost)) {
-			return true;
-		}
-		return false;
-	}
-
 	// When called, adds all elements to a priority queue
 	void initializePriorityQueue() {
 		// Make heap is O(n) while adding 1 @ a time is O(nlogn)
@@ -104,7 +81,7 @@ private:
 				node_ptrs.push_back(&node_map[row][col]);
 			}
 		}
-		make_heap(node_ptrs.begin(), node_ptrs.end(), comp);
+		make_heap(node_ptrs.begin(), node_ptrs.end(), nodeCompare);
 	}
 
 	// Sets occupancy of given node inside cost through bit manipulation

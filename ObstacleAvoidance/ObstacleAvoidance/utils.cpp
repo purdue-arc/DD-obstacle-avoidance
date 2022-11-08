@@ -2,6 +2,14 @@
 #include "header.hh"
 
 // functions
+// Compare function determines which node is a better choice to expand upon
+bool nodeCompare(const node_t* n1, const node_t* n2) {
+    if ((n1->heuristic + n1->cost) > (n2->heuristic + n2->cost)) {
+        return true;
+    }
+    return false;
+} 
+
 // checks if given stream is supported
 bool device_with_streams(std::vector <rs2_stream> stream_requests, std::string& out_serial) {
     context current_context;
