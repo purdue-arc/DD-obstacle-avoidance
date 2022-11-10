@@ -101,15 +101,19 @@ int main()try {
 	occupancy_test1();
 	occupancy_test4();
 
-	return template_inheritance_test();
-	return geometry_test0();
-
 	occupancy_test3();
 	occupancy_test5();
 	return occupancy_test7();
-	*/
+
+	return template_inheritance_test();
+	return geometry_test0();
 
 	generate_map_file<8>(gmtry2i::vector2i(), gmtry2i::vector2i());
+	*/
+
+
+	// YOU GOTTA HAVE YOUR TERMINAL CONFIGURED SUCH THAT THIS WON'T CAUSE WRAPAROUND
+	print_map_file<8>(gmtry2i::vector2i(), 1);
 	return 0;
 }
 catch (const rs2::error& e)

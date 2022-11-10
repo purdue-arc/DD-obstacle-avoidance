@@ -312,14 +312,20 @@ void generate_map_file(const gmtry2i::vector2i& map_origin, const gmtry2i::vecto
 	file.read(reinterpret_cast<char*>(pixels), width * height * 4);
 	file.close();
 	ocpncy::mat_tile_stream<log2_w, std::uint32_t> tiles_in(pixels, width, height, map_origin, any_tile_origin);
-	tiles_in.set_bounds(gmtry2i::aligned_box2i(map_origin, 
-		gmtry2i::vector2i(tiles_in.get_bounds().max.x, tiles_in.get_bounds().max.y)));
-	tmaps2::map_fstream<log2_w, ocpncy::btile<log2_w>> map_file("map" + std::to_string(1 << log2_w), any_tile_origin);
-	map_file.write(&tiles_in);
-	/*
-	*/
-	tiles_in.reset();
-	//ocpncy::PrintTiles(&tiles_in, 0);
+	std::string width_str = std::to_string(1 << log2_w);
+	tmaps2::map_fstream<log2_w, ocpncy::btile<log2_w>> map_file("map" + width_str + "x" + width_str, any_tile_origin);
 
 	delete[] pixels;
+}
+
+template <unsigned int log2_w>
+void print_map_file(const gmtry2i::vector2i& item_to_print_origin, unsigned int item_to_print_depth) {
+	std::string width_str = std::to_string(1 << log2_w);
+	tmaps2::map_fstream<log2_w, ocpncy::btile<log2_w>> map_file("map" + width_str + "x" + width_str, gmtry2i::vector2i());
+	tmaps2::tile_stream<ocpncy::btile<log2_w>>* tiles_out;
+	map_file.read(&tiles_out);
+	tiles_out->set_bounds(gmtry2i::aligned_box2i(item_to_print_origin, 1 << (log2_w + item_to_print_depth)));
+	ocpncy::PrintTiles(tiles_out, item_to_print_depth);
+
+	delete tiles_out;
 }

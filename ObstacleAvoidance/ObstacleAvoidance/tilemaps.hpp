@@ -127,12 +127,13 @@ namespace tmaps2 {
 		map_tree() = default;
 	};
 
-	inline gmtry2i::vector2i get_branch_disp(unsigned int log2_my_w, unsigned int branch_idx) {
-		return gmtry2i::vector2i(branch_idx & 1, branch_idx >> 1) * (1 << (log2_my_w - 1));
+	inline gmtry2i::vector2i get_next_branch_disp(unsigned int branch_idx, unsigned long hwidth) {
+		return gmtry2i::vector2i(branch_idx & 1, branch_idx >> 1) * hwidth;
 	}
 
-	inline gmtry2i::vector2i get_branch_disp(unsigned int branch_idx, unsigned long hwidth) {
-		return gmtry2i::vector2i(branch_idx & 1, branch_idx >> 1) * hwidth;
+	inline unsigned int get_next_branch_idx(const gmtry2i::vector2i& origin, 
+											const gmtry2i::vector2i& next_origin, unsigned long hwidth) {
+		return (next_origin.x - origin.x >= hwidth) + 2 * (next_origin.y - origin.y >= hwidth);
 	}
 
 	/*
@@ -256,7 +257,7 @@ namespace tmaps2 {
 				else {
 					current_depth = info.depth - current_level;
 					origins[current_level + 1] = origins[current_level]
-						+ get_branch_disp(log2_tile_w + current_depth, branch_indices[current_level]);
+						+ get_next_branch_disp(branch_indices[current_level], 1 << (log2_tile_w + current_depth - 1));
 					update_next_item();
 					if (items[current_level + 1] && gmtry2i::area(gmtry2i::intersection(bounds,
 						gmtry2i::aligned_box2i(origins[current_level + 1], 1 << (current_depth + log2_tile_w))))) {
@@ -566,47 +567,28 @@ namespace tmaps2 {
 			return item_index(indices, map_header.info.depth, map_header.info.origin);
 		}
 		/*
-		* Returns the indexed item closest to the desired depth that contains the given point and is descended from start
-		* Returns a real item if start is real, although it won't contain the point if start doesn't contain the point
-		*/
-		item_index indexed_item_at_depth(const item_index& start, const gmtry2i::vector2i& p, unsigned int depth) {
-			item_index item = item_index();
-			item_index next_item(start.tree, start.depth, start.origin);
-			unsigned int next_branch_idx;
-			gmtry2i::vector2i relative_p;
-			unsigned int hwidth = 1 << (next_item.depth + log2_w - 1);
-			while (next_item.tree && next_item.tree->pos && next_item.depth > depth) {
-				item = next_item;
-				next_branch_idx = (p.x - item.origin.x >= hwidth) + 2 * (p.y - item.origin.y >= hwidth);
-				next_item.tree = item.tree->branch[next_branch_idx];
-				next_item.depth = item.depth - 1;
-				next_item.origin = item.origin + get_branch_disp(next_branch_idx, hwidth);
-				hwidth >>= 1;
-			}
-			return (next_item.tree && next_item.tree->pos) ? next_item : item;
-		}
-		/*
-		* Returns the pre-existing item closest to the desired depth that contains the given point and is descended from start
-		* Returns a real item if start is real, although it won't contain the point if start doesn't contain the point
+		* Returns the existing item closest to the desired depth that contains the given point and is descended from start
+		* Start must exist, and the returned item won't contain the point if start doesn't contain the point
 		*/
 		item_index seek_item_at_depth(const item_index& start, const gmtry2i::vector2i& p, unsigned int depth) {
 			item_index item = item_index();
-			item_index next_item = indexed_item_at_depth(start, p, depth);
-			unsigned int next_branch_idx;
+			item_index next_item(start.tree, start.depth, start.origin);
 			unsigned int hwidth = 1 << (next_item.depth + log2_w - 1);
-			unsigned long branches[4];
+			unsigned int next_branch_idx;
+			unsigned long next_branches[4];
 			while (next_item.tree->pos && next_item.depth > depth) {
 				item = next_item;
-				read_file(branches, item.tree->pos, 4 * sizeof(unsigned long));
-				next_branch_idx = (p.x - item.origin.x >= hwidth) + 2 * (p.y - item.origin.y >= hwidth);
-				for (int i = 0; i < 4; i++) item.tree->branch[i] = new index_tree(branches[i]);
-				std::cout << "Tree indexed from " << item.tree->pos << ":" << std::endl; //test
-				std::cout << "{ " << branches[0] << ", " << branches[1] << ", " << branches[2] << ", " << branches[3] << " }" << std::endl; //test
-				//for (int i = 0; i < 4; i++) if (branches[i] > 700000)
-				//	std::cout << "UH OH WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO" << std::endl; //test
+				next_branch_idx = get_next_branch_idx(item.origin, p, hwidth);
+				if (item.tree->branch[next_branch_idx] == 0) {
+					read_file(next_branches, item.tree->pos, 4 * sizeof(unsigned long));
+					for (int i = 0; i < 4; i++) item.tree->branch[i] = new index_tree(next_branches[i]);
+
+					std::cout << "Tree indexed from " << item.tree->pos << ":" << std::endl; //test
+					std::cout << "{ " << next_branches[0] << ", " << next_branches[1] << ", " << next_branches[2] << ", " << next_branches[3] << " }" << std::endl; //test
+				}
 				next_item.tree = item.tree->branch[next_branch_idx];
 				next_item.depth = item.depth - 1;
-				next_item.origin = item.origin + get_branch_disp(next_branch_idx, hwidth);
+				next_item.origin = item.origin + get_next_branch_disp(next_branch_idx, hwidth);
 				hwidth >>= 1;
 			}
 			return next_item.tree->pos ? next_item : item;
@@ -614,39 +596,36 @@ namespace tmaps2 {
 		/*
 		* Allocates an item at the desired position and depth and returns its index
 		* Returns a real item if start is real, although it won't contain the point if start doesn't contain the point
-		* 
-		* 
+		*
+		*
 		* MAY INCORRECTLY ALLOCATE A TREE WHERE A TILE SHOULD BE???
 		*/
 		item_index alloc_item_at_depth(const item_index& start, const gmtry2i::vector2i p, unsigned int depth) {
 			item_index item = seek_item_at_depth(start, p, depth);
 			if (item.depth == depth) return item;
 			unsigned int hwidth = 1 << (item.depth + log2_w - 1);
-			unsigned int next_branch_idx = (p.x - item.origin.x >= hwidth) + 2 * (p.y - item.origin.y >= hwidth);
+			unsigned int next_branch_idx = get_next_branch_idx(item.origin, p, hwidth);
 			const unsigned int branches_size = 4 * sizeof(unsigned long);
-			// overwrite position of next branch (was 0 before because branch didn't exist)
 			write_branch(map_header.size, next_branch_idx, item.tree->pos);
-			if (item.tree->branch[0] == 0) {
-				item.tree->branch[next_branch_idx] = new index_tree(map_header.size);
-				for (int i = 0; i < 4; i++) if (i != next_branch_idx) item.tree->branch[i] = new index_tree(0);
-			}
-			else item.tree->branch[next_branch_idx]->pos = map_header.size;
+			// the only items that make it to this point have a next_item with a null pos
+			item.tree->branch[next_branch_idx]->pos = map_header.size;
 			item.tree = item.tree->branch[next_branch_idx];
 			item.depth -= 1;
-			item.origin += get_branch_disp(next_branch_idx, hwidth);
+			item.origin += gmtry2i::vector2i(next_branch_idx & 1, next_branch_idx >> 1) * hwidth;
 			hwidth >>= 1;
 			while (item.depth > depth) {
 				unsigned long branches[4] = { 0, 0, 0, 0 };
-				next_branch_idx = (p.x - item.origin.x >= hwidth) + 2 * (p.y - item.origin.y >= hwidth);
+				next_branch_idx = get_next_branch_idx(item.origin, p, hwidth);
 				branches[next_branch_idx] = map_header.size + branches_size;
 				append_file(branches, branches_size);
-				std::cout << "File appended with tree at " << (branches[next_branch_idx] - branches_size) << ":" << std::endl; //test
-				std::cout << "{ " << branches[0] << ", " << branches[1] << ", " << branches[2] << ", " << branches[3] << " }" << std::endl; //test
 				for (int i = 0; i < 4; i++) item.tree->branch[i] = new index_tree(branches[i]);
 				item.tree = item.tree->branch[next_branch_idx];
 				item.depth -= 1;
-				item.origin += get_branch_disp(next_branch_idx, hwidth);
+				item.origin += get_next_branch_disp(next_branch_idx, hwidth);
 				hwidth >>= 1;
+
+				std::cout << "File appended with tree at " << (branches[next_branch_idx] - branches_size) << ":" << std::endl; //test
+				std::cout << "{ " << branches[0] << ", " << branches[1] << ", " << branches[2] << ", " << branches[3] << " }" << std::endl; //test
 			}
 			append_file(&blank, depth ? branches_size : sizeof(tile));
 			return item;
