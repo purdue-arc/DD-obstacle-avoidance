@@ -1,3 +1,5 @@
+#pragma once
+
 // General include
 #include "header.hh"
 

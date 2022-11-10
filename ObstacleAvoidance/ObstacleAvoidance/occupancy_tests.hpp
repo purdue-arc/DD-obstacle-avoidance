@@ -286,9 +286,10 @@ int template_inheritance_test() {
 }
 
 int geometry_test0() {
-	gmtry3::rotor3 r = gmtry3::unit_make_rotor(gmtry3::vector3(0, 1, 0), 3.1415F / 2.0F);
-	gmtry3::matrix3 M = gmtry3::make_rotation(1, 3.1415 / 2.0F);
-	std::cout << gmtry3::to_string(r.b) << std::endl;
+	float theta = 3.1415 / 6;
+	gmtry3::rotor3 r = gmtry3::unit_make_rotor(gmtry3::vector3(0, 1, 0), theta) *
+					   gmtry3::unit_make_rotor(gmtry3::vector3(0, 0, 1), 2 * theta);
+	gmtry3::matrix3 M = gmtry3::make_rotation(1, theta) * gmtry3::make_rotation(2, 2 * theta);
 	std::cout << gmtry3::to_string(r * gmtry3::vector3(1.5, 2, 1)) << std::endl;
 	std::cout << gmtry3::to_string(M * gmtry3::vector3(1.5, 2, 1)) << std::endl;
 
@@ -311,13 +312,14 @@ void generate_map_file(const gmtry2i::vector2i& map_origin, const gmtry2i::vecto
 	file.read(reinterpret_cast<char*>(pixels), width * height * 4);
 	file.close();
 	ocpncy::mat_tile_stream<log2_w, std::uint32_t> tiles_in(pixels, width, height, map_origin, any_tile_origin);
-	tiles_in.set_bounds(gmtry2i::aligned_box2i(map_origin, 1 << log2_w));
+	tiles_in.set_bounds(gmtry2i::aligned_box2i(map_origin, 
+		gmtry2i::vector2i(tiles_in.get_bounds().max.x, tiles_in.get_bounds().max.y)));
 	tmaps2::map_fstream<log2_w, ocpncy::btile<log2_w>> map_file("map" + std::to_string(1 << log2_w), any_tile_origin);
 	map_file.write(&tiles_in);
 	/*
 	*/
 	tiles_in.reset();
-	ocpncy::PrintTiles(&tiles_in, 0);
+	//ocpncy::PrintTiles(&tiles_in, 0);
 
 	delete[] pixels;
 }

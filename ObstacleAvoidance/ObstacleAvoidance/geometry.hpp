@@ -224,27 +224,39 @@ namespace gmtry3 {
 
 	struct rotor3 {
 		float a;
-		vector3 b;
-		rotor3(float scalar, const vector3& bivector) {
-			a = scalar;
-			b = bivector;
+		vector3 B;
+		rotor3(float inner, const vector3& outer) {
+			a = inner;
+			B = outer;
 		}
 	};
 	
-	// normalized_bivector has to be normalized
-	inline rotor3 unit_make_rotor(vector3 normalized_bivector, float theta) {
-		return rotor3(std::cos(theta), normalized_bivector * std::sin(theta));
+	// unit_bivector has to be normalized
+	inline rotor3 unit_make_rotor(const vector3& unit_bivector, float theta) {
+		return rotor3(std::cos(theta/2), -unit_bivector * std::sin(theta/2));
 	}
 
 	// bivector doesn't have to be normalized
-	inline rotor3 make_rotor(vector3 bivector, float theta) {
-		return rotor3(std::cos(theta), normalize(bivector) * std::sin(theta));
+	inline rotor3 make_rotor(const vector3& bivector, float theta) {
+		return rotor3(std::cos(theta/2), -normalize(bivector) * std::sin(theta/2));
+	}
+
+	inline rotor3 normalize(const rotor3& r) {
+		float inv_norm = 1.0F / std::sqrt(r.a * r.a + dot(r.B, r.B));
+		return rotor3(r.a * inv_norm, r.B * inv_norm);
 	}
 
 	inline vector3 operator *(const rotor3& r, const vector3& v) {
-		vector3 proj = unit_project(v, r.b);
-		vector3 rej = v - proj;
-		return proj + rej * r.a - cross(rej, r.b);
+		vector3 bcrossv = cross(r.B, v);
+		return v * (r.a * r.a) - bcrossv * (2 * r.a) + cross(r.B, bcrossv) + r.B * dot(r.B, v);
+	}
+
+	inline rotor3 operator *(const rotor3& r1, const rotor3& r2) {
+		return rotor3(r1.a * r2.a - dot(r1.B, r2.B), r2.B * r1.a + r1.B * r2.a - cross(r1.B, r2.B));
+	}
+
+	inline rotor3 invert(const rotor3& r) {
+		return rotor3(r.a, -r.B);
 	}
 }
 

@@ -127,8 +127,12 @@ namespace tmaps2 {
 		map_tree() = default;
 	};
 
-	inline gmtry2i::vector2i get_branch_disp(const int log2_my_w, unsigned int branch_idx) {
+	inline gmtry2i::vector2i get_branch_disp(unsigned int log2_my_w, unsigned int branch_idx) {
 		return gmtry2i::vector2i(branch_idx & 1, branch_idx >> 1) * (1 << (log2_my_w - 1));
+	}
+
+	inline gmtry2i::vector2i get_branch_disp(unsigned int branch_idx, unsigned long hwidth) {
+		return gmtry2i::vector2i(branch_idx & 1, branch_idx >> 1) * hwidth;
 	}
 
 	/*
@@ -329,16 +333,16 @@ namespace tmaps2 {
 
 	/*
 	* Returns the info of the item from the map that most tightly fits the given bounds
-	* Returns a null item info (all 0s) if the map does not contain the boundary box
+	* Returns an item info of depth 1 and origin (0, 0) if the map does not contain the boundary box
 	* DOES NOT AUTOMATICALLY MODIFY MAP TO FIT THE GIVEN BOUNDS
 	*/
 	template <unsigned int log2_w>
 	map_info get_matching_item_info(const map_info& item_info, const gmtry2i::aligned_box2i& bounds) {
-		map_info matching_item = map_info();
+		map_info matching_item = map_info(gmtry2i::vector2i(), 1);
 		map_info next_matching_item(item_info.origin, item_info.depth);
 		unsigned int next_branch_index;
 		unsigned int hwidth = 1 << (next_matching_item.depth + log2_w - 1);
-		while (gmtry2i::contains(get_bounds<log2_w>(next_matching_item), bounds)) {
+		while (gmtry2i::contains(get_bounds<log2_w>(next_matching_item), bounds) && matching_item.depth) {
 			matching_item = next_matching_item;
 			next_branch_index = (bounds.min.x - matching_item.origin.x >= hwidth) + 2 * (bounds.min.y - matching_item.origin.y >= hwidth);
 			next_matching_item.depth = matching_item.depth - 1;
@@ -576,7 +580,7 @@ namespace tmaps2 {
 				next_branch_idx = (p.x - item.origin.x >= hwidth) + 2 * (p.y - item.origin.y >= hwidth);
 				next_item.tree = item.tree->branch[next_branch_idx];
 				next_item.depth = item.depth - 1;
-				next_item.origin = item.origin + gmtry2i::vector2i(next_branch_idx & 1, next_branch_idx >> 1) * hwidth;
+				next_item.origin = item.origin + get_branch_disp(next_branch_idx, hwidth);
 				hwidth >>= 1;
 			}
 			return (next_item.tree && next_item.tree->pos) ? next_item : item;
@@ -596,9 +600,13 @@ namespace tmaps2 {
 				read_file(branches, item.tree->pos, 4 * sizeof(unsigned long));
 				next_branch_idx = (p.x - item.origin.x >= hwidth) + 2 * (p.y - item.origin.y >= hwidth);
 				for (int i = 0; i < 4; i++) item.tree->branch[i] = new index_tree(branches[i]);
+				std::cout << "Tree indexed from " << item.tree->pos << ":" << std::endl; //test
+				std::cout << "{ " << branches[0] << ", " << branches[1] << ", " << branches[2] << ", " << branches[3] << " }" << std::endl; //test
+				//for (int i = 0; i < 4; i++) if (branches[i] > 700000)
+				//	std::cout << "UH OH WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO" << std::endl; //test
 				next_item.tree = item.tree->branch[next_branch_idx];
 				next_item.depth = item.depth - 1;
-				next_item.origin = item.origin + gmtry2i::vector2i(next_branch_idx & 1, next_branch_idx >> 1) * hwidth;
+				next_item.origin = item.origin + get_branch_disp(next_branch_idx, hwidth);
 				hwidth >>= 1;
 			}
 			return next_item.tree->pos ? next_item : item;
@@ -625,7 +633,7 @@ namespace tmaps2 {
 			else item.tree->branch[next_branch_idx]->pos = map_header.size;
 			item.tree = item.tree->branch[next_branch_idx];
 			item.depth -= 1;
-			item.origin += gmtry2i::vector2i(next_branch_idx & 1, next_branch_idx >> 1) * hwidth;
+			item.origin += get_branch_disp(next_branch_idx, hwidth);
 			hwidth >>= 1;
 			while (item.depth > depth) {
 				unsigned long branches[4] = { 0, 0, 0, 0 };
@@ -637,7 +645,7 @@ namespace tmaps2 {
 				for (int i = 0; i < 4; i++) item.tree->branch[i] = new index_tree(branches[i]);
 				item.tree = item.tree->branch[next_branch_idx];
 				item.depth -= 1;
-				item.origin += gmtry2i::vector2i(next_branch_idx & 1, next_branch_idx >> 1) * hwidth;
+				item.origin += get_branch_disp(next_branch_idx, hwidth);
 				hwidth >>= 1;
 			}
 			append_file(&blank, depth ? branches_size : sizeof(tile));
@@ -747,11 +755,15 @@ namespace tmaps2 {
 			fit_map(src->get_bounds());
 			std::cout << "Bounds of incoming tile stream: " << gmtry2i::to_string(src->get_bounds()) << std::endl; //test
 			map_info virtual_min_dst = get_matching_item_info<log2_w>(map_header.info, src->get_bounds());
+			std::cout << "Bounds of virtual destination for incoming tiles: " << 
+				gmtry2i::to_string(tmaps2::get_bounds<log2_w>(virtual_min_dst)) << std::endl; //test
 			item_index min_dst = alloc_item_at_depth(get_top_item(), virtual_min_dst.origin, virtual_min_dst.depth);
 			const tile* stream_tile;
 			item_index map_tile;
 			while (stream_tile = src->next()) {
 				map_tile = alloc_item_at_depth(min_dst, src->last_origin(), 0);
+				//std::cout << "Depth of written tile (better be 0 or else ima go insaneo style): " << map_tile.depth << std::endl; //test
+				std::cout << "Origin of written tile: " << gmtry2i::to_string(map_tile.origin) << std::endl;
 				if (map_tile.tree == 0) { //test
 					std::cout << "INVALID MAP TILE ALLOCATED" << std::endl;
 					return false;
