@@ -259,8 +259,8 @@ namespace tmaps2 {
 					origins[current_level + 1] = origins[current_level]
 						+ get_next_branch_disp(branch_indices[current_level], 1 << (log2_tile_w + current_depth - 1));
 					update_next_item();
-					if (items[current_level + 1] && gmtry2i::area(gmtry2i::intersection(bounds,
-						gmtry2i::aligned_box2i(origins[current_level + 1], 1 << (current_depth + log2_tile_w))))) {
+					if (items[current_level + 1] && gmtry2i::intersects(bounds,
+						gmtry2i::aligned_box2i(origins[current_level + 1], 1 << (current_depth + log2_tile_w - 1)))) {
 						if (current_depth == 1) {
 							tile* next_tile = get_tile(items[current_level + 1]);
 							branch_indices[current_level]++;
@@ -583,8 +583,10 @@ namespace tmaps2 {
 					read_file(next_branches, item.tree->pos, 4 * sizeof(unsigned long));
 					for (int i = 0; i < 4; i++) item.tree->branch[i] = new index_tree(next_branches[i]);
 
-					std::cout << "Tree indexed from " << item.tree->pos << ":" << std::endl; //test
+					std::cout << "Tree at depth " << item.depth << " indexed from " << item.tree->pos << ":" << std::endl; //test
 					std::cout << "{ " << next_branches[0] << ", " << next_branches[1] << ", " << next_branches[2] << ", " << next_branches[3] << " }" << std::endl; //test
+				for (int i = 0; i < 4; i++) if (next_branches[i] > 1000000)
+					std::cout << "UH OH WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO" << std::endl; //test
 				}
 				next_item.tree = item.tree->branch[next_branch_idx];
 				next_item.depth = item.depth - 1;
@@ -619,13 +621,16 @@ namespace tmaps2 {
 				branches[next_branch_idx] = map_header.size + branches_size;
 				append_file(branches, branches_size);
 				for (int i = 0; i < 4; i++) item.tree->branch[i] = new index_tree(branches[i]);
+
+				std::cout << "File appended at " << (branches[next_branch_idx] - branches_size) << " at depth " << item.depth << ":" << std::endl; //test
+				std::cout << "{ " << branches[0] << ", " << branches[1] << ", " << branches[2] << ", " << branches[3] << " }" << std::endl; //test
+				for (int i = 0; i < 4; i++) if (branches[i] > 1000000)
+					std::cout << "UH OH WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO" << std::endl; //test
+
 				item.tree = item.tree->branch[next_branch_idx];
 				item.depth -= 1;
 				item.origin += get_next_branch_disp(next_branch_idx, hwidth);
 				hwidth >>= 1;
-
-				std::cout << "File appended with tree at " << (branches[next_branch_idx] - branches_size) << ":" << std::endl; //test
-				std::cout << "{ " << branches[0] << ", " << branches[1] << ", " << branches[2] << ", " << branches[3] << " }" << std::endl; //test
 			}
 			append_file(&blank, depth ? branches_size : sizeof(tile));
 			return item;
@@ -640,11 +645,16 @@ namespace tmaps2 {
 			void update_next_item() {
 				index_tree* current = static_cast<index_tree*>(maptstream::items[maptstream::current_level]);
 				if (current->branch[0] == 0) {
-					unsigned long branches[4] = { 0 };
+					unsigned long branches[4] = { 0, 0, 0, 0 }; //remove 0 initializations
 					src->read_file(branches, current->pos, 4 * sizeof(unsigned long));
 					for (int i = 0; i < 4; i++) current->branch[i] = new index_tree(branches[i]);
-					std::cout << "Tree indexed from " << current->pos << ": " << std::endl; //test
+
+					std::cout << "Tree at depth " << (maptstream::info.depth - maptstream::current_level) << 
+						" and position " << gmtry2i::to_string(maptstream::origins[maptstream::current_level]) <<
+						" indexed from " << current->pos << ":" << std::endl; //test
 					std::cout << "{ " << branches[0] << ", " << branches[1] << ", " << branches[2] << ", " << branches[3] << " }" << std::endl; //test
+					for (int i = 0; i < 4; i++) if (branches[i] > 1000000)
+						std::cout << "UH OH WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO" << std::endl; //test
 				}
 				maptstream::items[maptstream::current_level + 1] = current->branch[maptstream::branch_indices[maptstream::current_level]];
 				if (static_cast<index_tree*>(maptstream::items[maptstream::current_level + 1])->pos == 0)
@@ -652,7 +662,8 @@ namespace tmaps2 {
 			}
 			tile* get_tile(void* item) {
 				src->read_file(&last_tile, static_cast<index_tree*>(item)->pos, sizeof(last_tile));
-				std::cout << "Tile built from " << static_cast<index_tree*>(item)->pos << std::endl; //test
+				std::cout << "Tile at position " << gmtry2i::to_string(maptstream::origins[maptstream::current_level + 1]) <<
+					" built from " << static_cast<index_tree*>(item)->pos << std::endl; //test
 				return &last_tile;
 			}
 		public:

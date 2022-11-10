@@ -346,6 +346,7 @@ namespace gmtry2i {
 		}
 	};
 
+	// Assumes the boxes intersect. Do not use the result if intersects(b1, b2) == false
 	inline aligned_box2i intersection(const aligned_box2i& b1, const aligned_box2i& b2) {
 		return aligned_box2i(vector2i(MAX(b1.min.x, b2.min.x), MAX(b1.min.y, b2.min.y)),
 							 vector2i(MIN(b1.max.x, b2.max.x), MIN(b1.max.y, b2.max.y)));
@@ -367,15 +368,21 @@ namespace gmtry2i {
 		return (b.max.x - b.min.x) * (b.max.y - b.min.y);
 	}
 
+	// Returns minkowski sum
 	inline aligned_box2i operator +(const aligned_box2i& b1, const aligned_box2i& b2) {
 		return aligned_box2i(b1.min + b2.min, b1.max + b2.max);
 	}
 
+	// Returns minkowski difference
 	inline aligned_box2i operator -(const aligned_box2i& b1, const aligned_box2i& b2) {
-		vector2i min1max2dif = b1.min - b2.max;
-		vector2i max1min2dif = b1.max - b2.min;
-		bool thingy = min1max2dif.x < max1min2dif.x || min1max2dif.y < max1min2dif.y;
-		return aligned_box2i(thingy ? min1max2dif : max1min2dif, thingy ? max1min2dif : min1max2dif);
+		vector2i dif1 = b1.min - b2.max;
+		vector2i dif2 = b1.max - b2.min;
+		bool dif1_is_min = dif1.x < dif2.x || dif1.y < dif2.y;
+		return aligned_box2i(dif1_is_min ? dif1 : dif2, dif1_is_min ? dif2 : dif1);
+	}
+
+	inline bool intersects(const aligned_box2i& b1, const aligned_box2i& b2) {
+		return contains(b1 - b2, gmtry2i::vector2i());
 	}
 
 	inline aligned_box2i operator +(const aligned_box2i& b, const vector2i& v) {

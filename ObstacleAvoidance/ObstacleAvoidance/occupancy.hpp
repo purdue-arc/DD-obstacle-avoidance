@@ -170,6 +170,14 @@ namespace ocpncy {
 			if (gmtry2i::contains(img.bounds, tiles->last_origin())) 
 				WriteImageTile(img, tiles->last_origin(), *tile);
 	}
+	void WriteImageBox(bimage& img, const gmtry2i::aligned_box2i& box, char box_name) {
+		for (int x = box.min.x; x < box.max.x; x++) 
+			for (int y = box.min.y; y < box.max.y; y++)
+				img({ x, y }) = '@';
+		if ('A' <= box_name && box_name <= 'Z') box_name = (box_name + 'a') - 'A';
+		img(box.min) = box_name;
+		img(box.max) = (box_name + 'A') - 'a';
+	}
 	template <unsigned int log2_w>
 	void PrintItem(const tmaps2::map_item<btile<log2_w>>& item) {
 		bimage img(log2_w, item.info.depth, item.info.origin);

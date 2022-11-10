@@ -107,13 +107,12 @@ int main()try {
 
 	return template_inheritance_test();
 	return geometry_test0();
+	return geometry_test1();
 
 	generate_map_file<8>(gmtry2i::vector2i(), gmtry2i::vector2i());
 	*/
 
-
-	// YOU GOTTA HAVE YOUR TERMINAL CONFIGURED SUCH THAT THIS WON'T CAUSE WRAPAROUND
-	print_map_file<8>(gmtry2i::vector2i(), 1);
+	print_map_file<8>(gmtry2i::vector2i(0 << 8, 0 << 8), 1);
 	return 0;
 }
 catch (const rs2::error& e)

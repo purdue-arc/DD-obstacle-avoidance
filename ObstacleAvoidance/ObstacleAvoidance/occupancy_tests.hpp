@@ -296,10 +296,18 @@ int geometry_test0() {
 	return 0;
 }
 
-// So far only prints out the bottom left tile of the map
-// If you try to write the tile to the file, the map_fstream allocates a tree and then writes the tile there
-//			THAT'S NOT SUPPOSED TO HAPPEN!!
-//			Also sometimes it doesn't record the file's new length in the map file header
+int geometry_test1() {
+	ocpncy::bimage img(0, 6, -gmtry2i::vector2i(1, 1) << 5);
+	gmtry2i::aligned_box2i box1({ 5, 10 }, 5);
+	gmtry2i::aligned_box2i box2({ 15, 0 }, 5);
+	gmtry2i::aligned_box2i boxdif = box1 - box2;
+	ocpncy::WriteImageBox(img, box1, 'a');
+	ocpncy::WriteImageBox(img, box2, 'b');
+	ocpncy::WriteImageBox(img, boxdif, 'c');
+	ocpncy::PrintImage(img);
+	return 0;
+}
+
 template <unsigned int log2_w>
 void generate_map_file(const gmtry2i::vector2i& map_origin, const gmtry2i::vector2i& any_tile_origin) {
 	std::fstream file;
@@ -314,6 +322,7 @@ void generate_map_file(const gmtry2i::vector2i& map_origin, const gmtry2i::vecto
 	ocpncy::mat_tile_stream<log2_w, std::uint32_t> tiles_in(pixels, width, height, map_origin, any_tile_origin);
 	std::string width_str = std::to_string(1 << log2_w);
 	tmaps2::map_fstream<log2_w, ocpncy::btile<log2_w>> map_file("map" + width_str + "x" + width_str, any_tile_origin);
+	map_file.write(&tiles_in);
 
 	delete[] pixels;
 }
@@ -325,6 +334,7 @@ void print_map_file(const gmtry2i::vector2i& item_to_print_origin, unsigned int 
 	tmaps2::tile_stream<ocpncy::btile<log2_w>>* tiles_out;
 	map_file.read(&tiles_out);
 	tiles_out->set_bounds(gmtry2i::aligned_box2i(item_to_print_origin, 1 << (log2_w + item_to_print_depth)));
+	std::cout << "Bounds of region to print: " << gmtry2i::to_string(tiles_out->get_bounds()) << std::endl;
 	ocpncy::PrintTiles(tiles_out, item_to_print_depth);
 
 	delete tiles_out;
