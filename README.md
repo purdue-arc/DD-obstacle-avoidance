@@ -1,7 +1,7 @@
 # DroneDelivery
 
 ## Resources
-* Information: https://docs.google.com/spreadsheets/d/11xxZHC3XC1sGwpEqG1tOXjks8iv0NYNlaF1fCZc6Xvo/edit?usp=sharing
+* Information Repo: https://docs.google.com/spreadsheets/d/11xxZHC3XC1sGwpEqG1tOXjks8iv0NYNlaF1fCZc6Xvo/edit?usp=sharing
 * Code Samples: https://dev.intelrealsense.com/docs/code-samples
 * Pipeline: https://docs.google.com/drawings/d/1kvJUrOsBiEv-U5tZRwZ6jow2ZWX7vi7e-kIwDFJwo5s/edit?usp=sharing
 
