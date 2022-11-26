@@ -505,7 +505,15 @@ namespace tmaps2 {
 		inline void write_branch(unsigned long new_branch, unsigned int branch_index, unsigned long tree_pos) {
 			std::cout << new_branch << " written to branch " << branch_index << " of tree at " << tree_pos << std::endl; //test
 			file.seekp(tree_pos + sizeof(new_branch) * branch_index);
+			std::cout << "Branch written to position " << file.tellp() << std::endl;
 			file.write(reinterpret_cast<char*>(&new_branch), sizeof(new_branch));
+			std::cout << "Position of end of branch at " << file.tellp() << std::endl;
+
+
+			unsigned long next_branches[4];
+			read_file(next_branches, tree_pos, 4 * sizeof(unsigned long));
+			std::cout << "Resultant tree at " << tree_pos << ":" << std::endl; //test
+			std::cout << "{ " << next_branches[0] << ", " << next_branches[1] << ", " << next_branches[2] << ", " << next_branches[3] << " }" << std::endl; //test
 		}
 		inline void write_tile(const tile* src, unsigned long pos) {
 			std::cout << "Tile written to file at " << pos << std::endl; //test
@@ -520,8 +528,7 @@ namespace tmaps2 {
 			}
 		}
 		inline gmtry2i::aligned_box2i get_map_bounds() {
-			return gmtry2i::aligned_box2i(map_header.info.origin,
-				1 << (map_header.info.depth + log2_w));
+			return tmaps2::get_bounds<log2_w>(map_header.info);
 		}
 		void expand_map(const gmtry2i::vector2i& direction) {
 			long map_init_width = 1 << (map_header.info.depth + log2_w);
@@ -613,7 +620,7 @@ namespace tmaps2 {
 			item.tree->branch[next_branch_idx]->pos = map_header.size;
 			item.tree = item.tree->branch[next_branch_idx];
 			item.depth -= 1;
-			item.origin += gmtry2i::vector2i(next_branch_idx & 1, next_branch_idx >> 1) * hwidth;
+			item.origin += get_next_branch_disp(next_branch_idx, hwidth);
 			hwidth >>= 1;
 			while (item.depth > depth) {
 				unsigned long branches[4] = { 0, 0, 0, 0 };
@@ -622,7 +629,7 @@ namespace tmaps2 {
 				append_file(branches, branches_size);
 				for (int i = 0; i < 4; i++) item.tree->branch[i] = new index_tree(branches[i]);
 
-				std::cout << "File appended at " << (branches[next_branch_idx] - branches_size) << " at depth " << item.depth << ":" << std::endl; //test
+				std::cout << "File appended with tree at " << (branches[next_branch_idx] - branches_size) << " at depth " << item.depth << ":" << std::endl; //test
 				std::cout << "{ " << branches[0] << ", " << branches[1] << ", " << branches[2] << ", " << branches[3] << " }" << std::endl; //test
 				for (int i = 0; i < 4; i++) if (branches[i] > 1000000)
 					std::cout << "UH OH WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO" << std::endl; //test
@@ -675,12 +682,13 @@ namespace tmaps2 {
 	public:
 		map_fstream(const std::string& fname, const gmtry2i::vector2i& origin) {
 			file_name = fname;
-			file.open(file_name);
+			ios::openmode filemode = ios::binary | ios::in | ios::out;
+			file.open(file_name, filemode);
 			if (!(file.is_open())) {
 				FILE* tmp_file = 0;
 				fopen_s(&tmp_file, file_name.c_str(), "w");
 				fclose(tmp_file);
-				file.open(file_name);
+				file.open(file_name, filemode);
 				map_header.info = map_info(origin, 1);
 				map_header.log2_tile_w = log2_w;
 				map_header.root = sizeof(bmap_file_header);

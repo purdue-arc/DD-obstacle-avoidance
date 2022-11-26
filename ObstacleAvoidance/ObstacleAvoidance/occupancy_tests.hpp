@@ -316,10 +316,11 @@ void generate_map_file(const gmtry2i::vector2i& map_origin, const gmtry2i::vecto
 	std::uint32_t width, height;
 	file.read(reinterpret_cast<char*>(&width), 4);
 	file.read(reinterpret_cast<char*>(&height), 4);
-	std::uint32_t* pixels = new std::uint32_t[width * height];
-	file.read(reinterpret_cast<char*>(pixels), width * height * 4);
+	unsigned char* pixels = new unsigned char[width * height];
+	file.read(reinterpret_cast<char*>(pixels), width * height);
 	file.close();
-	ocpncy::mat_tile_stream<log2_w, std::uint32_t> tiles_in(pixels, width, height, map_origin, any_tile_origin);
+	ocpncy::mat_tile_stream<log2_w, unsigned char> tiles_in(pixels, width, height, map_origin, any_tile_origin);
+	std::cout << "Original file bounds: " << gmtry2i::to_string(tiles_in.get_bounds()) << std::endl;
 	std::string width_str = std::to_string(1 << log2_w);
 	tmaps2::map_fstream<log2_w, ocpncy::btile<log2_w>> map_file("map" + width_str + "x" + width_str, any_tile_origin);
 	map_file.write(&tiles_in);
@@ -328,7 +329,7 @@ void generate_map_file(const gmtry2i::vector2i& map_origin, const gmtry2i::vecto
 }
 
 template <unsigned int log2_w>
-void print_map_file(const gmtry2i::vector2i& item_to_print_origin, unsigned int item_to_print_depth) {
+void print_map_file_item(const gmtry2i::vector2i& item_to_print_origin, unsigned int item_to_print_depth) {
 	std::string width_str = std::to_string(1 << log2_w);
 	tmaps2::map_fstream<log2_w, ocpncy::btile<log2_w>> map_file("map" + width_str + "x" + width_str, gmtry2i::vector2i());
 	tmaps2::tile_stream<ocpncy::btile<log2_w>>* tiles_out;
@@ -338,4 +339,31 @@ void print_map_file(const gmtry2i::vector2i& item_to_print_origin, unsigned int 
 	ocpncy::PrintTiles(tiles_out, item_to_print_depth);
 
 	delete tiles_out;
+}
+
+template <unsigned int log2_w>
+void print_map_file_tiles() {
+	std::string width_str = std::to_string(1 << log2_w);
+	tmaps2::map_fstream<log2_w, ocpncy::btile<log2_w>> map_file("map" + width_str + "x" + width_str, gmtry2i::vector2i());
+	tmaps2::tile_stream<ocpncy::btile<log2_w>>* tiles_out;
+	map_file.read(&tiles_out);
+	int num_tiles_read = 0;
+	const ocpncy::btile<log2_w>* tile;
+	while (tile = tiles_out->next()) {
+		//ocpncy::PrintTile(*tile);
+		std::cout << "Tile origin: " << gmtry2i::to_string(tiles_out->last_origin()) << std::endl;
+		num_tiles_read++;
+	}
+	std::cout << "Total number of tiles read: " << num_tiles_read << std::endl;
+
+	delete tiles_out;
+}
+
+template <unsigned int log2_w>
+void print_map_file_tile(const gmtry2i::vector2i& tile_to_print_origin) {
+	std::string width_str = std::to_string(1 << log2_w);
+	tmaps2::map_fstream<log2_w, ocpncy::btile<log2_w>> map_file("map" + width_str + "x" + width_str, gmtry2i::vector2i());
+	ocpncy::btile<log2_w> mytile;
+	std::cout << "Reading success: " << map_file.read(tile_to_print_origin, &mytile) << std::endl;
+	ocpncy::PrintTile(mytile);
 }

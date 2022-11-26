@@ -110,9 +110,11 @@ int main()try {
 	return geometry_test1();
 
 	generate_map_file<8>(gmtry2i::vector2i(), gmtry2i::vector2i());
+	print_map_file_tiles<8>();
 	*/
 
-	print_map_file<8>(gmtry2i::vector2i(0 << 8, 0 << 8), 1);
+	print_map_file_item<8>(gmtry2i::vector2i(2 << 8, 1 << 8), 1);
+
 	return 0;
 }
 catch (const rs2::error& e)
