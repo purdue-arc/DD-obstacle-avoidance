@@ -113,7 +113,7 @@ int main()try {
 	print_map_file_tiles<8>();
 	*/
 
-	print_map_file_item<8>(gmtry2i::vector2i(2 << 8, 1 << 8), 1);
+	print_map_file_item<8>({0, 0}, 3);
 
 	return 0;
 }

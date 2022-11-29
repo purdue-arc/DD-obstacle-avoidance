@@ -100,62 +100,82 @@ namespace ocpncy {
 		}
 	}
 
-	struct bimage {
+	class bimage {
+	private:
 		unsigned int width;
-		char** buf;
+		unsigned int log2_pixelwidth;
+		char** lines;
 		char out_of_bounds_pixel;
-		gmtry2i::vector2i origin;
 		std::string caption;
+		gmtry2i::vector2i origin;
 		gmtry2i::aligned_box2i bounds;
+	public:
 		char& operator ()(gmtry2i::vector2i p) {
-			if (gmtry2i::contains(bounds, p)) return buf[p.y - origin.y][2 * (p.x - origin.x)];
+			if (gmtry2i::contains(bounds, p)) {
+				gmtry2i::vector2i pixel_pos = (p - origin) >> log2_pixelwidth;
+				return lines[pixel_pos.y][2 * (pixel_pos.x)];
+			}
 			else return out_of_bounds_pixel;
 		}
 		char& operator ()(unsigned int x, unsigned int y) {
-			if (x < width && y < width) return buf[y][2 * x];
+			x >>= log2_pixelwidth; y >>= log2_pixelwidth;
+			if (x < width && y < width) return lines[y][2 * x];
 			else return out_of_bounds_pixel;
 		}
 		const char* line(int i) const {
-			if (i < width) return buf[width - (i + 1)];
+			if (i < width) return lines[width - (i + 1)];
 			else return &out_of_bounds_pixel;
 		}
-		bimage(unsigned int log2_w, unsigned int log2_tw, gmtry2i::vector2i new_origin) {
-			origin = new_origin;
-			width = 1 << (log2_tw + log2_w);
-			buf = new char* [width];
-			int x, y;
-			for (int y1 = 0; y1 < (1 << log2_tw); y1++) {
-				y = y1 << log2_w;
-				buf[y] = new char[2 * width + 1];
-				for (x = 0; x < width * 2; x++) buf[y][x] = '-';
-				buf[y][2 * width] = '\0';
-				for (int y2 = 1; y2 < (1 << log2_w); y2++) {
-					y = (y1 << log2_w) + y2;
-					buf[y] = new char[2 * width + 1];
-					for (int x1 = 0; x1 < (1 << log2_tw); x1++) {
-						x = x1 << log2_w;
-						buf[y][x * 2] = '|'; buf[y][x * 2 + 1] = ' ';
-						for (int x2 = 1; x2 < (1 << log2_w); x2++) {
-							x = (x1 << log2_w) + x2;
-							buf[y][x * 2] = '.'; buf[y][x * 2 + 1] = ' ';
+		int numLines() const {
+			return width;
+		}
+		const char* getCaption() const {
+			return caption.c_str();
+		}
+		gmtry2i::aligned_box2i getBounds() const {
+			return bounds;
+		}
+		// w is tile width and tw is width of image in units of tiles
+		bimage(unsigned int log2_w, unsigned int log2_wt, unsigned int log2_pw, gmtry2i::vector2i new_origin) {
+			log2_pixelwidth = log2_pw;
+			// twp is tile width in units of pixels
+			unsigned int log2_twp = log2_w - log2_pw;
+
+			width = 1 << (log2_wt + log2_twp);
+			lines = new char* [width];
+			int basex, basey, x, y;
+			for (int y1 = 0; y1 < (1 << log2_wt); y1++) {
+				basey = y1 << log2_twp;
+				lines[basey] = new char[2 * width + 1];
+				for (x = 0; x < width * 2; x++) lines[basey][x] = '-';
+				lines[basey][2 * width] = '\0';
+				for (int y2 = 1; y2 < (1 << log2_twp); y2++) {
+					y = basey + y2;
+					lines[y] = new char[2 * width + 1];
+					for (int x1 = 0; x1 < (1 << log2_wt); x1++) {
+						basex = x1 << log2_twp;
+						lines[y][basex * 2] = '|'; lines[y][basex * 2 + 1] = ' ';
+						for (int x2 = 1; x2 < (1 << log2_twp); x2++) {
+							x = basex + x2;
+							lines[y][x * 2] = '.'; lines[y][x * 2 + 1] = ' ';
 						}
 					}
-					buf[y][2 * width] = '\0';
+					lines[y][2 * width] = '\0';
 				}
 			}
-			bounds = gmtry2i::aligned_box2i(origin, width);
+			origin = new_origin;
+			bounds = gmtry2i::aligned_box2i(origin, 1 << (log2_w + log2_wt));
 			(*this)(gmtry2i::vector2i()) = 'O';
-			caption = std::string("Image Bounds: ") + std::to_string(bounds.min.x) + std::string(", ") + std::to_string(bounds.min.y) + 
-								  std::string("; ") + std::to_string(bounds.max.x) + std::string(", ") + std::to_string(bounds.max.y);
+			caption = "Image Bounds: " + gmtry2i::to_string(bounds);
 		}
 		~bimage() {
-			for (int y = width - 1; y >= 0; y--) delete[] buf[y];
-			delete[] buf;
+			for (int y = width - 1; y >= 0; y--) delete[] lines[y];
+			delete[] lines;
 		}
 	};
 	void PrintImage(const bimage& img) {
-		for (int y = 0; y < img.width; y++) std::cout << img.line(y) << std::endl;
-		std::cout << img.caption << std::endl;
+		for (int y = 0; y < img.numLines(); y++) std::cout << img.line(y) << std::endl;
+		std::cout << img.getCaption() << std::endl;
 	}
 	template <unsigned int log2_w>
 	void WriteImageTile(bimage& img, const gmtry2i::vector2i& tile_origin, const btile<log2_w>& tile) {
@@ -167,7 +187,7 @@ namespace ocpncy {
 	void WriteImageTiles(bimage& img, tmaps2::tile_stream<btile<log2_w>>* tiles) {
 		const btile<log2_w>* tile;
 		while (tile = tiles->next()) 
-			if (gmtry2i::contains(img.bounds, tiles->last_origin())) 
+			if (gmtry2i::contains(img.getBounds(), tiles->last_origin()))
 				WriteImageTile(img, tiles->last_origin(), *tile);
 	}
 	void WriteImageBox(bimage& img, const gmtry2i::aligned_box2i& box, char box_name) {
@@ -180,16 +200,21 @@ namespace ocpncy {
 	}
 	template <unsigned int log2_w>
 	void PrintItem(const tmaps2::map_item<btile<log2_w>>& item) {
-		bimage img(log2_w, item.info.depth, item.info.origin);
+		bimage img(log2_w, item.info.depth, 0, item.info.origin);
 		tmaps2::map_tstream<log2_w, btile<log2_w>> iterator(item);
 		WriteImageTiles(img, &iterator);
 		PrintImage(img);
 	}
 	template <unsigned int log2_w>
-	void PrintTiles(tmaps2::tile_stream<btile<log2_w>>* stream, unsigned int depth) {
-		bimage img(log2_w, depth, stream->get_bounds().min);
+	void PrintTiles(tmaps2::tile_stream<btile<log2_w>>* stream, unsigned int depth, unsigned int log2_pixelwidth) {
+		bimage img(log2_w, depth, log2_pixelwidth, stream->get_bounds().min);
+		std::cout << "num lines " << img.numLines() << std::endl;
 		WriteImageTiles(img, stream);
 		PrintImage(img);
+	}
+	template <unsigned int log2_w>
+	void PrintTiles(tmaps2::tile_stream<btile<log2_w>>* stream, unsigned int depth) {
+		PrintTiles(stream, depth, 0);
 	}
 
 	template <unsigned int log2_w, typename T>
@@ -250,6 +275,18 @@ namespace ocpncy {
 			}
 			~mat_tile_stream() { }
 	};
+
+	template <typename T>
+	T* halve_matrix(const T* mat, unsigned int width, unsigned int height) {
+		unsigned int new_width = width >> 1;
+		unsigned int new_height = height >> 1;
+		T* half_mat = new T[new_width * new_height];
+		for (int i = 0; i < new_width * new_height; i++) half_mat[i] = 0;
+		for (unsigned int y = 0, hy = 0; y < height && hy < new_height; y++, hy = y >> 1)
+			for (unsigned int x = 0, hx = 0; x < width && hx < new_width; x++, hx = x >> 1) 
+				half_mat[hx + new_width * hy] |= mat[x + width * y];
+		return half_mat;
+	}
 
 	template <unsigned int log2_w, unsigned int num_layers>
 	struct btile3 {

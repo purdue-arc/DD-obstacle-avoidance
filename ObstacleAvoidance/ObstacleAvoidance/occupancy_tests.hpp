@@ -92,7 +92,7 @@ int render_forgy() {
 	forgy[8 + (ovaly - 1) * forgydims[0]] = true;
 
 	ocpncy::mat_tile_stream<4, bool> iterator(forgy, forgydims[0], forgydims[1], forgyorigin, gmtry2i::vector2i(42, 35));
-	ocpncy::bimage img(4, 2, tmaps2::align_down<4>(forgyorigin, gmtry2i::vector2i(42, 35)));
+	ocpncy::bimage img(4, 2, 0, tmaps2::align_down<4>(forgyorigin, gmtry2i::vector2i(42, 35)));
 	WriteImageTiles(img, &iterator);
 	// Prints X at min point (inclusive)
 	img(iterator.get_bounds().min) = 'X';
@@ -297,7 +297,7 @@ int geometry_test0() {
 }
 
 int geometry_test1() {
-	ocpncy::bimage img(0, 6, -gmtry2i::vector2i(1, 1) << 5);
+	ocpncy::bimage img(0, 6, 0, -gmtry2i::vector2i(1, 1) << 5);
 	gmtry2i::aligned_box2i box1({ 5, 10 }, 5);
 	gmtry2i::aligned_box2i box2({ 15, 0 }, 5);
 	gmtry2i::aligned_box2i boxdif = box1 - box2;
@@ -308,19 +308,31 @@ int geometry_test1() {
 	return 0;
 }
 
-template <unsigned int log2_w>
-void generate_map_file(const gmtry2i::vector2i& map_origin, const gmtry2i::vector2i& any_tile_origin) {
+unsigned char* get_map_image(std::uint32_t* width, std::uint32_t* height) {
 	std::fstream file;
 	file.open("map.b");
-	if (!file.is_open()) return;
-	std::uint32_t width, height;
-	file.read(reinterpret_cast<char*>(&width), 4);
-	file.read(reinterpret_cast<char*>(&height), 4);
-	unsigned char* pixels = new unsigned char[width * height];
-	file.read(reinterpret_cast<char*>(pixels), width * height);
+	if (!file.is_open()) return 0;
+	file.read(reinterpret_cast<char*>(width), 4);
+	file.read(reinterpret_cast<char*>(height), 4);
+	unsigned int area = (*width) * (*height);
+	unsigned char* pixels = new unsigned char[area];
+	file.read(reinterpret_cast<char*>(pixels), area);
 	file.close();
+	return pixels;
+}
+
+template <unsigned int log2_w>
+void generate_map_file(const gmtry2i::vector2i& map_origin, const gmtry2i::vector2i& any_tile_origin) {
+	std::uint32_t og_width, og_height;
+	unsigned char* og_pixels = get_map_image(&og_width, &og_height);
+	if (og_pixels == 0) return;
+	unsigned int width = og_width >> 1;
+	unsigned int height = og_height >> 1;
+	unsigned char* pixels = ocpncy::halve_matrix<unsigned char>(og_pixels, og_width, og_height);
+	delete[] og_pixels;
+
 	ocpncy::mat_tile_stream<log2_w, unsigned char> tiles_in(pixels, width, height, map_origin, any_tile_origin);
-	std::cout << "Original file bounds: " << gmtry2i::to_string(tiles_in.get_bounds()) << std::endl;
+	std::cout << "Original map file bounds: " << gmtry2i::to_string(tiles_in.get_bounds()) << std::endl;
 	std::string width_str = std::to_string(1 << log2_w);
 	tmaps2::map_fstream<log2_w, ocpncy::btile<log2_w>> map_file("map" + width_str + "x" + width_str, any_tile_origin);
 	map_file.write(&tiles_in);
@@ -336,7 +348,7 @@ void print_map_file_item(const gmtry2i::vector2i& item_to_print_origin, unsigned
 	map_file.read(&tiles_out);
 	tiles_out->set_bounds(gmtry2i::aligned_box2i(item_to_print_origin, 1 << (log2_w + item_to_print_depth)));
 	std::cout << "Bounds of region to print: " << gmtry2i::to_string(tiles_out->get_bounds()) << std::endl;
-	ocpncy::PrintTiles(tiles_out, item_to_print_depth);
+	ocpncy::PrintTiles(tiles_out, item_to_print_depth, MAX(0, static_cast<int>(log2_w + item_to_print_depth) - 9));
 
 	delete tiles_out;
 }
@@ -357,13 +369,4 @@ void print_map_file_tiles() {
 	std::cout << "Total number of tiles read: " << num_tiles_read << std::endl;
 
 	delete tiles_out;
-}
-
-template <unsigned int log2_w>
-void print_map_file_tile(const gmtry2i::vector2i& tile_to_print_origin) {
-	std::string width_str = std::to_string(1 << log2_w);
-	tmaps2::map_fstream<log2_w, ocpncy::btile<log2_w>> map_file("map" + width_str + "x" + width_str, gmtry2i::vector2i());
-	ocpncy::btile<log2_w> mytile;
-	std::cout << "Reading success: " << map_file.read(tile_to_print_origin, &mytile) << std::endl;
-	ocpncy::PrintTile(mytile);
 }
