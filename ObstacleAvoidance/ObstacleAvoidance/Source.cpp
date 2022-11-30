@@ -3,7 +3,7 @@
 
 // other files
 #include "utils.cpp"
-#include "occupancy_tests.hpp"
+#include "maps/occupancy_tests.hpp"
 
 //No idea what the output represents
 inline rs2_quaternion quaternion_exp(rs2_vector v)
@@ -109,10 +109,10 @@ int main()try {
 	return geometry_test0();
 	return geometry_test1();
 
+	generate_map_file<8>(gmtry2i::vector2i(), gmtry2i::vector2i());
 	print_map_file_tiles<8>();
 	*/
 
-	generate_map_file<8>(gmtry2i::vector2i(), gmtry2i::vector2i());
 	print_map_file_item<8>({0, 0}, 3);
 
 	return 0;

@@ -37,13 +37,13 @@
     <ClInclude Include="geometry.hpp">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="tilemaps.hpp">
+    <ClInclude Include="maps\occupancy.hpp">
       <Filter>Source Files\maps</Filter>
     </ClInclude>
-    <ClInclude Include="occupancy_tests.hpp">
+    <ClInclude Include="maps\occupancy_tests.hpp">
       <Filter>Source Files\maps</Filter>
     </ClInclude>
-    <ClInclude Include="occupancy.hpp">
+    <ClInclude Include="maps\tilemaps.hpp">
       <Filter>Source Files\maps</Filter>
     </ClInclude>
   </ItemGroup>

@@ -442,7 +442,7 @@ namespace tmaps2 {
 		std::uint64_t file_raw_origin[2];
 		std::uint32_t file_raw_log2_tile_w;
 		const unsigned int file_raw_header_size = sizeof(file_raw_depth) + 2 * sizeof(*file_raw_origin) + 
-												  sizeof(file_raw_log2_tile_w) + 2 * sizeof(tree_size);
+												  sizeof(file_raw_log2_tile_w) + 2 * sizeof(file_pos);
 		/*
 		* Both trees and tiles are indexed as an index_tree
 		*		A tile's index_tree will not have any nonzero branches
@@ -535,7 +535,7 @@ namespace tmaps2 {
 				write_file(src, pos, sizeof(tile));
 			}
 		}
-		inline void read_header() {
+		void read_header() {
 			file_pos current_pos = 0;
 			unsigned int member_size;
 
@@ -554,7 +554,7 @@ namespace tmaps2 {
 
 			read_file(&map_header.root, current_pos, 2 * sizeof(file_pos));
 		}
-		inline void write_header() {
+		void write_header() {
 			file_pos current_pos = 0;
 			unsigned int member_size;
 
