@@ -109,10 +109,10 @@ int main()try {
 	return geometry_test0();
 	return geometry_test1();
 
-	generate_map_file<8>(gmtry2i::vector2i(), gmtry2i::vector2i());
 	print_map_file_tiles<8>();
 	*/
 
+	generate_map_file<8>(gmtry2i::vector2i(), gmtry2i::vector2i());
 	print_map_file_item<8>({0, 0}, 3);
 
 	return 0;

@@ -3,6 +3,8 @@
 #include <fstream>
 #include <stdio.h>
 #include <iostream>
+#include <ios>
+#include <stdint.h>
 
 #include "geometry.hpp"
 
@@ -423,6 +425,9 @@ namespace tmaps2 {
 	template <unsigned int log2_w, typename tile>
 	class map_fstream : map_iostream<tile> {
 	protected:
+		typedef std::uint32_t file_pos;
+		const unsigned int tree_size = 4 * sizeof(file_pos);
+
 		/*
 		* root: position of root tree in file
 		* size: size of file
@@ -430,9 +435,14 @@ namespace tmaps2 {
 		struct bmap_file_header {
 			map_info info;
 			unsigned int log2_tile_w;
-			unsigned long root;
-			unsigned long size;
+			file_pos root;
+			file_pos size;
 		};
+		std::uint32_t file_raw_depth;
+		std::uint64_t file_raw_origin[2];
+		std::uint32_t file_raw_log2_tile_w;
+		const unsigned int file_raw_header_size = sizeof(file_raw_depth) + 2 * sizeof(*file_raw_origin) + 
+												  sizeof(file_raw_log2_tile_w) + 2 * sizeof(tree_size);
 		/*
 		* Both trees and tiles are indexed as an index_tree
 		*		A tile's index_tree will not have any nonzero branches
@@ -443,9 +453,9 @@ namespace tmaps2 {
 		* fully_indexed: tells whether the tree and all of its descendents are indexed
 		*/
 		struct index_tree {
-			unsigned long pos;
+			file_pos pos;
 			index_tree* branch[4];
-			index_tree(unsigned long item_pos) {
+			index_tree(file_pos item_pos) {
 				pos = item_pos;
 				branch[0] = 0;
 				branch[1] = 0;
@@ -478,20 +488,20 @@ namespace tmaps2 {
 		};
 
 		bmap_file_header map_header;
-
 		std::fstream file;
 		std::string file_name;
 		index_tree* indices;
 		tile_write_mode readmode;
 		tile_write_mode writemode;
+		bool header_has_unsaved_changes;
 		const tile blank = tile();
 
-		inline void read_file(void* dst, unsigned long pos, unsigned long len) {
+		inline void read_file(void* dst, file_pos pos, unsigned long len) {
 			file.seekg(pos);
 			file.read(static_cast<char*>(dst), len);
 		}
 		// cannot be used to append
-		inline void write_file(const void* src, unsigned long pos, unsigned long len) {
+		inline void write_file(const void* src, file_pos pos, unsigned long len) {
 			file.seekp(pos);
 			file.write(static_cast<const char*>(src), len);
 		}
@@ -499,23 +509,21 @@ namespace tmaps2 {
 			file.seekp(map_header.size);
 			file.write(static_cast<const char*>(src), len);
 			map_header.size += len;
+			header_has_unsaved_changes = true;
 			std::cout << "Added to file size: " << len << std::endl; //test
 			std::cout << "New file size: " << map_header.size << std::endl; //test
 		}
-		inline void write_branch(unsigned long new_branch, unsigned int branch_index, unsigned long tree_pos) {
+		inline void write_branch(file_pos new_branch, unsigned int branch_index, file_pos tree_pos) {
 			std::cout << new_branch << " written to branch " << branch_index << " of tree at " << tree_pos << std::endl; //test
 			file.seekp(tree_pos + sizeof(new_branch) * branch_index);
-			std::cout << "Branch written to position " << file.tellp() << std::endl;
 			file.write(reinterpret_cast<char*>(&new_branch), sizeof(new_branch));
-			std::cout << "Position of end of branch at " << file.tellp() << std::endl;
 
-
-			unsigned long next_branches[4];
-			read_file(next_branches, tree_pos, 4 * sizeof(unsigned long));
+			file_pos next_branches[4]; //test
+			read_file(next_branches, tree_pos, tree_size); //test
 			std::cout << "Resultant tree at " << tree_pos << ":" << std::endl; //test
 			std::cout << "{ " << next_branches[0] << ", " << next_branches[1] << ", " << next_branches[2] << ", " << next_branches[3] << " }" << std::endl; //test
 		}
-		inline void write_tile(const tile* src, unsigned long pos) {
+		inline void write_tile(const tile* src, file_pos pos) {
 			std::cout << "Tile written to file at " << pos << std::endl; //test
 			if (writemode) {
 				tile current_tile = tile();
@@ -526,6 +534,46 @@ namespace tmaps2 {
 			else {
 				write_file(src, pos, sizeof(tile));
 			}
+		}
+		inline void read_header() {
+			file_pos current_pos = 0;
+			unsigned int member_size;
+
+			read_file(&file_raw_depth, current_pos, member_size = sizeof(file_raw_depth));
+			current_pos += member_size;
+			map_header.info.depth = static_cast<unsigned int>(file_raw_depth);
+
+			read_file(file_raw_origin, current_pos, member_size = 2 * sizeof(*file_raw_origin));
+			current_pos += member_size;
+			map_header.info.origin.x = static_cast<unsigned long>(file_raw_origin[0]);
+			map_header.info.origin.y = static_cast<unsigned long>(file_raw_origin[1]);
+
+			read_file(&file_raw_log2_tile_w, current_pos, member_size = sizeof(file_raw_log2_tile_w));
+			current_pos += member_size;
+			map_header.log2_tile_w = static_cast<unsigned int>(file_raw_log2_tile_w);
+
+			read_file(&map_header.root, current_pos, 2 * sizeof(file_pos));
+		}
+		inline void write_header() {
+			file_pos current_pos = 0;
+			unsigned int member_size;
+
+			file_raw_depth = static_cast<std::uint32_t>(map_header.info.depth);
+			write_file(&file_raw_depth, current_pos, member_size = sizeof(file_raw_depth));
+			current_pos += member_size;
+
+			file_raw_origin[0] = static_cast<std::uint64_t>(map_header.info.origin.x);
+			file_raw_origin[1] = static_cast<std::uint64_t>(map_header.info.origin.y);
+			write_file(file_raw_origin, current_pos, member_size = 2 * sizeof(*file_raw_origin));
+			current_pos += member_size;
+
+			file_raw_log2_tile_w = static_cast<std::uint32_t>(map_header.log2_tile_w);
+			write_file(&file_raw_log2_tile_w, current_pos, member_size = sizeof(file_raw_log2_tile_w));
+			current_pos += member_size;
+
+			write_file(&map_header.root, current_pos, 2 * sizeof(file_pos));
+
+			header_has_unsaved_changes = false;
 		}
 		inline gmtry2i::aligned_box2i get_map_bounds() {
 			return tmaps2::get_bounds<log2_w>(map_header.info);
@@ -538,9 +586,9 @@ namespace tmaps2 {
 			indices = new_root;
 			for (int i = 0; i < 4; i++) if (i != old_root_index) indices->branch[i] = new index_tree(0);
 
-			unsigned long new_root_branches[4] = { 0 };
+			file_pos new_root_branches[4] = { 0 };
 			new_root_branches[old_root_index] = map_header.root;
-			append_file(new_root_branches, 4 * sizeof(unsigned long));
+			append_file(new_root_branches, tree_size);
 
 			map_header.root = new_root->pos;
 			map_header.info.depth += 1;
@@ -559,7 +607,7 @@ namespace tmaps2 {
 					alloc_box.min.x << ", " << alloc_box.min.y << "; " <<
 					alloc_box.max.x << ", " << alloc_box.max.y << std::endl; //test
 			}
-			write_file(&map_header, 0, sizeof(bmap_file_header));
+			write_header();
 		}
 		void fit_map(const gmtry2i::aligned_box2i& box) {
 			gmtry2i::aligned_box2i alloc_box = get_map_bounds();
@@ -568,7 +616,7 @@ namespace tmaps2 {
 				expand_map(box_center - gmtry2i::center(alloc_box));
 				alloc_box = get_map_bounds();
 			}
-			write_file(&map_header, 0, sizeof(bmap_file_header));
+			write_header();
 		}
 		item_index get_top_item() {
 			return item_index(indices, map_header.info.depth, map_header.info.origin);
@@ -582,12 +630,12 @@ namespace tmaps2 {
 			item_index next_item(start.tree, start.depth, start.origin);
 			unsigned int hwidth = 1 << (next_item.depth + log2_w - 1);
 			unsigned int next_branch_idx;
-			unsigned long next_branches[4];
+			file_pos next_branches[4];
 			while (next_item.tree->pos && next_item.depth > depth) {
 				item = next_item;
 				next_branch_idx = get_next_branch_idx(item.origin, p, hwidth);
 				if (item.tree->branch[next_branch_idx] == 0) {
-					read_file(next_branches, item.tree->pos, 4 * sizeof(unsigned long));
+					read_file(next_branches, item.tree->pos, tree_size);
 					for (int i = 0; i < 4; i++) item.tree->branch[i] = new index_tree(next_branches[i]);
 
 					std::cout << "Tree at depth " << item.depth << " indexed from " << item.tree->pos << ":" << std::endl; //test
@@ -614,7 +662,6 @@ namespace tmaps2 {
 			if (item.depth == depth) return item;
 			unsigned int hwidth = 1 << (item.depth + log2_w - 1);
 			unsigned int next_branch_idx = get_next_branch_idx(item.origin, p, hwidth);
-			const unsigned int branches_size = 4 * sizeof(unsigned long);
 			write_branch(map_header.size, next_branch_idx, item.tree->pos);
 			// the only items that make it to this point have a next_item with a null pos
 			item.tree->branch[next_branch_idx]->pos = map_header.size;
@@ -623,13 +670,13 @@ namespace tmaps2 {
 			item.origin += get_next_branch_disp(next_branch_idx, hwidth);
 			hwidth >>= 1;
 			while (item.depth > depth) {
-				unsigned long branches[4] = { 0, 0, 0, 0 };
+				file_pos branches[4] = { 0, 0, 0, 0 };
 				next_branch_idx = get_next_branch_idx(item.origin, p, hwidth);
-				branches[next_branch_idx] = map_header.size + branches_size;
-				append_file(branches, branches_size);
+				branches[next_branch_idx] = map_header.size + tree_size;
+				append_file(branches, tree_size);
 				for (int i = 0; i < 4; i++) item.tree->branch[i] = new index_tree(branches[i]);
 
-				std::cout << "File appended with tree at " << (branches[next_branch_idx] - branches_size) << " at depth " << item.depth << ":" << std::endl; //test
+				std::cout << "File appended with tree at " << (branches[next_branch_idx] - tree_size) << " at depth " << item.depth << ":" << std::endl; //test
 				std::cout << "{ " << branches[0] << ", " << branches[1] << ", " << branches[2] << ", " << branches[3] << " }" << std::endl; //test
 				for (int i = 0; i < 4; i++) if (branches[i] > 1000000)
 					std::cout << "UH OH WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO" << std::endl; //test
@@ -639,7 +686,7 @@ namespace tmaps2 {
 				item.origin += get_next_branch_disp(next_branch_idx, hwidth);
 				hwidth >>= 1;
 			}
-			append_file(&blank, depth ? branches_size : sizeof(tile));
+			append_file(&blank, depth ? tree_size : sizeof(tile));
 			return item;
 		}
 
@@ -652,8 +699,8 @@ namespace tmaps2 {
 			void update_next_item() {
 				index_tree* current = static_cast<index_tree*>(maptstream::items[maptstream::current_level]);
 				if (current->branch[0] == 0) {
-					unsigned long branches[4] = { 0, 0, 0, 0 }; //remove 0 initializations
-					src->read_file(branches, current->pos, 4 * sizeof(unsigned long));
+					file_pos branches[4] = { 0, 0, 0, 0 }; //remove 0 initializations
+					src->read_file(branches, current->pos, src->tree_size);
 					for (int i = 0; i < 4; i++) current->branch[i] = new index_tree(branches[i]);
 
 					std::cout << "Tree at depth " << (maptstream::info.depth - maptstream::current_level) << 
@@ -691,19 +738,18 @@ namespace tmaps2 {
 				file.open(file_name, filemode);
 				map_header.info = map_info(origin, 1);
 				map_header.log2_tile_w = log2_w;
-				map_header.root = sizeof(bmap_file_header);
-				map_header.size = sizeof(bmap_file_header);
-				write_file(&map_header, 0, sizeof(bmap_file_header));
-				unsigned long root_branches[4] = { 0, 0, 0, 0 };
-				append_file(root_branches, 4 * sizeof(unsigned long));
+				map_header.root = file_raw_header_size;
+				map_header.size = file_raw_header_size;
+				write_header();
+				file_pos root_branches[4] = { 0, 0, 0, 0 };
+				append_file(root_branches, tree_size);
 				std::cout << "File created!" << std::endl; //test
 			}
 			else {
-				read_file(&map_header, 0, sizeof(bmap_file_header));
+				read_header();
 				std::cout << "File already exists!" << std::endl; //test
 			}
 			if (!(file.is_open())) throw - 1;
-
 
 			std::cout << "Recorded log2_tile_w: " << map_header.log2_tile_w << std::endl; //test
 			std::cout << "Recorded depth: " << map_header.info.depth << std::endl; //test
@@ -713,11 +759,12 @@ namespace tmaps2 {
 
 
 			if (log2_w != map_header.log2_tile_w) throw - 2;
-			if (map_header.size < sizeof(bmap_file_header)) throw - 4;
+			if (map_header.size < file_raw_header_size) throw - 4;
 
+			indices = new index_tree(map_header.root);
 			readmode = TILE_OVERWRITE_MODE;
 			writemode = TILE_OVERWRITE_MODE;
-			indices = new index_tree(map_header.root);
+			header_has_unsaved_changes = false;
 		}
 		bool read(const gmtry2i::vector2i& p, tile* dst) {
 			if (!(file.is_open())) return false;
@@ -782,8 +829,8 @@ namespace tmaps2 {
 		~map_fstream() {
 			if (file.is_open()) {
 				std::cout << "Final size to be written: " << map_header.size << std::endl; //test
-				write_file(&map_header, 0, sizeof(bmap_file_header));
-				read_file(&map_header, 0, sizeof(bmap_file_header)); //test
+				if (header_has_unsaved_changes) write_header();
+				read_header(); //test
 				file.close();
 				std::cout << "Final written file size: " << map_header.size << std::endl; //test
 

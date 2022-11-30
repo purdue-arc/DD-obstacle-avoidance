@@ -208,7 +208,6 @@ namespace ocpncy {
 	template <unsigned int log2_w>
 	void PrintTiles(tmaps2::tile_stream<btile<log2_w>>* stream, unsigned int depth, unsigned int log2_pixelwidth) {
 		bimage img(log2_w, depth, log2_pixelwidth, stream->get_bounds().min);
-		std::cout << "num lines " << img.numLines() << std::endl;
 		WriteImageTiles(img, stream);
 		PrintImage(img);
 	}

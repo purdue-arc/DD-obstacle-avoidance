@@ -141,7 +141,6 @@
     <ClInclude Include="occupancy.hpp" />
     <ClInclude Include="occupancy_tests.hpp" />
     <ClInclude Include="tilemaps.hpp" />
-    <ClInclude Include="util_structs.hpp" />
     <ClInclude Include="header.hh" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
