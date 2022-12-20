@@ -184,7 +184,7 @@ namespace ocpncy {
 				if (get_bit(x, y, tile)) img(gmtry2i::vector2i(x, y) + tile_origin) = '@';
 	}
 	template <unsigned int log2_w>
-	void WriteImageTiles(bimage& img, tmaps2::tile_stream<btile<log2_w>>* tiles) {
+	void WriteImageTiles(bimage& img, maps2::tile_stream<btile<log2_w>>* tiles) {
 		const btile<log2_w>* tile;
 		while (tile = tiles->next()) 
 			if (gmtry2i::contains(img.getBounds(), tiles->last_origin()))
@@ -199,25 +199,25 @@ namespace ocpncy {
 		img(box.max) = (box_name + 'A') - 'a';
 	}
 	template <unsigned int log2_w>
-	void PrintItem(const tmaps2::map_item<btile<log2_w>>& item) {
+	void PrintItem(const maps2::map_item<btile<log2_w>>& item) {
 		bimage img(log2_w, item.info.depth, 0, item.info.origin);
-		tmaps2::map_tstream<log2_w, btile<log2_w>> iterator(item);
+		maps2::map_tstream<log2_w, btile<log2_w>> iterator(item);
 		WriteImageTiles(img, &iterator);
 		PrintImage(img);
 	}
 	template <unsigned int log2_w>
-	void PrintTiles(tmaps2::tile_stream<btile<log2_w>>* stream, unsigned int depth, unsigned int log2_pixelwidth) {
+	void PrintTiles(maps2::tile_stream<btile<log2_w>>* stream, unsigned int depth, unsigned int log2_pixelwidth) {
 		bimage img(log2_w, depth, log2_pixelwidth, stream->get_bounds().min);
 		WriteImageTiles(img, stream);
 		PrintImage(img);
 	}
 	template <unsigned int log2_w>
-	void PrintTiles(tmaps2::tile_stream<btile<log2_w>>* stream, unsigned int depth) {
+	void PrintTiles(maps2::tile_stream<btile<log2_w>>* stream, unsigned int depth) {
 		PrintTiles(stream, depth, 0);
 	}
 
 	template <unsigned int log2_w, typename T>
-	class mat_tile_stream : public tmaps2::tile_stream<btile<log2_w>> {
+	class mat_tile_stream : public maps2::tile_stream<btile<log2_w>> {
 		private:
 			T* mat;
 			unsigned int dims[2];
@@ -241,7 +241,7 @@ namespace ocpncy {
 				origin = mat_origin;
 				mat_bounds = gmtry2i::aligned_box2i(gmtry2i::vector2i(), gmtry2i::vector2i(width, height));
 				bounds = mat_bounds;
-				tilewise_origin = tmaps2::align_down<log2_w>(mat_origin, any_tile_origin) - mat_origin;
+				tilewise_origin = maps2::align_down<log2_w>(mat_origin, any_tile_origin) - mat_origin;
 				// = align_down<log2_w>(bounds.min, any_tile_origin - mat_origin);
 				reset();
 			}
@@ -270,7 +270,7 @@ namespace ocpncy {
 			}
 			void set_bounds(const gmtry2i::aligned_box2i& new_bounds) {
 				bounds = gmtry2i::intersection(mat_bounds, new_bounds - origin);
-				tilewise_origin = tmaps2::align_down<log2_w>(bounds.min, tilewise_origin);
+				tilewise_origin = maps2::align_down<log2_w>(bounds.min, tilewise_origin);
 			}
 			~mat_tile_stream() { }
 	};
@@ -360,8 +360,8 @@ namespace ocpncy {
 
 	template <unsigned int log2_w, unsigned int num_layers>
 	void project(const float* depths, float fov, unsigned int width, unsigned int height, 
-		gmtry3::transform3 cam_pose, tmaps2::nbrng_tile<btile3<log2_w, num_layers>>* dst, gmtry3::vector3 dst_origin, 
-		local_occ_idcs_ostream<tmaps2::nbrng_tile<btile3<log2_w, num_layers>>>* changes_ostream) {
+		gmtry3::transform3 cam_pose, maps2::nbrng_tile<btile3<log2_w, num_layers>>* dst, gmtry3::vector3 dst_origin, 
+		local_occ_idcs_ostream<maps2::nbrng_tile<btile3<log2_w, num_layers>>>* changes_ostream) {
 		btile3<log2_w, num_layers> projected[9];
 		for (int i = 0; i < 9; i++) projected[i] = btile3<log2_w, num_layers>();
 		gmtry3::vector3 projected_origin = dst_origin - gmtry3::vector3(1 << log2_w, 1 << log2_w, 0);
@@ -395,7 +395,7 @@ namespace ocpncy {
 	template <unsigned int log2_w>
 	void project(const float* depths, float fov,
 		unsigned int width, unsigned int height,
-		gmtry3::transform3 to_cam, tmaps2::map_item<btile<log2_w>> dst,
+		gmtry3::transform3 to_cam, maps2::map_item<btile<log2_w>> dst,
 		local_occ_idcs_ostream<btile<log2_w>>* changes_ostream) { // ALSO PASS A QUEUE OR SOMETHING
 		gmtry3::vector3 cam_space_point;
 		gmtry2i::vector2i point2D;

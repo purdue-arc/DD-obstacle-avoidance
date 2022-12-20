@@ -4,11 +4,12 @@
 #include <stdio.h>
 #include <iostream>
 #include <ios>
+#include <exception>
 #include <stdint.h>
 
 #include "geometry.hpp"
 
-namespace tmaps2 {
+namespace maps2 {
 	enum tile_write_mode {
 		TILE_OVERWRITE_MODE = 0,
 		TILE_ADD_MODE = 1
@@ -32,7 +33,8 @@ namespace tmaps2 {
 	}
 
 	template <typename base_tile>
-	struct nbrng_tile : base_tile {
+	struct nbrng_tile {
+		base_tile tile;
 		nbrng_tile<base_tile>* nbrs[8];
 	};
 
@@ -59,18 +61,13 @@ namespace tmaps2 {
 		* Reads tile at given position to the destination
 		* Returns false if no tile contains the position
 		*/
-		virtual bool read(const gmtry2i::vector2i& p, tile* dst) = 0;
+		virtual const tile* read(const gmtry2i::vector2i& p) = 0;
 
 		/*
 		* Writes a tile stream to the destination, which can be used to stream out all tiles from a desired rectangular region of the map
 		* TILE STREAM MUST BE DELETED MANUALLY
 		*/
-		virtual bool read(tile_stream<tile>** dst) = 0;
-
-		/*
-		* Retrieves a reference to the stream's read mode (whether to add to or overwrite the map being read to)
-		*/
-		virtual tile_write_mode& read_mode() = 0;
+		virtual tile_stream<tile>* read() = 0;
 
 		/*
 		* Returns the current bounds of the map
@@ -85,18 +82,19 @@ namespace tmaps2 {
 		* Writes the tile to the given position in the map
 		* Expands or extends map as necessary
 		*/
-		virtual bool write(const gmtry2i::vector2i& p, const tile* src) = 0;
+		virtual void write(const gmtry2i::vector2i& p, const tile* src) = 0;
 
 		/*
 		* Writes every tile from the tile stream to the map, assuming only tile-level allignment
 		* Expands or extends map as necessary
 		*/
-		virtual bool write(tile_stream<tile>* src) = 0;
+		virtual void write(tile_stream<tile>* src) = 0;
 
 		/*
-		* Retrieves a reference to the stream's write mode (whether to add to or overwrite the map being written to)
+		* Accessors for writing mode (affects all writing operations performed on the map file)
 		*/
-		virtual tile_write_mode& write_mode() = 0;
+		virtual tile_write_mode get_wmode() = 0;
+		virtual void set_wmode(tile_write_mode new_write_mode) = 0;
 	};
 
 	template <typename tile>
@@ -242,7 +240,7 @@ namespace tmaps2 {
 			items[0] = item.ptr;
 			origins = new gmtry2i::vector2i[info.depth + 1];
 			branch_indices = new unsigned int[info.depth];
-			bounds = tmaps2::get_bounds<log2_tile_w>(info);
+			bounds = maps2::get_bounds<log2_tile_w>(info);
 			reset();
 		}
 		const tile* next() {
@@ -285,7 +283,7 @@ namespace tmaps2 {
 			return bounds;
 		}
 		void set_bounds(const gmtry2i::aligned_box2i& new_bounds) {
-			bounds = gmtry2i::intersection(tmaps2::get_bounds<log2_tile_w>(info), align_out<log2_tile_w>(new_bounds, info.origin));
+			bounds = gmtry2i::intersection(maps2::get_bounds<log2_tile_w>(info), align_out<log2_tile_w>(new_bounds, info.origin));
 		}
 		~map_tstream() {
 			for (int i = 0; i < info.depth; i++) items[i] = 0;
@@ -491,10 +489,10 @@ namespace tmaps2 {
 		std::fstream file;
 		std::string file_name;
 		index_tree* indices;
-		tile_write_mode readmode;
 		tile_write_mode writemode;
 		bool header_has_unsaved_changes;
 		const tile blank = tile();
+		tile last_tile;
 
 		inline void read_file(void* dst, file_pos pos, unsigned long len) {
 			file.seekg(pos);
@@ -521,7 +519,8 @@ namespace tmaps2 {
 			file_pos next_branches[4]; //test
 			read_file(next_branches, tree_pos, tree_size); //test
 			std::cout << "Resultant tree at " << tree_pos << ":" << std::endl; //test
-			std::cout << "{ " << next_branches[0] << ", " << next_branches[1] << ", " << next_branches[2] << ", " << next_branches[3] << " }" << std::endl; //test
+			std::cout << "{ " << next_branches[0] << ", " << next_branches[1] << ", " << 
+				next_branches[2] << ", " << next_branches[3] << " }" << std::endl; //test
 		}
 		inline void write_tile(const tile* src, file_pos pos) {
 			std::cout << "Tile written to file at " << pos << std::endl; //test
@@ -576,7 +575,7 @@ namespace tmaps2 {
 			header_has_unsaved_changes = false;
 		}
 		inline gmtry2i::aligned_box2i get_map_bounds() {
-			return tmaps2::get_bounds<log2_w>(map_header.info);
+			return maps2::get_bounds<log2_w>(map_header.info);
 		}
 		void expand_map(const gmtry2i::vector2i& direction) {
 			long map_init_width = 1 << (map_header.info.depth + log2_w);
@@ -639,9 +638,8 @@ namespace tmaps2 {
 					for (int i = 0; i < 4; i++) item.tree->branch[i] = new index_tree(next_branches[i]);
 
 					std::cout << "Tree at depth " << item.depth << " indexed from " << item.tree->pos << ":" << std::endl; //test
-					std::cout << "{ " << next_branches[0] << ", " << next_branches[1] << ", " << next_branches[2] << ", " << next_branches[3] << " }" << std::endl; //test
-				for (int i = 0; i < 4; i++) if (next_branches[i] > 1000000)
-					std::cout << "UH OH WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO" << std::endl; //test
+					std::cout << "{ " << next_branches[0] << ", " << next_branches[1] << ", " <<
+						next_branches[2] << ", " << next_branches[3] << " }" << std::endl; //test
 				}
 				next_item.tree = item.tree->branch[next_branch_idx];
 				next_item.depth = item.depth - 1;
@@ -653,9 +651,6 @@ namespace tmaps2 {
 		/*
 		* Allocates an item at the desired position and depth and returns its index
 		* Returns a real item if start is real, although it won't contain the point if start doesn't contain the point
-		*
-		*
-		* MAY INCORRECTLY ALLOCATE A TREE WHERE A TILE SHOULD BE???
 		*/
 		item_index alloc_item_at_depth(const item_index& start, const gmtry2i::vector2i p, unsigned int depth) {
 			item_index item = seek_item_at_depth(start, p, depth);
@@ -676,10 +671,10 @@ namespace tmaps2 {
 				append_file(branches, tree_size);
 				for (int i = 0; i < 4; i++) item.tree->branch[i] = new index_tree(branches[i]);
 
-				std::cout << "File appended with tree at " << (branches[next_branch_idx] - tree_size) << " at depth " << item.depth << ":" << std::endl; //test
-				std::cout << "{ " << branches[0] << ", " << branches[1] << ", " << branches[2] << ", " << branches[3] << " }" << std::endl; //test
-				for (int i = 0; i < 4; i++) if (branches[i] > 1000000)
-					std::cout << "UH OH WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO" << std::endl; //test
+				std::cout << "File appended with tree at " << (branches[next_branch_idx] - tree_size) << 
+					" at depth " << item.depth << ":" << std::endl; //test
+				std::cout << "{ " << branches[0] << ", " << branches[1] << ", " << 
+					branches[2] << ", " << branches[3] << " }" << std::endl; //test
 
 				item.tree = item.tree->branch[next_branch_idx];
 				item.depth -= 1;
@@ -706,9 +701,8 @@ namespace tmaps2 {
 					std::cout << "Tree at depth " << (maptstream::info.depth - maptstream::current_level) << 
 						" and position " << gmtry2i::to_string(maptstream::origins[maptstream::current_level]) <<
 						" indexed from " << current->pos << ":" << std::endl; //test
-					std::cout << "{ " << branches[0] << ", " << branches[1] << ", " << branches[2] << ", " << branches[3] << " }" << std::endl; //test
-					for (int i = 0; i < 4; i++) if (branches[i] > 1000000)
-						std::cout << "UH OH WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO WEE WOO" << std::endl; //test
+					std::cout << "{ " << branches[0] << ", " << branches[1] << ", " << 
+						branches[2] << ", " << branches[3] << " }" << std::endl; //test
 				}
 				maptstream::items[maptstream::current_level + 1] = current->branch[maptstream::branch_indices[maptstream::current_level]];
 				if (static_cast<index_tree*>(maptstream::items[maptstream::current_level + 1])->pos == 0)
@@ -749,7 +743,7 @@ namespace tmaps2 {
 				read_header();
 				std::cout << "File already exists!" << std::endl; //test
 			}
-			if (!(file.is_open())) throw - 1;
+			if (!(file.is_open())) throw ios::failure("Map file cannot be opened");
 
 			std::cout << "Recorded log2_tile_w: " << map_header.log2_tile_w << std::endl; //test
 			std::cout << "Recorded depth: " << map_header.info.depth << std::endl; //test
@@ -758,50 +752,43 @@ namespace tmaps2 {
 			std::cout << "Recorded file length: " << map_header.size << std::endl; //test
 
 
-			if (log2_w != map_header.log2_tile_w) throw - 2;
-			if (map_header.size < file_raw_header_size) throw - 4;
+			if (log2_w != map_header.log2_tile_w || map_header.size < file_raw_header_size) 
+				throw ios::failure("Map file formatted improperly");
 
+			last_tile = blank;
 			indices = new index_tree(map_header.root);
-			readmode = TILE_OVERWRITE_MODE;
 			writemode = TILE_OVERWRITE_MODE;
 			header_has_unsaved_changes = false;
 		}
-		bool read(const gmtry2i::vector2i& p, tile* dst) {
-			if (!(file.is_open())) return false;
-			if (!gmtry2i::contains(get_map_bounds(), p)) return false;
+		const tile* read(const gmtry2i::vector2i& p) {
+			if (!(file.is_open())) throw ios::failure("Cannot read map file");
+			if (!gmtry2i::contains(get_map_bounds(), p)) return 0;
 			item_index deepest_item = seek_item_at_depth(get_top_item(), p, 0);
 			if (deepest_item.depth == 0) {
-				if (readmode) {
-					tile current_tile = tile();
-					read_file(&current_tile, deepest_item.tree->pos, sizeof(tile));
-					*dst += current_tile;
-				}
-				else read_file(dst, deepest_item.tree->pos, sizeof(tile));
-				return true;
+				read_file(&last_tile, deepest_item.tree->pos, sizeof(tile));
+				return &last_tile;
 			}
-			else return false;
+			else return 0;
 		}
-		bool read(tile_stream<tile>** dst) {
-			if (!(file.is_open())) return false;
-			*dst = new map_fstream_tstream(get_top_item(), this);
-			return true;
+		tile_stream<tile>* read() {
+			if (!(file.is_open())) throw ios::failure("Cannot read map file");
+			return new map_fstream_tstream(get_top_item(), this);
 		}
-		bool write(const gmtry2i::vector2i& p, const tile* src) {
-			if (!(file.is_open())) return false;
+		void write(const gmtry2i::vector2i& p, const tile* src) {
+			if (!(file.is_open())) throw ios::failure("Cannot write to map file");
 			fit_map(p);
 			item_index dst = alloc_item_at_depth(get_top_item(), p, 0);
 			write_tile(src, dst.tree->pos);
 			std::cout << "File appended with new tile!" << std::endl; //test
-			return true;
 		}
-		bool write(tile_stream<tile>* src) {
-			if (!(file.is_open())) return false;
-			if (gmtry2i::area(src->get_bounds()) == 0) return true;
+		void write(tile_stream<tile>* src) {
+			if (!(file.is_open())) throw ios::failure("Cannot write to map file");
+			if (gmtry2i::area(src->get_bounds()) == 0) return;
 			fit_map(src->get_bounds());
 			std::cout << "Bounds of incoming tile stream: " << gmtry2i::to_string(src->get_bounds()) << std::endl; //test
 			map_info virtual_min_dst = get_matching_item_info<log2_w>(map_header.info, src->get_bounds());
 			std::cout << "Bounds of virtual destination for incoming tiles: " << 
-				gmtry2i::to_string(tmaps2::get_bounds<log2_w>(virtual_min_dst)) << std::endl; //test
+				gmtry2i::to_string(maps2::get_bounds<log2_w>(virtual_min_dst)) << std::endl; //test
 			item_index min_dst = alloc_item_at_depth(get_top_item(), virtual_min_dst.origin, virtual_min_dst.depth);
 			const tile* stream_tile;
 			item_index map_tile;
@@ -809,31 +796,23 @@ namespace tmaps2 {
 				map_tile = alloc_item_at_depth(min_dst, src->last_origin(), 0);
 				//std::cout << "Depth of written tile (better be 0 or else ima go insaneo style): " << map_tile.depth << std::endl; //test
 				std::cout << "Origin of written tile: " << gmtry2i::to_string(map_tile.origin) << std::endl;
-				if (map_tile.tree == 0) { //test
-					std::cout << "INVALID MAP TILE ALLOCATED" << std::endl;
-					return false;
-				}
 				write_tile(stream_tile, map_tile.tree->pos);
 			}
-			return true;
 		}
 		gmtry2i::aligned_box2i get_bounds() {
 			return get_map_bounds();
 		}
-		tile_write_mode& read_mode() {
-			return readmode;
-		}
-		tile_write_mode& write_mode() {
+		tile_write_mode get_wmode() {
 			return writemode;
+		}
+		void set_wmode(tile_write_mode new_write_mode) {
+			writemode = new_write_mode;
 		}
 		~map_fstream() {
 			if (file.is_open()) {
-				std::cout << "Final size to be written: " << map_header.size << std::endl; //test
+				std::cout << "Final size of map file: " << map_header.size << std::endl; //test
 				if (header_has_unsaved_changes) write_header();
-				read_header(); //test
 				file.close();
-				std::cout << "Final written file size: " << map_header.size << std::endl; //test
-
 			}
 			delete_index_tree(indices, map_header.info.depth);
 		}

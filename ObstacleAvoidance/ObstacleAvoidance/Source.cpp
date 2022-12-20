@@ -117,13 +117,11 @@ int main()try {
 
 	return 0;
 }
-catch (const rs2::error& e)
-{
+catch (const rs2::error& e) {
 	std::cerr << "RealSense error calling " << e.get_failed_function() << "(" << e.get_failed_args() << "):\n    " << e.what() << std::endl;
 	return EXIT_FAILURE;
 }
-catch (const std::exception& e)
-{
+catch (const std::exception& e) {
 	std::cerr << e.what() << std::endl;
 	return EXIT_FAILURE;
 }
