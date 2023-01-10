@@ -15,21 +15,18 @@ namespace maps2 {
 		TILE_ADD_MODE = 1
 	};
 
-	template <unsigned int log2_w>
-	inline gmtry2i::vector2i align_down(const gmtry2i::vector2i& p, const gmtry2i::vector2i any_tile_origin) {
+	inline gmtry2i::vector2i align_down(const gmtry2i::vector2i& p, const gmtry2i::vector2i any_tile_origin, unsigned int log2_w) {
 		return (((p - any_tile_origin) >> log2_w) << log2_w) + any_tile_origin;
 	}
 
-	template <unsigned int log2_w>
-	inline gmtry2i::vector2i align_up(const gmtry2i::vector2i& p, const gmtry2i::vector2i any_tile_origin) {
+	inline gmtry2i::vector2i align_up(const gmtry2i::vector2i& p, const gmtry2i::vector2i any_tile_origin, unsigned int log2_w) {
 		gmtry2i::vector2i dif = p - any_tile_origin;
 		gmtry2i::vector2i shifted_dif = dif >> log2_w;
 		return ((shifted_dif + (dif - (shifted_dif << log2_w) > 0)) << log2_w) + any_tile_origin;
 	}
 
-	template <unsigned int log2_w>
-	inline gmtry2i::aligned_box2i align_out(const gmtry2i::aligned_box2i& b, const gmtry2i::vector2i any_tile_origin) {
-		return gmtry2i::aligned_box2i(align_down<log2_w>(b.min, any_tile_origin), align_up<log2_w>(b.max, any_tile_origin));
+	inline gmtry2i::aligned_box2i align_out(const gmtry2i::aligned_box2i& b, const gmtry2i::vector2i any_tile_origin, unsigned int log2_w) {
+		return gmtry2i::aligned_box2i(align_down(b.min, any_tile_origin, log2_w), align_up(b.max, any_tile_origin, log2_w));
 	}
 
 	template <typename base_tile>
@@ -38,8 +35,14 @@ namespace maps2 {
 		nbrng_tile<base_tile>* nbrs[8];
 	};
 
+	class bounded_region {
+	public:
+		// Returns a tile-aligned rectangular outer bounds on all encompassed area
+		virtual gmtry2i::aligned_box2i get_bounds() = 0;
+	};
+
 	template <typename tile>
-	class tile_stream {
+	class tile_stream : public bounded_region {
 	public:
 		// Returns the stream to its initial conditions
 		virtual void reset() = 0;
@@ -47,15 +50,51 @@ namespace maps2 {
 		virtual const tile* next() = 0;
 		// Returns the origin of the last tile retrieved from next()
 		virtual gmtry2i::vector2i last_origin() = 0;
-		// Returns a bounds on all of the outgoing tiles
-		virtual gmtry2i::aligned_box2i get_bounds() = 0;
 		// Sets a bounds on the outgoing tiles. New bounds will automatically be tile-aligned if necessary
 		virtual void set_bounds(const gmtry2i::aligned_box2i& new_bounds) = 0;
 		virtual ~tile_stream() {};
 	};
 
+	template <unsigned int log2_w>
+	class expandable_map : bounded_region {
+	public:
+		/*
+		* Expands the map in the given direction
+		*/
+		virtual void expand(const gmtry2i::vector2i& direction) = 0;
+
+		/*
+		* Fits the position into the map by expanding it if necessary
+		*/
+		void fit(const gmtry2i::vector2i& p) {
+			gmtry2i::aligned_box2i alloc_box = this->get_bounds();
+			while (!gmtry2i::contains(alloc_box, p)) {
+				expand(p - gmtry2i::center(alloc_box));
+				alloc_box = this->get_bounds();
+				std::cout << "Expanded Map Bounds: " <<
+					alloc_box.min.x << ", " << alloc_box.min.y << "; " <<
+					alloc_box.max.x << ", " << alloc_box.max.y << std::endl; //test
+			}
+		}
+
+		/*
+		* Fits the box into the map by expanding it if necessary
+		*/
+		void fit(const gmtry2i::aligned_box2i& box) {
+			gmtry2i::aligned_box2i alloc_box = this->get_bounds();
+			gmtry2i::vector2i box_center = gmtry2i::center(box);
+			while (!gmtry2i::contains(alloc_box, box)) {
+				expand(box_center - gmtry2i::center(alloc_box));
+				alloc_box = this->get_bounds();
+				std::cout << "Expanded Map Bounds: " <<
+					alloc_box.min.x << ", " << alloc_box.min.y << "; " <<
+					alloc_box.max.x << ", " << alloc_box.max.y << std::endl; //test
+			}
+		}
+	};
+
 	template <typename tile>
-	class map_istream {
+	class map_istream : public bounded_region {
 	public:
 		/*
 		* Reads tile at given position to the destination
@@ -68,14 +107,9 @@ namespace maps2 {
 		* TILE STREAM MUST BE DELETED MANUALLY
 		*/
 		virtual tile_stream<tile>* read() = 0;
-
-		/*
-		* Returns the current bounds of the map
-		*/
-		virtual gmtry2i::aligned_box2i get_bounds() = 0;
 	};
 
-	template <typename tile>
+	template <unsigned int log2_w, typename tile>
 	class map_ostream {
 	public:
 		/*
@@ -97,114 +131,92 @@ namespace maps2 {
 		virtual void set_wmode(tile_write_mode new_write_mode) = 0;
 	};
 
-	template <typename tile>
-	class map_iostream : map_istream<tile>, map_ostream<tile> {};
+	template <unsigned int log2_w, typename tile>
+	class map_iostream : public map_istream<tile>, public map_ostream<log2_w, tile> {};
+
+	template <typename T>
+	struct spacial_tree {
+		T* branch[4];
+	};
 
 	/*
-	* Holds information about a map item
-	* depth: depth of the map (# of layers in the map above the tile layer)
-	* origin: origin (bottom left corner position) of map
+	* Holds information about a spacial tree
+	* depth: depth of the tree (# of layers in the tree above the tile layer)
+	* origin: origin (bottom left corner position) of tree in world-space
 	*/
-	struct map_info {
+	struct tree_info {
 		gmtry2i::vector2i origin;
 		unsigned int depth;
-		map_info() {
-			origin = gmtry2i::vector2i();
-			depth = 0;
-		}
-		map_info(const gmtry2i::vector2i map_origin) {
-			origin = map_origin;
-			depth = 0;
-		}
-		map_info(const gmtry2i::vector2i map_origin, unsigned int map_depth) {
+		tree_info() = default;
+		tree_info(const gmtry2i::vector2i map_origin, unsigned int map_depth) {
 			origin = map_origin;
 			depth = map_depth;
 		}
-	};
-
-	struct map_tree {
-		void* branch[4];
-		map_tree() = default;
 	};
 
 	inline gmtry2i::vector2i get_next_branch_disp(unsigned int branch_idx, unsigned long hwidth) {
 		return gmtry2i::vector2i(branch_idx & 1, branch_idx >> 1) * hwidth;
 	}
 
-	inline unsigned int get_next_branch_idx(const gmtry2i::vector2i& origin, 
-											const gmtry2i::vector2i& next_origin, unsigned long hwidth) {
-		return (next_origin.x - origin.x >= hwidth) + 2 * (next_origin.y - origin.y >= hwidth);
-	}
-
-	/*
-	* item: is a map_tree* if depth > 0 or a tile* if depth == 0
-	* depth: number of layers below layer of the item parameter (depth at root of tree = #layers - 1;
-																 depth at base of tree = 0)
-	*/
-	template <typename tile>
-	void delete_map_tree(void* item, unsigned int depth) {
-		if (depth > 0 && item) {
-			for (int i = 0; i < 4; i++)
-				delete_map_tree<tile>(static_cast<map_tree*>(item)->branch[i], depth - 1);
-			delete static_cast<map_tree*>(item);
-		}
-		else delete static_cast<tile*>(item);
-	}
-
-	/*
-	* Holds main copy of map data
-	* All map data is properly disposed of when the map is deleted
-	* info: holds the depth and origin of the root
-	* root: non-null map_tree pointer
-	*/
-	template <typename tile>
-	struct map {
-		map_info info;
-		map_tree* root;
-		map() {
-			info = map_info(gmtry2i::vector2i(), 1);
-			root = new map_tree();
-		}
-		map(const gmtry2i::vector2i& origin) {
-			info = map_info(origin, 1);
-			root = new map_tree();
-		}
-		~map() {
-			delete_map_tree<tile>(root, info.depth);
-		}
-	};
-
 	/*
 	* Temporarily holds information about a part of the map (either a tree or a tile)
-	* Holds same data as a map, but it shouldn't be used to hold the primary pointers to things
-	*		When deleted, the actual item isn't deleted
+	* When deleted, the data pointed to by ptr isn't deleted
 	* Ptr is always non-null, and the item it points to can have any depth
+	* T must either be void or some kind of homogeneous_tree
 	*/
-	template <typename tile>
-	struct map_item {
-		map_info info;
-		void* ptr;
-		map_item() = default;
-		map_item(map<tile>* map) {
-			info = map_info(map->info.origin, map->info.depth);
-			ptr = map->root;
-		}
-		map_item(gmtry2i::vector2i item_origin, unsigned int item_depth) {
-			info = map_info(item_origin, item_depth);
-			ptr = 0;
-		}
-		map_item(void* item_ptr, gmtry2i::vector2i item_origin, unsigned int item_depth) {
-			info = map_info(item_origin, item_depth);
+	template <unsigned int log2_tile_w, typename tile, typename T>
+	struct spacial_item {
+		tree_info info;
+		T* ptr;
+		spacial_item() = default;
+		spacial_item(T* item_ptr, gmtry2i::vector2i item_origin, unsigned int item_depth) {
+			info = tree_info(item_origin, item_depth);
 			ptr = item_ptr;
 		}
-		map_item(void* item_ptr, const map_info& item_info) {
+		spacial_item(T* item_ptr, const tree_info& item_info) {
 			info = item_info;
 			ptr = item_ptr;
+		}
+		inline unsigned int get_width() const {
+			return 1 << (info.depth + log2_tile_w);
+		}
+		inline unsigned int get_branch_width() const {
+			return get_width() >> 1;
+		}
+		inline tree_info get_branch_info(unsigned int branch_idx, unsigned int branch_width) const {
+			return tree_info(info.origin + get_next_branch_disp(branch_idx, branch_width), info.depth - 1);
+		}
+		inline unsigned int get_branch_idx(const gmtry2i::vector2i& branch_origin, unsigned int branch_width) const {
+			return (branch_origin.x - info.origin.x >= branch_width) + 2 * (branch_origin.y - info.origin.y >= branch_width);
+		}
+		inline unsigned int get_branch_idx(const gmtry2i::vector2i& branch_origin) const {
+			return get_branch_idx(branch_origin, get_branch_width());
+		}
+		inline spacial_item get_branch_item(unsigned int branch_idx, unsigned int branch_width) const {
+			return spacial_item(
+				static_cast<spacial_tree<T>*>(ptr)->branch[branch_idx],
+				get_branch_info(branch_idx, branch_width)
+			);
+		}
+		inline spacial_item get_branch_item(unsigned int branch_idx) const {
+			return get_branch_item(branch_idx, get_branch_width());
+		}
+		inline spacial_item get_branch_item(const gmtry2i::vector2i& branch_origin) const {
+			unsigned int branch_width = get_branch_width();
+			return get_branch_item(get_branch_idx(branch_origin, branch_width), branch_width);
+		}
+		inline spacial_item create_branch_item(const gmtry2i::vector2i& branch_origin, T* branch_ptr) const {
+			unsigned int branch_width = get_branch_width();
+			unsigned int branch_idx = get_branch_idx(branch_origin, branch_width);
+			return spacial_item(
+				static_cast<spacial_tree<T>*>(ptr)->branch[branch_idx] = branch_ptr,
+				get_branch_info(branch_idx, branch_width)
+			);
 		}
 	};
 
 	template <unsigned int log2_tile_w>
-	inline gmtry2i::aligned_box2i get_bounds(const map_info& info) {
+	inline gmtry2i::aligned_box2i get_bounds(const tree_info& info) {
 		return gmtry2i::aligned_box2i(info.origin, 1 << (info.depth + log2_tile_w));
 	}
 
@@ -216,14 +228,15 @@ namespace maps2 {
 	template <unsigned int log2_tile_w, typename tile>
 	class map_tstream : public tile_stream<tile> {
 	protected:
-		map_info info;
+		tree_info info;
 		void** items;
 		gmtry2i::vector2i* origins;
 		unsigned int* branch_indices;
 		unsigned int current_level;
 		gmtry2i::aligned_box2i bounds;
 		virtual void update_next_item() {
-			items[current_level + 1] = static_cast<map_tree*>(items[current_level])->branch[branch_indices[current_level]];
+			items[current_level + 1] = static_cast<spacial_tree<void>*>
+				(items[current_level])->branch[branch_indices[current_level]];
 		}
 		virtual tile* get_tile(void* item) {
 			return static_cast<tile*>(item);
@@ -234,7 +247,7 @@ namespace maps2 {
 			branch_indices[0] = 0;
 			current_level = 0;
 		}
-		map_tstream(const map_item<tile>& item) {
+		map_tstream(const spacial_item<log2_tile_w, tile, void>& item) {
 			info = item.info;
 			items = new void* [info.depth + 1];
 			items[0] = item.ptr;
@@ -251,16 +264,17 @@ namespace maps2 {
 					return get_tile(items[0]);
 				}
 			}
-			unsigned int current_depth;
+			unsigned int current_depth, half_width;
 			while (branch_indices[0] < 4) {
 				if (branch_indices[current_level] > 3) branch_indices[--current_level]++;
 				else {
 					current_depth = info.depth - current_level;
+					half_width = 1 << (log2_tile_w + current_depth - 1);
 					origins[current_level + 1] = origins[current_level]
-						+ get_next_branch_disp(branch_indices[current_level], 1 << (log2_tile_w + current_depth - 1));
+						+ get_next_branch_disp(branch_indices[current_level], half_width);
 					update_next_item();
 					if (items[current_level + 1] && gmtry2i::intersects(bounds,
-						gmtry2i::aligned_box2i(origins[current_level + 1], 1 << (current_depth + log2_tile_w - 1)))) {
+						gmtry2i::aligned_box2i(origins[current_level + 1], half_width))) {
 						if (current_depth == 1) {
 							tile* next_tile = get_tile(items[current_level + 1]);
 							branch_indices[current_level]++;
@@ -283,7 +297,8 @@ namespace maps2 {
 			return bounds;
 		}
 		void set_bounds(const gmtry2i::aligned_box2i& new_bounds) {
-			bounds = gmtry2i::intersection(maps2::get_bounds<log2_tile_w>(info), align_out<log2_tile_w>(new_bounds, info.origin));
+			bounds = gmtry2i::intersection(maps2::get_bounds<log2_tile_w>(info), align_out(new_bounds, info.origin, log2_tile_w));
+			reset();
 		}
 		~map_tstream() {
 			for (int i = 0; i < info.depth; i++) items[i] = 0;
@@ -294,53 +309,14 @@ namespace maps2 {
 	};
 
 	/*
-	* Doubles the width of the map, expanding it in the given direction
-	*/
-	template <unsigned int log2_w, typename tile>
-	void expand_map(map<tile>* map, const gmtry2i::vector2i& direction) {
-		long map_init_width = 1 << (map->info.depth + log2_w);
-		unsigned int old_root_index = (direction.x < 0) + 2 * (direction.y < 0);
-		map_tree* new_root = new map_tree();
-		new_root->branch[old_root_index] = map->root;
-		map->root = new_root;
-		map->info.depth += 1;
-		map->info.origin -= gmtry2i::vector2i(direction.x < 0, direction.y < 0) * map_init_width;
-	}
-
-	/*
-	* Fits the position into the map by expanding it if necessary
-	*/
-	template <unsigned int log2_w, typename tile>
-	void fit_map(map<tile>* map, const gmtry2i::vector2i p) {
-		gmtry2i::aligned_box2i alloc_box = get_bounds<log2_w>(map->info);
-		while (!gmtry2i::contains(alloc_box, p)) {
-			expand_map<log2_w, tile>(map, p - gmtry2i::center(alloc_box));
-			alloc_box = get_bounds<log2_w>(map->info);
-		}
-	}
-
-	/*
-	* Fits the box into the map by expanding it if necessary
-	*/
-	template <unsigned int log2_w, typename tile>
-	void fit_map(map<tile>* map, const gmtry2i::aligned_box2i box) {
-		gmtry2i::aligned_box2i alloc_box = get_bounds<log2_w>(map->info);
-		gmtry2i::vector2i box_center = gmtry2i::center(box);
-		while (!gmtry2i::contains(alloc_box, box)) {
-			expand_map<log2_w, tile>(map, box_center - gmtry2i::center(alloc_box));
-			alloc_box = get_bounds<log2_w>(map->info);
-		}
-	}
-
-	/*
-	* Returns the info of the item from the map that most tightly fits the given bounds
+	* Returns the info of the sub-item from the given item that most tightly fits the given bounds inside
 	* Returns an item info of depth 1 and origin (0, 0) if the map does not contain the boundary box
 	* DOES NOT AUTOMATICALLY MODIFY MAP TO FIT THE GIVEN BOUNDS
 	*/
 	template <unsigned int log2_w>
-	map_info get_matching_item_info(const map_info& item_info, const gmtry2i::aligned_box2i& bounds) {
-		map_info matching_item = map_info(gmtry2i::vector2i(), 1);
-		map_info next_matching_item(item_info.origin, item_info.depth);
+	tree_info get_matching_item_info(const tree_info& item_info, const gmtry2i::aligned_box2i& bounds) {
+		tree_info matching_item = tree_info(gmtry2i::vector2i(), 1);
+		tree_info next_matching_item(item_info.origin, item_info.depth);
 		unsigned int next_branch_index;
 		unsigned int hwidth = 1 << (next_matching_item.depth + log2_w - 1);
 		while (gmtry2i::contains(get_bounds<log2_w>(next_matching_item), bounds) && matching_item.depth) {
@@ -353,75 +329,127 @@ namespace maps2 {
 		return matching_item;
 	}
 
-	/*
-	* Retrieves the map item closest to a given point at a given depth
-	* DOES NOT AUTOMATICALLY MODIFY THE MAP
-	*/
 	template <unsigned int log2_w, typename tile>
-	map_item<tile> get_map_item(const map_item<tile>& src, const gmtry2i::vector2i& p, unsigned int depth) {
-		map_item<tile> item = map_item<tile>();
-		map_item<tile> next_item = src;
-		unsigned int next_branch_index;
-		unsigned int hwidth = (1 << (next_item.info.depth + log2_w)) >> 1;
-		while (next_item.ptr && next_item.info.depth > depth) {
-			item = next_item;
-			next_branch_index = (p.x - item.info.origin.x >= hwidth) + 2 * (p.y - item.info.origin.y >= hwidth);
-			next_item.ptr = static_cast<map_tree*>(item.ptr)->branch[next_branch_index];
-			next_item.info.depth = item.info.depth - 1;
-			next_item.info.origin = item.info.origin + gmtry2i::vector2i(next_branch_index & 1, next_branch_index >> 1) * hwidth;
-			hwidth >>= 1;
+	class map_buffer : public map_iostream<log2_w, tile>, protected expandable_map<log2_w> {
+	protected:
+		typedef spacial_tree<void> map_tree;
+		typedef spacial_item<log2_w, tile, void> map_item;
+		/*
+		* item: is a map_tree* if depth > 0 or a tile* if depth == 0
+		* depth: number of layers below layer of the item parameter (depth at root of tree = #layers - 1;
+																	 depth at base of tree = 0)
+		*/
+		template <typename tile>
+		void delete_map_tree(void* item, unsigned int depth) {
+			if (depth > 0 && item) {
+				for (int i = 0; i < 4; i++)
+					delete_map_tree<tile>(static_cast<map_tree*>(item)->branch[i], depth - 1);
+				delete static_cast<map_tree*>(item);
+			}
+			else delete static_cast<tile*>(item);
 		}
-		return next_item.ptr ? next_item : item;
-	}
 
-	/*
-	* Allocates an item in the map at the desired position and depth and retrieves it
-	* Returns a null item (all 0s) if the map does not contain the item's boundary box
-	* DOES NOT AUTOMATICALLY MODIFY MAP TO FIT THE ITEM
-	*/
-	template <unsigned int log2_w, typename tile>
-	map_item<tile> alloc_map_item(map_item<tile> src, const gmtry2i::vector2i& p, unsigned int depth) {
-		map_item<tile> item = map_item<tile>();
-		map_item<tile> next_item = get_map_item<log2_w, tile>(src, p, depth);
-		unsigned int next_branch_index;
-		unsigned int hwidth = (1 << (next_item.info.depth + log2_w)) >> 1;
-		while (next_item.info.depth > depth) {
-			item = next_item;
-			next_branch_index = (p.x - item.info.origin.x >= hwidth) + 2 * (p.y - item.info.origin.y >= hwidth);
-			next_item.ptr = static_cast<map_tree*>(item.ptr)->branch[next_branch_index] = new map_tree();
-			next_item.info.depth = item.info.depth - 1;
-			next_item.info.origin = item.info.origin + gmtry2i::vector2i(next_branch_index & 1, next_branch_index >> 1) * hwidth;
-			hwidth >>= 1;
-		}
-		if (depth == 0 && item.ptr) {
-			delete static_cast<map_tree*>(next_item.ptr);
-			next_item.ptr = static_cast<map_tree*>(item.ptr)->branch[next_branch_index] = new tile();
-		}
-		return next_item;
-	}
+		tree_info info;
+		map_tree* root;
+		tile_write_mode write_mode;
 
-	/*
-	* Copies all tiles from an item to a map, assuming only alignment on the tile level
-	* Automatically expands the map or extends its branches such that it will contain all tiles from the item
-	*/
-	template <unsigned int log2_w, typename tile>
-	map_item<tile> set_map_tiles(map<tile>* dst, tile_stream<tile>* src, tile_write_mode mode) {
-		if (gmtry2i::area(src->get_bounds()) == 0) return map_item<tile>();
-		fit_map<log2_w, tile>(dst, src->get_bounds());
-		map_info virtual_min_dst_item = get_matching_item_info<log2_w>(dst->info, src->get_bounds());
-		map_item<tile> min_dst = alloc_map_item<log2_w, tile>(map_item<tile>(dst), virtual_min_dst_item.origin, virtual_min_dst_item.depth);
-		const tile* next_tile;
-		tile* map_tile;
-		while (next_tile = src->next()) {
-			map_tile = static_cast<tile*>(alloc_map_item<log2_w, tile>(min_dst, src->last_origin(), 0).ptr);
-			if (mode) *map_tile += *next_tile;
-			else *map_tile = *next_tile;
+		map_item get_top_item() {
+			return map_item(root, info);
 		}
-		return min_dst;
-	}
+		/*
+		* Doubles the width of the map, expanding it in the given direction
+		*/
+		void expand(const gmtry2i::vector2i& direction) {
+			long map_init_width = 1 << (info.depth + log2_w);
+			unsigned int old_root_index = (direction.x < 0) + 2 * (direction.y < 0);
+			map_tree* new_root = new map_tree();
+			new_root->branch[old_root_index] = root;
+			root = new_root;
+			info.depth += 1;
+			info.origin -= gmtry2i::vector2i(direction.x < 0, direction.y < 0) * map_init_width;
+		}
+		/*
+		* Retrieves the map item closest to a given point at a given depth
+		* DOES NOT AUTOMATICALLY MODIFY THE MAP
+		*/
+		map_item seek_item(const map_item& start, const gmtry2i::vector2i& p, unsigned int depth) {
+			map_item item = map_item();
+			map_item next_item = start;
+			while (next_item.ptr && next_item.info.depth > depth) {
+				item = next_item;
+				next_item = item.get_branch_item(p);
+			}
+			return next_item.ptr ? next_item : item;
+		}
+		/*
+		* Allocates an item in the map at the desired position and depth and retrieves it
+		* Returns a null item (all 0s) if the map does not contain the item's boundary box
+		* DOES NOT AUTOMATICALLY MODIFY MAP TO FIT THE ITEM
+		*/
+		map_item alloc_item(const map_item& start, const gmtry2i::vector2i& p, unsigned int depth) {
+			map_item item = map_item();
+			map_item next_item = seek_item(start, p, depth);
+			while (next_item.info.depth > depth) {
+				item = next_item;
+				next_item = item.create_branch_item(p, new map_tree());
+			}
+			if (depth == 0 && item.ptr) {
+				delete static_cast<map_tree*>(next_item.ptr);
+				next_item.ptr = static_cast<map_tree*>(item.ptr)->branch[item.get_branch_idx(p)] = new tile();
+			}
+			return next_item;
+		}
+
+	public:
+		map_buffer(gmtry2i::vector2i origin) {
+			info = tree_info(origin, 1);
+			root = new map_tree();
+			write_mode = TILE_OVERWRITE_MODE;
+		}
+		const tile* read(const gmtry2i::vector2i& p) {
+			if (!gmtry2i::contains(get_bounds(), p)) return 0;
+			map_item deepest_item = seek_item(get_top_item(), p, 0);
+			if (deepest_item.info.depth == 0) return static_cast<tile*>(deepest_item.ptr);
+			else return 0;
+		}
+		tile_stream<tile>* read() {
+			return new map_tstream<log2_w, tile>(get_top_item());
+		}
+		void write(const gmtry2i::vector2i& p, const tile* src) {
+			this->fit(p);
+			map_item dst = alloc_item(get_top_item(), p, 0);
+			*static_cast<tile*>(dst.ptr) = *src;
+		}
+		void write(tile_stream<tile>* src) {
+			if (gmtry2i::area(src->get_bounds()) == 0) return;
+			this->fit(src->get_bounds());
+			tree_info virtual_min_dst_item = get_matching_item_info<log2_w>(info, src->get_bounds());
+			map_item min_dst = alloc_item(get_top_item(), virtual_min_dst_item.origin, virtual_min_dst_item.depth);
+			const tile* next_tile;
+			tile* map_tile;
+			while (next_tile = src->next()) {
+				map_tile = static_cast<tile*>(alloc_item(min_dst, src->last_origin(), 0).ptr);
+				if (write_mode) *map_tile += *next_tile;
+				else *map_tile = *next_tile;
+			}
+		}
+		gmtry2i::aligned_box2i get_bounds() {
+			return maps2::get_bounds<log2_w>(info);
+		}
+		tile_write_mode get_wmode() {
+			return write_mode;
+		}
+		void set_wmode(tile_write_mode new_write_mode) {
+			write_mode = new_write_mode;
+		}
+		~map_buffer() {
+			delete_map_tree<tile>(root, info.depth);
+			root = 0;
+		}
+	};
 
 	template <unsigned int log2_w, typename tile>
-	class map_fstream : map_iostream<tile> {
+	class map_fstream : public map_iostream<log2_w, tile>, protected expandable_map<log2_w> {
 	protected:
 		typedef std::uint32_t file_pos;
 		const unsigned int tree_size = 4 * sizeof(file_pos);
@@ -431,11 +459,11 @@ namespace maps2 {
 		* size: size of file
 		*/
 		struct bmap_file_header {
-			map_info info;
 			unsigned int log2_tile_w;
 			file_pos root;
 			file_pos size;
 		};
+		tree_info info;
 		std::uint32_t file_raw_depth;
 		std::uint64_t file_raw_origin[2];
 		std::uint32_t file_raw_log2_tile_w;
@@ -450,15 +478,10 @@ namespace maps2 {
 		* pos: position of the represented item in the file
 		* fully_indexed: tells whether the tree and all of its descendents are indexed
 		*/
-		struct index_tree {
+		struct index_tree : public spacial_tree<index_tree> {
 			file_pos pos;
-			index_tree* branch[4];
-			index_tree(file_pos item_pos) {
+			index_tree(file_pos item_pos) : spacial_tree<index_tree>() {
 				pos = item_pos;
-				branch[0] = 0;
-				branch[1] = 0;
-				branch[2] = 0;
-				branch[3] = 0;
 			}
 		};
 		static void delete_index_tree(index_tree* tree, unsigned int depth) {
@@ -468,22 +491,7 @@ namespace maps2 {
 				delete tree;
 			}
 		}
-		/*
-		* tree: stores the file position of the item, tells whether the item is fully indexed, and points to children items
-		* depth: depth of the item (# of possible layers below it)
-		* origin: origin (bottom left corner position) of item
-		*/
-		struct item_index {
-			index_tree* tree;
-			unsigned int depth;
-			gmtry2i::vector2i origin;
-			item_index() = default;
-			item_index(index_tree* tree_ptr, unsigned int item_depth, gmtry2i::vector2i item_origin) {
-				tree = tree_ptr;
-				depth = item_depth;
-				origin = item_origin;
-			}
-		};
+		typedef spacial_item<log2_w, tile, index_tree> item_index;
 
 		bmap_file_header map_header;
 		std::fstream file;
@@ -540,12 +548,12 @@ namespace maps2 {
 
 			read_file(&file_raw_depth, current_pos, member_size = sizeof(file_raw_depth));
 			current_pos += member_size;
-			map_header.info.depth = static_cast<unsigned int>(file_raw_depth);
+			info.depth = static_cast<unsigned int>(file_raw_depth);
 
 			read_file(file_raw_origin, current_pos, member_size = 2 * sizeof(*file_raw_origin));
 			current_pos += member_size;
-			map_header.info.origin.x = static_cast<unsigned long>(file_raw_origin[0]);
-			map_header.info.origin.y = static_cast<unsigned long>(file_raw_origin[1]);
+			info.origin.x = static_cast<unsigned long>(file_raw_origin[0]);
+			info.origin.y = static_cast<unsigned long>(file_raw_origin[1]);
 
 			read_file(&file_raw_log2_tile_w, current_pos, member_size = sizeof(file_raw_log2_tile_w));
 			current_pos += member_size;
@@ -557,12 +565,12 @@ namespace maps2 {
 			file_pos current_pos = 0;
 			unsigned int member_size;
 
-			file_raw_depth = static_cast<std::uint32_t>(map_header.info.depth);
+			file_raw_depth = static_cast<std::uint32_t>(info.depth);
 			write_file(&file_raw_depth, current_pos, member_size = sizeof(file_raw_depth));
 			current_pos += member_size;
 
-			file_raw_origin[0] = static_cast<std::uint64_t>(map_header.info.origin.x);
-			file_raw_origin[1] = static_cast<std::uint64_t>(map_header.info.origin.y);
+			file_raw_origin[0] = static_cast<std::uint64_t>(info.origin.x);
+			file_raw_origin[1] = static_cast<std::uint64_t>(info.origin.y);
 			write_file(file_raw_origin, current_pos, member_size = 2 * sizeof(*file_raw_origin));
 			current_pos += member_size;
 
@@ -575,10 +583,10 @@ namespace maps2 {
 			header_has_unsaved_changes = false;
 		}
 		inline gmtry2i::aligned_box2i get_map_bounds() {
-			return maps2::get_bounds<log2_w>(map_header.info);
+			return maps2::get_bounds<log2_w>(info);
 		}
-		void expand_map(const gmtry2i::vector2i& direction) {
-			long map_init_width = 1 << (map_header.info.depth + log2_w);
+		void expand(const gmtry2i::vector2i& direction) {
+			long map_init_width = 1 << (info.depth + log2_w);
 			unsigned int old_root_index = (direction.x < 0) + 2 * (direction.y < 0);
 			index_tree* new_root = new index_tree(map_header.size);
 			new_root->branch[old_root_index] = indices;
@@ -590,133 +598,104 @@ namespace maps2 {
 			append_file(new_root_branches, tree_size);
 
 			map_header.root = new_root->pos;
-			map_header.info.depth += 1;
-			map_header.info.origin -= gmtry2i::vector2i(direction.x < 0, direction.y < 0) * map_init_width;
+			info.depth += 1;
+			info.origin -= gmtry2i::vector2i(direction.x < 0, direction.y < 0) * map_init_width;
+			header_has_unsaved_changes = true;
 			std::cout << "Map Expanded!" << std::endl;
 			std::cout << "New root: " << map_header.root << std::endl; //test
-			std::cout << "New depth: " << map_header.info.depth << std::endl; //test
-			std::cout << "New origin: " << map_header.info.origin.x << ", " << map_header.info.origin.y << std::endl; //test
-		}
-		void fit_map(const gmtry2i::vector2i& p) {
-			gmtry2i::aligned_box2i alloc_box = get_map_bounds();
-			while (!gmtry2i::contains(alloc_box, p)) {
-				expand_map(p - gmtry2i::center(alloc_box));
-				alloc_box = get_map_bounds();
-				std::cout << "Expanded Map Bounds: " <<
-					alloc_box.min.x << ", " << alloc_box.min.y << "; " <<
-					alloc_box.max.x << ", " << alloc_box.max.y << std::endl; //test
-			}
-			write_header();
-		}
-		void fit_map(const gmtry2i::aligned_box2i& box) {
-			gmtry2i::aligned_box2i alloc_box = get_map_bounds();
-			gmtry2i::vector2i box_center = gmtry2i::center(box);
-			while (!gmtry2i::contains(alloc_box, box)) {
-				expand_map(box_center - gmtry2i::center(alloc_box));
-				alloc_box = get_map_bounds();
-			}
-			write_header();
+			std::cout << "New depth: " << info.depth << std::endl; //test
+			std::cout << "New origin: " << info.origin.x << ", " << info.origin.y << std::endl; //test
 		}
 		item_index get_top_item() {
-			return item_index(indices, map_header.info.depth, map_header.info.origin);
+			return item_index(indices, info);
 		}
 		/*
 		* Returns the existing item closest to the desired depth that contains the given point and is descended from start
 		* Start must exist, and the returned item won't contain the point if start doesn't contain the point
 		*/
-		item_index seek_item_at_depth(const item_index& start, const gmtry2i::vector2i& p, unsigned int depth) {
+		item_index seek_item(const item_index& start, const gmtry2i::vector2i& p, unsigned int depth) {
 			item_index item = item_index();
-			item_index next_item(start.tree, start.depth, start.origin);
-			unsigned int hwidth = 1 << (next_item.depth + log2_w - 1);
+			item_index next_item = start;
 			unsigned int next_branch_idx;
 			file_pos next_branches[4];
-			while (next_item.tree->pos && next_item.depth > depth) {
+			while (next_item.ptr->pos && next_item.info.depth > depth) {
 				item = next_item;
-				next_branch_idx = get_next_branch_idx(item.origin, p, hwidth);
-				if (item.tree->branch[next_branch_idx] == 0) {
-					read_file(next_branches, item.tree->pos, tree_size);
-					for (int i = 0; i < 4; i++) item.tree->branch[i] = new index_tree(next_branches[i]);
+				next_branch_idx = item.get_branch_idx(p);
+				if (item.ptr->branch[next_branch_idx] == 0) {
+					read_file(next_branches, item.ptr->pos, tree_size);
+					for (int i = 0; i < 4; i++) item.ptr->branch[i] = new index_tree(next_branches[i]);
 
-					std::cout << "Tree at depth " << item.depth << " indexed from " << item.tree->pos << ":" << std::endl; //test
+					std::cout << "Tree at depth " << item.info.depth << 
+						" indexed from " << item.ptr->pos << ":" << std::endl; //test
 					std::cout << "{ " << next_branches[0] << ", " << next_branches[1] << ", " <<
 						next_branches[2] << ", " << next_branches[3] << " }" << std::endl; //test
 				}
-				next_item.tree = item.tree->branch[next_branch_idx];
-				next_item.depth = item.depth - 1;
-				next_item.origin = item.origin + get_next_branch_disp(next_branch_idx, hwidth);
-				hwidth >>= 1;
+				next_item = item.get_branch_item(next_branch_idx);
 			}
-			return next_item.tree->pos ? next_item : item;
+			return next_item.ptr->pos ? next_item : item;
 		}
 		/*
 		* Allocates an item at the desired position and depth and returns its index
 		* Returns a real item if start is real, although it won't contain the point if start doesn't contain the point
 		*/
-		item_index alloc_item_at_depth(const item_index& start, const gmtry2i::vector2i p, unsigned int depth) {
-			item_index item = seek_item_at_depth(start, p, depth);
-			if (item.depth == depth) return item;
-			unsigned int hwidth = 1 << (item.depth + log2_w - 1);
-			unsigned int next_branch_idx = get_next_branch_idx(item.origin, p, hwidth);
-			write_branch(map_header.size, next_branch_idx, item.tree->pos);
+		item_index alloc_item(const item_index& start, const gmtry2i::vector2i p, unsigned int depth) {
+			item_index item = seek_item(start, p, depth);
+			if (item.info.depth == depth) return item;
+			unsigned int next_branch_idx = item.get_branch_idx(p);
+			write_branch(map_header.size, next_branch_idx, item.ptr->pos);
 			// the only items that make it to this point have a next_item with a null pos
-			item.tree->branch[next_branch_idx]->pos = map_header.size;
-			item.tree = item.tree->branch[next_branch_idx];
-			item.depth -= 1;
-			item.origin += get_next_branch_disp(next_branch_idx, hwidth);
-			hwidth >>= 1;
-			while (item.depth > depth) {
+			item.ptr->branch[next_branch_idx]->pos = map_header.size;
+			item = item.get_branch_item(next_branch_idx);
+			while (item.info.depth > depth) {
 				file_pos branches[4] = { 0, 0, 0, 0 };
-				next_branch_idx = get_next_branch_idx(item.origin, p, hwidth);
+				next_branch_idx = item.get_branch_idx(p);
 				branches[next_branch_idx] = map_header.size + tree_size;
 				append_file(branches, tree_size);
-				for (int i = 0; i < 4; i++) item.tree->branch[i] = new index_tree(branches[i]);
+				for (int i = 0; i < 4; i++) item.ptr->branch[i] = new index_tree(branches[i]);
 
 				std::cout << "File appended with tree at " << (branches[next_branch_idx] - tree_size) << 
-					" at depth " << item.depth << ":" << std::endl; //test
+					" at depth " << item.info.depth << ":" << std::endl; //test
 				std::cout << "{ " << branches[0] << ", " << branches[1] << ", " << 
 					branches[2] << ", " << branches[3] << " }" << std::endl; //test
 
-				item.tree = item.tree->branch[next_branch_idx];
-				item.depth -= 1;
-				item.origin += get_next_branch_disp(next_branch_idx, hwidth);
-				hwidth >>= 1;
+				item = item.get_branch_item(next_branch_idx);
 			}
 			append_file(&blank, depth ? tree_size : sizeof(tile));
 			return item;
 		}
 
-		typedef map_tstream<log2_w, tile> maptstream;
-
-		class map_fstream_tstream : public maptstream {
+		class map_fstream_tstream : public map_tstream<log2_w, tile> {
 		protected:
 			map_fstream* src;
 			tile last_tile;
 			void update_next_item() {
-				index_tree* current = static_cast<index_tree*>(maptstream::items[maptstream::current_level]);
+				index_tree* current = static_cast<index_tree*>(this->items[this->current_level]);
 				if (current->branch[0] == 0) {
 					file_pos branches[4] = { 0, 0, 0, 0 }; //remove 0 initializations
 					src->read_file(branches, current->pos, src->tree_size);
 					for (int i = 0; i < 4; i++) current->branch[i] = new index_tree(branches[i]);
 
-					std::cout << "Tree at depth " << (maptstream::info.depth - maptstream::current_level) << 
-						" and position " << gmtry2i::to_string(maptstream::origins[maptstream::current_level]) <<
+					std::cout << "Tree at depth " << (this->info.depth - this->current_level) <<
+						" and position " << gmtry2i::to_string(this->origins[this->current_level]) <<
 						" indexed from " << current->pos << ":" << std::endl; //test
 					std::cout << "{ " << branches[0] << ", " << branches[1] << ", " << 
 						branches[2] << ", " << branches[3] << " }" << std::endl; //test
 				}
-				maptstream::items[maptstream::current_level + 1] = current->branch[maptstream::branch_indices[maptstream::current_level]];
-				if (static_cast<index_tree*>(maptstream::items[maptstream::current_level + 1])->pos == 0)
-					maptstream::items[maptstream::current_level + 1] = 0;
+				this->items[this->current_level + 1] = current->branch[this->branch_indices[this->current_level]];
+				if (static_cast<index_tree*>(this->items[this->current_level + 1])->pos == 0)
+					this->items[this->current_level + 1] = 0;
 			}
 			tile* get_tile(void* item) {
 				src->read_file(&last_tile, static_cast<index_tree*>(item)->pos, sizeof(last_tile));
-				std::cout << "Tile at position " << gmtry2i::to_string(maptstream::origins[maptstream::current_level + 1]) <<
+				std::cout << "Tile at position " << gmtry2i::to_string(this->origins[this->current_level + 1]) <<
 					" built from " << static_cast<index_tree*>(item)->pos << std::endl; //test
 				return &last_tile;
 			}
 		public:
-			map_fstream_tstream(item_index item, map_fstream* source) : maptstream(map_item<tile>(item.tree, item.origin, item.depth)) {
+			map_fstream_tstream(item_index item, map_fstream* source) : 
+				map_tstream<log2_w, tile>(spacial_item<log2_w, tile, void>(item.ptr, item.info)) {
 				src = source;
+				last_tile = tile();
 			}
 		};
 
@@ -730,7 +709,7 @@ namespace maps2 {
 				fopen_s(&tmp_file, file_name.c_str(), "w");
 				fclose(tmp_file);
 				file.open(file_name, filemode);
-				map_header.info = map_info(origin, 1);
+				info = tree_info(origin, 1);
 				map_header.log2_tile_w = log2_w;
 				map_header.root = file_raw_header_size;
 				map_header.size = file_raw_header_size;
@@ -746,8 +725,8 @@ namespace maps2 {
 			if (!(file.is_open())) throw ios::failure("Map file cannot be opened");
 
 			std::cout << "Recorded log2_tile_w: " << map_header.log2_tile_w << std::endl; //test
-			std::cout << "Recorded depth: " << map_header.info.depth << std::endl; //test
-			std::cout << "Recorded origin: " << map_header.info.origin.x << ", " << map_header.info.origin.y << std::endl; //test
+			std::cout << "Recorded depth: " << info.depth << std::endl; //test
+			std::cout << "Recorded origin: " << info.origin.x << ", " << info.origin.y << std::endl; //test
 			std::cout << "Recorded root: " << map_header.root << std::endl; //test
 			std::cout << "Recorded file length: " << map_header.size << std::endl; //test
 
@@ -763,9 +742,9 @@ namespace maps2 {
 		const tile* read(const gmtry2i::vector2i& p) {
 			if (!(file.is_open())) throw ios::failure("Cannot read map file");
 			if (!gmtry2i::contains(get_map_bounds(), p)) return 0;
-			item_index deepest_item = seek_item_at_depth(get_top_item(), p, 0);
-			if (deepest_item.depth == 0) {
-				read_file(&last_tile, deepest_item.tree->pos, sizeof(tile));
+			item_index deepest_item = seek_item(get_top_item(), p, 0);
+			if (deepest_item.info.depth == 0) {
+				read_file(&last_tile, deepest_item.ptr->pos, sizeof(tile));
 				return &last_tile;
 			}
 			else return 0;
@@ -776,27 +755,27 @@ namespace maps2 {
 		}
 		void write(const gmtry2i::vector2i& p, const tile* src) {
 			if (!(file.is_open())) throw ios::failure("Cannot write to map file");
-			fit_map(p);
-			item_index dst = alloc_item_at_depth(get_top_item(), p, 0);
-			write_tile(src, dst.tree->pos);
+			this->fit(p);
+			item_index dst = alloc_item(get_top_item(), p, 0);
+			write_tile(src, dst.ptr->pos);
 			std::cout << "File appended with new tile!" << std::endl; //test
 		}
 		void write(tile_stream<tile>* src) {
 			if (!(file.is_open())) throw ios::failure("Cannot write to map file");
 			if (gmtry2i::area(src->get_bounds()) == 0) return;
-			fit_map(src->get_bounds());
+			this->fit(src->get_bounds());
 			std::cout << "Bounds of incoming tile stream: " << gmtry2i::to_string(src->get_bounds()) << std::endl; //test
-			map_info virtual_min_dst = get_matching_item_info<log2_w>(map_header.info, src->get_bounds());
+			tree_info virtual_min_dst = get_matching_item_info<log2_w>(info, src->get_bounds());
 			std::cout << "Bounds of virtual destination for incoming tiles: " << 
 				gmtry2i::to_string(maps2::get_bounds<log2_w>(virtual_min_dst)) << std::endl; //test
-			item_index min_dst = alloc_item_at_depth(get_top_item(), virtual_min_dst.origin, virtual_min_dst.depth);
+			item_index min_dst = alloc_item(get_top_item(), virtual_min_dst.origin, virtual_min_dst.depth);
 			const tile* stream_tile;
 			item_index map_tile;
 			while (stream_tile = src->next()) {
-				map_tile = alloc_item_at_depth(min_dst, src->last_origin(), 0);
+				map_tile = alloc_item(min_dst, src->last_origin(), 0);
 				//std::cout << "Depth of written tile (better be 0 or else ima go insaneo style): " << map_tile.depth << std::endl; //test
-				std::cout << "Origin of written tile: " << gmtry2i::to_string(map_tile.origin) << std::endl;
-				write_tile(stream_tile, map_tile.tree->pos);
+				std::cout << "Origin of written tile: " << gmtry2i::to_string(map_tile.info.origin) << std::endl;
+				write_tile(stream_tile, map_tile.ptr->pos);
 			}
 		}
 		gmtry2i::aligned_box2i get_bounds() {
@@ -814,7 +793,7 @@ namespace maps2 {
 				if (header_has_unsaved_changes) write_header();
 				file.close();
 			}
-			delete_index_tree(indices, map_header.info.depth);
+			delete_index_tree(indices, info.depth);
 		}
 	};
 }

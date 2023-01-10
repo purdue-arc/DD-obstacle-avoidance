@@ -100,97 +100,94 @@ namespace ocpncy {
 		}
 	}
 
-	class bimage {
+	template <unsigned int log2_w>
+	using btile_item = maps2::spacial_item<log2_w, btile<log2_w>, void>;
+
+	class ascii_image {
 	private:
-		unsigned int width;
-		unsigned int log2_pixelwidth;
+		unsigned int log2_pw;
 		char** lines;
 		char out_of_bounds_pixel;
 		std::string caption;
-		gmtry2i::vector2i origin;
 		gmtry2i::aligned_box2i bounds;
+		unsigned int width, height;
+		const unsigned int horizontal_multiplier = 2;
 	public:
 		char& operator ()(gmtry2i::vector2i p) {
 			if (gmtry2i::contains(bounds, p)) {
-				gmtry2i::vector2i pixel_pos = (p - origin) >> log2_pixelwidth;
-				return lines[pixel_pos.y][2 * (pixel_pos.x)];
+				gmtry2i::vector2i pixel_pos = (p - bounds.min) >> log2_pw;
+				return lines[pixel_pos.y][horizontal_multiplier * (pixel_pos.x)];
 			}
 			else return out_of_bounds_pixel;
 		}
 		char& operator ()(unsigned int x, unsigned int y) {
-			x >>= log2_pixelwidth; y >>= log2_pixelwidth;
-			if (x < width && y < width) return lines[y][2 * x];
+			x >>= log2_pw; y >>= log2_pw;
+			if (x < width && y < height) return lines[y][horizontal_multiplier * x];
 			else return out_of_bounds_pixel;
 		}
-		const char* line(int i) const {
-			if (i < width) return lines[width - (i + 1)];
+		const char* get_line(int i) const {
+			if (i < height) return lines[height - (i + 1)];
 			else return &out_of_bounds_pixel;
 		}
-		int numLines() const {
-			return width;
+		int get_num_lines() const {
+			return height;
 		}
-		const char* getCaption() const {
+		const char* get_caption() const {
 			return caption.c_str();
 		}
-		gmtry2i::aligned_box2i getBounds() const {
+		gmtry2i::aligned_box2i get_bounds() const {
 			return bounds;
 		}
-		// w is tile width and tw is width of image in units of tiles
-		bimage(unsigned int log2_w, unsigned int log2_wt, unsigned int log2_pw, gmtry2i::vector2i new_origin) {
-			log2_pixelwidth = log2_pw;
+		ascii_image(unsigned int log2_tile_width, unsigned int log2_pixel_width, 
+			const gmtry2i::aligned_box2i& viewport, const gmtry2i::vector2i& any_tile_origin) {
+			log2_pw = log2_pixel_width;
 			// twp is tile width in units of pixels
-			unsigned int log2_twp = log2_w - log2_pw;
+			unsigned int log2_twp = log2_tile_width - log2_pixel_width;
+			unsigned int tile_pixel_width = 1 << (log2_tile_width - log2_pixel_width);
 
-			width = 1 << (log2_wt + log2_twp);
-			lines = new char* [width];
-			int basex, basey, x, y;
-			for (int y1 = 0; y1 < (1 << log2_wt); y1++) {
-				basey = y1 << log2_twp;
-				lines[basey] = new char[2 * width + 1];
-				for (x = 0; x < width * 2; x++) lines[basey][x] = '-';
-				lines[basey][2 * width] = '\0';
-				for (int y2 = 1; y2 < (1 << log2_twp); y2++) {
-					y = basey + y2;
-					lines[y] = new char[2 * width + 1];
-					for (int x1 = 0; x1 < (1 << log2_wt); x1++) {
-						basex = x1 << log2_twp;
-						lines[y][basex * 2] = '|'; lines[y][basex * 2 + 1] = ' ';
-						for (int x2 = 1; x2 < (1 << log2_twp); x2++) {
-							x = basex + x2;
-							lines[y][x * 2] = '.'; lines[y][x * 2 + 1] = ' ';
-						}
-					}
-					lines[y][2 * width] = '\0';
+			bounds = maps2::align_out(viewport, any_tile_origin, log2_tile_width);
+			width  = (bounds.max.x - bounds.min.x) >> log2_pw;
+			height = (bounds.max.y - bounds.min.y) >> log2_pw;
+			lines = new char* [height];
+			unsigned int sub_tile_mask = (1 << log2_twp) - 1;
+			for (unsigned int y = 0; y < height; y++) {
+				lines[y] = new char[horizontal_multiplier * width + 1];
+				for (unsigned int x = 0; x < width; x++) {
+					lines[y][x * horizontal_multiplier] = (x & sub_tile_mask) ? '.' : '|';
+					for (unsigned int fillerx = 1; fillerx < horizontal_multiplier; fillerx++)
+						lines[y][x * horizontal_multiplier + fillerx] = ' ';
 				}
+				if ((y & sub_tile_mask) == 0)
+					for (unsigned int x = 0; x < width * horizontal_multiplier; x++)
+						lines[y][x] = '-';
+				lines[y][horizontal_multiplier * width] = '\0';
 			}
-			origin = new_origin;
-			bounds = gmtry2i::aligned_box2i(origin, 1 << (log2_w + log2_wt));
 			(*this)(gmtry2i::vector2i()) = 'O';
 			caption = "Image Bounds: " + gmtry2i::to_string(bounds);
 		}
-		~bimage() {
+		~ascii_image() {
 			for (int y = width - 1; y >= 0; y--) delete[] lines[y];
 			delete[] lines;
 		}
 	};
-	void PrintImage(const bimage& img) {
-		for (int y = 0; y < img.numLines(); y++) std::cout << img.line(y) << std::endl;
-		std::cout << img.getCaption() << std::endl;
+	void PrintImage(const ascii_image& img) {
+		for (int y = 0; y < img.get_num_lines(); y++) std::cout << img.get_line(y) << std::endl;
+		std::cout << img.get_caption() << std::endl;
 	}
 	template <unsigned int log2_w>
-	void WriteImageTile(bimage& img, const gmtry2i::vector2i& tile_origin, const btile<log2_w>& tile) {
+	void WriteImageTile(ascii_image& img, const gmtry2i::vector2i& tile_origin, const btile<log2_w>& tile) {
 		for (int y = 0; y < (1 << log2_w); y++)
 			for (int x = 0; x < (1 << log2_w); x++)
 				if (get_bit(x, y, tile)) img(gmtry2i::vector2i(x, y) + tile_origin) = '@';
 	}
 	template <unsigned int log2_w>
-	void WriteImageTiles(bimage& img, maps2::tile_stream<btile<log2_w>>* tiles) {
+	void WriteImageTiles(ascii_image& img, maps2::tile_stream<btile<log2_w>>* tiles) {
 		const btile<log2_w>* tile;
 		while (tile = tiles->next()) 
-			if (gmtry2i::contains(img.getBounds(), tiles->last_origin()))
+			if (gmtry2i::contains(img.get_bounds(), tiles->last_origin()))
 				WriteImageTile(img, tiles->last_origin(), *tile);
 	}
-	void WriteImageBox(bimage& img, const gmtry2i::aligned_box2i& box, char box_name) {
+	void WriteImageBox(ascii_image& img, const gmtry2i::aligned_box2i& box, char box_name) {
 		for (int x = box.min.x; x < box.max.x; x++) 
 			for (int y = box.min.y; y < box.max.y; y++)
 				img({ x, y }) = '@';
@@ -199,21 +196,27 @@ namespace ocpncy {
 		img(box.max) = (box_name + 'A') - 'a';
 	}
 	template <unsigned int log2_w>
-	void PrintItem(const maps2::map_item<btile<log2_w>>& item) {
-		bimage img(log2_w, item.info.depth, 0, item.info.origin);
+	void PrintItem(const btile_item<log2_w>& item) {
+		ascii_image img(log2_w, 0, maps2::get_bounds<log2_w>(item.info), item.info.origin);
 		maps2::map_tstream<log2_w, btile<log2_w>> iterator(item);
 		WriteImageTiles(img, &iterator);
 		PrintImage(img);
 	}
 	template <unsigned int log2_w>
-	void PrintTiles(maps2::tile_stream<btile<log2_w>>* stream, unsigned int depth, unsigned int log2_pixelwidth) {
-		bimage img(log2_w, depth, log2_pixelwidth, stream->get_bounds().min);
+	void PrintTiles(maps2::tile_stream<btile<log2_w>>* stream, unsigned int log2_pixelwidth) {
+		ascii_image img(log2_w, log2_pixelwidth, stream->get_bounds(), stream->get_bounds().min);
 		WriteImageTiles(img, stream);
 		PrintImage(img);
 	}
 	template <unsigned int log2_w>
-	void PrintTiles(maps2::tile_stream<btile<log2_w>>* stream, unsigned int depth) {
-		PrintTiles(stream, depth, 0);
+	void PrintTiles(maps2::tile_stream<btile<log2_w>>* stream) {
+		PrintTiles(stream, 0);
+	}
+	template <unsigned int log2_w>
+	void PrintTiles(maps2::map_istream<btile<log2_w>>* stream, unsigned int log2_pixelwidth) {
+		maps2::tile_stream<btile<log2_w>>* iterator = stream->read();
+		PrintTiles(iterator, log2_pixelwidth);
+		delete iterator;
 	}
 
 	template <unsigned int log2_w, typename T>
@@ -241,7 +244,7 @@ namespace ocpncy {
 				origin = mat_origin;
 				mat_bounds = gmtry2i::aligned_box2i(gmtry2i::vector2i(), gmtry2i::vector2i(width, height));
 				bounds = mat_bounds;
-				tilewise_origin = maps2::align_down<log2_w>(mat_origin, any_tile_origin) - mat_origin;
+				tilewise_origin = maps2::align_down(mat_origin, any_tile_origin, log2_w) - mat_origin;
 				// = align_down<log2_w>(bounds.min, any_tile_origin - mat_origin);
 				reset();
 			}
@@ -266,11 +269,11 @@ namespace ocpncy {
 				return last_tile_origin + origin;
 			}
 			gmtry2i::aligned_box2i get_bounds() {
-				return bounds + origin;
+				return maps2::align_out(bounds, tilewise_origin, log2_w) + origin;
 			}
 			void set_bounds(const gmtry2i::aligned_box2i& new_bounds) {
 				bounds = gmtry2i::intersection(mat_bounds, new_bounds - origin);
-				tilewise_origin = maps2::align_down<log2_w>(bounds.min, tilewise_origin);
+				tilewise_origin = maps2::align_down(bounds.min, tilewise_origin, log2_w);
 			}
 			~mat_tile_stream() { }
 	};
@@ -395,7 +398,7 @@ namespace ocpncy {
 	template <unsigned int log2_w>
 	void project(const float* depths, float fov,
 		unsigned int width, unsigned int height,
-		gmtry3::transform3 to_cam, maps2::map_item<btile<log2_w>> dst,
+		gmtry3::transform3 to_cam, btile_item<log2_w> dst,
 		local_occ_idcs_ostream<btile<log2_w>>* changes_ostream) { // ALSO PASS A QUEUE OR SOMETHING
 		gmtry3::vector3 cam_space_point;
 		gmtry2i::vector2i point2D;

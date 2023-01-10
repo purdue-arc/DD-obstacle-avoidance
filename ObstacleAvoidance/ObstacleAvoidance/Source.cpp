@@ -98,12 +98,10 @@ int main()try {
 	// return realsense_test0();
 	/*
 	occupancy_test0();
-	occupancy_test1();
-	occupancy_test4();
-
 	occupancy_test3();
+	occupancy_test4();
 	occupancy_test5();
-	return occupancy_test7();
+	occupancy_test7();
 
 	return template_inheritance_test();
 	return geometry_test0();
