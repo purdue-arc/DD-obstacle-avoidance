@@ -1,6 +1,7 @@
 #pragma once
 
-#include "occupancy.hpp"
+#include "ocpncy/occupancy.hpp"
+#include "maps2/tilemaps.hpp"
 
 namespace dstar {
 	inline int ceilDiv(int a, int b) {
@@ -14,11 +15,10 @@ namespace dstar {
 	typedef unsigned int dcosttype;
 
 	template <unsigned int log2_w>
-	struct dtile2 : ocpncy::btile<log2_w> {
+	struct dtile2 : public maps2::nbrng_tile<ocpncy::btile<log2_w>> {
 		dcosttype g[1 << log2_w][1 << log2_w];
 		dcosttype rhs[1 << log2_w][1 << log2_w];
 		void* queue_items[1 << log2_w][1 << log2_w];
-		dtile2* nbrs[8];
 	};
 
 	template <unsigned int log2_w>

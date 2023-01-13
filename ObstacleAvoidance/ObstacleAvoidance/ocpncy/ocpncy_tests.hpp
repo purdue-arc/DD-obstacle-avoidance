@@ -1,7 +1,11 @@
 #pragma once 
 
-#include <iostream>
+#define DEBUG
 #include "occupancy.hpp"
+#include "ocpncy_streams.hpp"
+#include "maps2/maps2_streams.hpp"
+
+#include <iostream>
 
 const ocpncy::btile<3> smileytile = { { {
 		(0b00000000ULL << 48) +
@@ -92,13 +96,8 @@ int render_forgy() {
 	forgy[8 + (ovaly - 1) * forgydims[0]] = true;
 
 	ocpncy::mat_tile_stream<4, bool> iterator(forgy, forgydims[0], forgydims[1], forgyorigin, gmtry2i::vector2i(42, 35));
-	ocpncy::ascii_image img(4, 0, gmtry2i::aligned_box2i(forgyorigin, 1 << (4 + 2)), gmtry2i::vector2i(42, 35));
-	WriteImageTiles(img, &iterator);
-	// Prints X at min point (inclusive)
-	img(iterator.get_bounds().min) = 'X';
-	// Prints X at max point (exclusive)
-	img(iterator.get_bounds().max) = 'X';
-	PrintImage(img);
+	maps2::ascii_image img(4, gmtry2i::vector2i(42, 35), gmtry2i::aligned_box2i(forgyorigin, 1 << (4 + 2)), -1);
+	std::cout << (img << maps2::named_rect(iterator.get_bounds(), 'x', 0) << &iterator);
 
 	return 0;
 }
@@ -114,42 +113,32 @@ int occupancy_test0() { // PASSED!
 	// You can run it with enable_write = false and get the same final result if it the tile has already been written
 	bool enable_write = true;
 	if (enable_write) {
-		std::cout << "Tile to Write: " << std::endl;
-		ocpncy::PrintTile(smileytile);
+		std::cout << "Tile to Write: " << std::endl << smileytile;
 		mapstream.write(gmtry2i::vector2i(14, 14), &smileytile);
 
 		mytile = mapstream.read(gmtry2i::vector2i(14, 14));
 		std::cout << "Reading Success: " << static_cast<bool>(mytile) << std::endl;
-		if (mytile) {
-			std::cout << "Tile Retrieved from File: " << std::endl;
-			PrintTile(*mytile);
-		}
+		if (mytile) std::cout << "Tile Retrieved from File: " << std::endl << *mytile;
 
-		std::cout << "Tile to Write: " << std::endl;
-		ocpncy::PrintTile(frownytile);
+		std::cout << "Tile to Write: " << std::endl << frownytile;
 		mapstream.write(gmtry2i::vector2i(5, 4), &frownytile);
 	}
 
 	mytile = mapstream.read(gmtry2i::vector2i(5, 4));
 	std::cout << "Reading Success: " << static_cast<bool>(mytile) << std::endl;
-	if (mytile) {
-		std::cout << "Tile Retrieved from File: " << std::endl;
-		PrintTile(*mytile);
-	}
+	if (mytile) std::cout << "Tile Retrieved from File: " << std::endl << *mytile;
 
-	gmtry2i::aligned_box2i mapbox = mapstream.get_bounds();
-	std::cout << "Final Map Bounds: " << mapbox.min.x << ", " << mapbox.min.y << "; " << 
-											mapbox.max.x << ", " << mapbox.max.y << std::endl;
+	std::cout << "Final Map Bounds: " << gmtry2i::to_string(mapstream.get_bounds()) << std::endl;
+	std::cout << &mapstream;
 
-	ocpncy::PrintTiles(&mapstream, 0);
 	return 0;
 }
 
 typedef maps2::map_fstream<4, ocpncy::btile<4>> bmap_fstream4;
 typedef maps2::map_buffer<4, ocpncy::btile<4>> bmap_buffer4;
 typedef maps2::spacial_item<4, ocpncy::btile<4>, void> bmap_item4;
-typedef maps2::tile_stream<ocpncy::btile<4>> btile_stream4;
-typedef maps2::map_tstream<4, ocpncy::btile<4>> bmap_tstream4;
+typedef maps2::tile_istream<ocpncy::btile<4>> btile_stream4;
+typedef maps2::tree_tstream<4, ocpncy::btile<4>> bmap_tstream4;
 
 // Writes cattile to the mymap4 file at (-70, 30), reads the tile back, and prints it
 int occupancy_test3() { // PASSED!
@@ -159,23 +148,16 @@ int occupancy_test3() { // PASSED!
 	bmap_fstream4 mapstream("mymap4", gmtry2i::vector2i(42, 35));
 	const ocpncy::btile<4>* mytile = 0;
 
-	std::cout << "Tile to Write: " << std::endl;
-	ocpncy::PrintTile(cattile);
+	std::cout << "Tile to Write: " << std::endl << cattile;
 	mapstream.write(gmtry2i::vector2i(-70, 30), &cattile);
 
 	mytile = mapstream.read(gmtry2i::vector2i(-70, 30));
 	std::cout << "Reading Success: " << static_cast<bool>(mytile) << std::endl;
-	if (mytile) {
-		std::cout << "Tile Retrieved from File: " << std::endl;
-		PrintTile(*mytile);
-	}
+	if (mytile) std::cout << "Tile Retrieved from File: " << std::endl << *mytile;
 
-	gmtry2i::aligned_box2i mapbox = mapstream.get_bounds();
-	std::cout << "Final Map Bounds: " << mapbox.min.x << ", " << mapbox.min.y << "; " << 
-										 mapbox.max.x << ", " << mapbox.max.y << std::endl;
+	std::cout << "Final Map Bounds: " << gmtry2i::to_string(mapstream.get_bounds()) << std::endl;
+	std::cout << &mapstream;
 
-
-	ocpncy::PrintTiles(&mapstream, 0);
 	return 0;
 }
 
@@ -190,7 +172,7 @@ int occupancy_test4() { // PASSED!
 	//file_tile_stream->set_bounds(gmtry2i::aligned_box2i(gmtry2i::vector2i(-20, 0), 1 << (4 + 2)));
 	map.set_wmode(maps2::TILE_ADD_MODE);
 	map.write(file_tile_stream);
-	ocpncy::PrintTiles(&map, 0);
+	std::cout << &map;
 	delete file_tile_stream;
 	return 0;
 }
@@ -208,14 +190,12 @@ int occupancy_test5() { // PASSED!
 	btile_stream4* iterator = map.read();
 	dogtileorigin = maps2::align_down(dogtileorigin, iterator->get_bounds().min, 4);
 
-	std::cout << "New Dogtile Origin: " << dogtileorigin.x << ", " << dogtileorigin.y << std::endl;
-	iterator->set_bounds(gmtry2i::aligned_box2i(dogtileorigin + gmtry2i::vector2i(15, 15), dogtileorigin + gmtry2i::vector2i(1 << 4, 1 << 4)));
-	gmtry2i::aligned_box2i newbounds = iterator->get_bounds();
-	std::cout << "New Map Iterator Bounds: " << newbounds.min.x << ", " << newbounds.min.y << "; " <<
-												newbounds.max.x << ", " << newbounds.max.y << std::endl;
+	std::cout << "New Dogtile Origin: " << gmtry2i::to_string(dogtileorigin) << std::endl;
+	iterator->set_bounds(gmtry2i::aligned_box2i(dogtileorigin + gmtry2i::vector2i(15, 15), 
+						 dogtileorigin + gmtry2i::vector2i(1 << 4, 1 << 4)));
+	std::cout << "New Map Iterator Bounds: " << gmtry2i::to_string(iterator->get_bounds()) << std::endl;
 
-	std::cout << "Tile to Write: " << std::endl;
-	PrintTile(dogtile);
+	std::cout << "Tile to Write: " << std::endl << dogtile;
 	mapstream.write(iterator);
 	std::cout << "Dogtile written to file successfully!" << std::endl;
 	delete iterator;
@@ -226,11 +206,11 @@ int occupancy_test5() { // PASSED!
 	map2.set_wmode(maps2::TILE_ADD_MODE);
 	map2.write(file_tile_stream);
 	std::cout << "Dogtile written to file successfully!" << std::endl;
-	ocpncy::PrintTiles(&map2, 0);
+	std::cout << &map2;
 	delete file_tile_stream;
 
+	std::cout << &mapstream;
 
-	ocpncy::PrintTiles(&mapstream, 0);
 	return 0;
 }
 
@@ -252,8 +232,7 @@ int occupancy_test7() {
 
 	btile_stream4* file_tile_stream = mapstream.read();
 	file_tile_stream->set_bounds(gmtry2i::aligned_box2i(forgyorigin, 1 << (6)));
-	
-	ocpncy::PrintTiles(file_tile_stream);
+	std::cout << file_tile_stream;
 	delete file_tile_stream;
 
 	return 0;
@@ -301,14 +280,13 @@ int geometry_test0() {
 }
 
 int geometry_test1() {
-	ocpncy::ascii_image img(0, 0, gmtry2i::aligned_box2i(-gmtry2i::vector2i(1, 1) << 5, 1 << 6), {});
+	maps2::ascii_image img(gmtry2i::aligned_box2i(-gmtry2i::vector2i(1, 1) << 5, 1 << 6), -1);
 	gmtry2i::aligned_box2i box1({ 5, 10 }, 5);
 	gmtry2i::aligned_box2i box2({ 15, 0 }, 5);
-	gmtry2i::aligned_box2i boxdif = box1 - box2;
-	ocpncy::WriteImageBox(img, box1, 'a');
-	ocpncy::WriteImageBox(img, box2, 'b');
-	ocpncy::WriteImageBox(img, boxdif, 'c');
-	ocpncy::PrintImage(img);
+	img << maps2::named_rect(box1, 'a') 
+		<< maps2::named_rect(box2, 'b') 
+		<< maps2::named_rect(box1 - box2, 'c');
+	std::cout << img;
 	return 0;
 }
 
@@ -348,10 +326,10 @@ template <unsigned int log2_w>
 void print_map_file_item(const gmtry2i::vector2i& item_to_print_origin, unsigned int item_to_print_depth) {
 	std::string width_str = std::to_string(1 << log2_w);
 	maps2::map_fstream<log2_w, ocpncy::btile<log2_w>> map_file("map" + width_str + "x" + width_str, gmtry2i::vector2i());
-	maps2::tile_stream<ocpncy::btile<log2_w>>* tiles_out = map_file.read();
+	maps2::tile_istream<ocpncy::btile<log2_w>>* tiles_out = map_file.read();
 	tiles_out->set_bounds(gmtry2i::aligned_box2i(item_to_print_origin, 1 << (log2_w + item_to_print_depth)));
 	std::cout << "Bounds of region to print: " << gmtry2i::to_string(tiles_out->get_bounds()) << std::endl;
-	ocpncy::PrintTiles(tiles_out, MAX(0, static_cast<int>(log2_w + item_to_print_depth) - 9));
+	std::cout << tiles_out;
 
 	delete tiles_out;
 }
@@ -360,7 +338,7 @@ template <unsigned int log2_w>
 void print_map_file_tiles() {
 	std::string width_str = std::to_string(1 << log2_w);
 	maps2::map_fstream<log2_w, ocpncy::btile<log2_w>> map_file("map" + width_str + "x" + width_str, gmtry2i::vector2i());
-	maps2::tile_stream<ocpncy::btile<log2_w>>* tiles_out = map_file.read();
+	maps2::tile_istream<ocpncy::btile<log2_w>>* tiles_out = map_file.read();
 	int num_tiles_read = 0;
 	const ocpncy::btile<log2_w>* tile;
 	while (tile = tiles_out->next()) {
