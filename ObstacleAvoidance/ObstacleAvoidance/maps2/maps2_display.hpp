@@ -38,6 +38,7 @@ namespace maps2 {
 			else return out_of_bounds_wpixel;
 		}
 		void write(const char* text, unsigned int x, unsigned int y) {
+			x *= horizontal_multiplier;
 			unsigned int c = 0;
 			if (y < height) {
 				char* line = lines[y];
@@ -201,7 +202,35 @@ namespace maps2 {
 		return img << named_rect(box, 0, '@');
 	}
 
-	template <typename tile>
+	ascii_image& operator << (ascii_image& img, const gmtry2i::line_segment2i& l) {
+		gmtry2i::vector2i disp = l.b - l.a;
+		if (disp.x && disp.y) {
+			char angle = ((disp.x > 0) == (disp.y > 0)) ? '/' : '\\';
+			int length = std::sqrt(gmtry2i::dot(disp, disp));
+			float inv_length = 1.0F / static_cast<float>(length);
+			float norm_x = disp.x * inv_length;
+			float norm_y = disp.y * inv_length;
+			for (int i = 0; i < length; i++) img(l.a + gmtry2i::vector2i(i * norm_x, i * norm_y)) = angle;
+		}
+		else if (disp.x) {
+			int norm_x = (disp.x > 0) ? 1 : -1;
+			int length = std::abs(disp.x);
+			for (int i = 0; i < length; i++) img(l.a + gmtry2i::vector2i(i * norm_x, 0)) = '-';
+		}
+		else if (disp.y) {
+			int norm_y = (disp.y > 0) ? 1 : -1;
+			int length = std::abs(disp.y);
+			for (int i = 0; i < length; i++) img(l.a + gmtry2i::vector2i(0, i * norm_y)) = '|';
+		}
+		return img;
+	}
+
+	template <typename T>
+	concept drawable_tile = requires (const T* a, const gmtry2i::vector2i& p, maps2::ascii_image& img) {
+		img = img << located_tile(a, p);
+	};
+
+	template <drawable_tile tile>
 	ascii_image& operator << (ascii_image& img, tile_istream<tile>* tiles) {
 		const tile* next_tile;
 		while (next_tile = tiles->next())
@@ -210,7 +239,7 @@ namespace maps2 {
 		return img;
 	}
 
-	template <typename tile>
+	template <drawable_tile tile>
 	ascii_image& operator << (ascii_image& img, map_istream<tile>* map) {
 		tile_istream<tile>* tiles = map->read();
 		img << tiles;

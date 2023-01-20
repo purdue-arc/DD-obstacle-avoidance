@@ -269,10 +269,10 @@ namespace gmtry2i {
 			x = i;
 			y = j;
 		}
-		long& operator [](int i) {
+		inline long& operator [](int i) {
 			return (&x)[i];
 		}
-		const long& operator [](int i) const {
+		inline const long& operator [](int i) const {
 			return (&x)[i];
 		}
 		void operator +=(const vector2i& v) {
@@ -329,11 +329,21 @@ namespace gmtry2i {
 		return vector2i(v.x < s, v.y < s);
 	}
 
+	inline long dot(const vector2i& u, const vector2i& v) {
+		return u.x * v.x + u.y * v.y;
+	}
+
+	// returns pseudoscalar (<u v>_2) / (e_1 e_2)
+	inline long wedge(const vector2i& u, const vector2i& v) {
+		return u.x * v.y - u.y * v.x;
+	}
+
 	std::string to_string(const vector2i& v) {
 		return std::to_string(v.x) + std::string(", ") + std::to_string(v.y);
 	}
 
 	struct aligned_box2i {
+		// inclusive min, exclusive max
 		vector2i min, max;
 		aligned_box2i() = default;
 		aligned_box2i(const vector2i& min_v, const vector2i& max_v) {
@@ -344,21 +354,13 @@ namespace gmtry2i {
 			min = origin;
 			max = vector2i(origin.x + width, origin.y + width);
 		}
+		inline vector2i& operator [](int i) {
+			return (&min)[i];
+		}
+		inline const vector2i& operator [](int i) const {
+			return (&min)[i];
+		}
 	};
-
-	// Assumes the boxes intersect. Do not use the result if intersects(b1, b2) == false
-	inline aligned_box2i intersection(const aligned_box2i& b1, const aligned_box2i& b2) {
-		return aligned_box2i(vector2i(MAX(b1.min.x, b2.min.x), MAX(b1.min.y, b2.min.y)),
-							 vector2i(MIN(b1.max.x, b2.max.x), MIN(b1.max.y, b2.max.y)));
-	}
-
-	inline bool contains(const aligned_box2i& b, const vector2i& v) {
-		return b.min.x <= v.x && b.min.y <= v.y && b.max.x > v.x && b.max.y > v.y;
-	}
-
-	inline bool contains(const aligned_box2i& b1, const aligned_box2i& b2) {
-		return b1.min.x <= b2.min.x && b1.min.y <= b2.min.y && b1.max.x >= b2.max.x && b1.max.y >= b2.max.y;
-	}
 
 	inline vector2i center(const aligned_box2i& b1) {
 		return (b1.min + b1.max) >> 1;
@@ -366,6 +368,40 @@ namespace gmtry2i {
 
 	inline long area(const aligned_box2i& b) {
 		return (b.max.x - b.min.x) * (b.max.y - b.min.y);
+	}
+
+	inline aligned_box2i boundsof(const vector2i& p) {
+		return aligned_box2i(p, 1);
+	}
+
+	inline aligned_box2i boundsof(const aligned_box2i& b) {
+		return b;
+	}
+
+	inline aligned_box2i boundsof(const vector2i& p1, const vector2i& p2) {
+		return aligned_box2i({ MIN(p1.x, p2.x), MIN(p1.y, p2.y) }, 
+							 { MAX(p1.x, p2.x) + 1, MAX(p1.y, p2.y) + 1 });
+	}
+
+	inline aligned_box2i boundsof(const aligned_box2i& b, const vector2i& p) {
+		return aligned_box2i({ MIN(b.min.x, p.x), MIN(b.min.y, p.y) }, 
+							 { MAX(b.max.x, p.x + 1), MAX(b.max.y, p.y + 1) });
+	}
+
+	inline bool contains(const aligned_box2i& b, const vector2i& p) {
+		return b.min.x <= p.x && b.min.y <= p.y && b.max.x > p.x && b.max.y > p.y;
+	}
+
+	inline bool contains(const aligned_box2i& b1, const aligned_box2i& b2) {
+		return b1.min.x <= b2.min.x && b1.min.y <= b2.min.y && b1.max.x >= b2.max.x && b1.max.y >= b2.max.y;
+	}
+
+	inline bool intersects(const vector2i& p, const aligned_box2i& b) {
+		return contains(b, p);
+	}
+
+	inline vector2i intersection(const vector2i& p, const aligned_box2i& b) {
+		return p;
 	}
 
 	// Returns minkowski sum
@@ -377,12 +413,20 @@ namespace gmtry2i {
 	inline aligned_box2i operator -(const aligned_box2i& b1, const aligned_box2i& b2) {
 		vector2i dif1 = b1.min - b2.max;
 		vector2i dif2 = b1.max - b2.min;
+		// sign(dif1.x - dif2.x) = sign(dif1.y - dif2.y) ? Sure hope so
 		bool dif1_is_min = dif1.x < dif2.x || dif1.y < dif2.y;
 		return aligned_box2i(dif1_is_min ? dif1 : dif2, dif1_is_min ? dif2 : dif1);
 	}
 
 	inline bool intersects(const aligned_box2i& b1, const aligned_box2i& b2) {
-		return contains(b1 - b2, gmtry2i::vector2i());
+		return contains(b1 - b2, vector2i());
+	}
+
+	inline aligned_box2i intersection(const aligned_box2i& b1, const aligned_box2i& b2) {
+		aligned_box2i b3(vector2i(MAX(b1.min.x, b2.min.x), MAX(b1.min.y, b2.min.y)),
+						 vector2i(MIN(b1.max.x, b2.max.x), MIN(b1.max.y, b2.max.y)));
+		if ((b3.min.x < b3.max.x) && (b3.min.y < b3.max.y)) return b3;
+		else return aligned_box2i();
 	}
 
 	inline aligned_box2i operator +(const aligned_box2i& b, const vector2i& v) {
@@ -395,5 +439,177 @@ namespace gmtry2i {
 
 	std::string to_string(const aligned_box2i& b) {
 		return to_string(b.min) + std::string("; ") + to_string(b.max);
+	}
+
+	struct line_segment2i {
+		vector2i a, b;
+		line_segment2i() = default;
+		line_segment2i(const vector2i& point_A, const vector2i& point_B) {
+			a = point_A;
+			b = point_B;
+		}
+	};
+
+	inline aligned_box2i boundsof(const line_segment2i& l) {
+		return boundsof(l.a, l.b);
+	}
+
+	inline bool contains(const gmtry2i::aligned_box2i& b, const line_segment2i& l) {
+		return contains(b, l.a) && contains(b, l.b);
+	}
+
+	inline bool intersects(const line_segment2i& l1, const line_segment2i& l2) {
+		vector2i disp1 = l1.b - l1.a; // from l1.a to l1.b
+		vector2i disp2 = l2.b - l2.a; // from l2.a to l2.b
+		vector2i adisp = l1.a - l2.a; // from l2.a to l1.a
+		long wedge1 = wedge(disp2, adisp);
+		long wedge2 = wedge(disp2, disp1);
+		// test for parallelity
+		if (wedge2 == 0) return false;
+		// see intersection(line_segment2i, line_segment2i) for first half of following derivation
+		// if t >= 0 and abs(t) <= 1, then l1 and l2 intersect
+		//		[ t >= 0 ] = XOR(wedge(disp2, adisp) < 0, wedge(disp2, disp1) < 0)
+		//		[ abs(t) <= 1 ] = [ abs(wedge(disp2, adisp)) / abs(wedge(disp2, disp1)) <= 1 ]
+		//						= [ abs(wedge(disp2, adisp)) <= abs(wedge(disp2, disp1)) ]
+		return ((wedge1 < 0) != (wedge2 < 0)) && (abs(wedge1) <= abs(wedge2));
+	}
+
+	// result invalid if l1 and l2 do not intersect
+	inline vector2i intersection(const line_segment2i& l1, const line_segment2i& l2) {
+		vector2i disp1 = l1.b - l1.a; // from l1.a to l1.b
+		vector2i disp2 = l2.b - l2.a; // from l2.a to l2.b
+		vector2i adisp = l1.a - l2.a; // from l2.a to l1.a
+		// wedge(disp2, adisp + t*disp1) = 0
+		// = wedge(disp2, adisp) + t*wedge(disp2, disp1)
+		// t = - wedge(disp2, adisp) / wedge(disp2, disp1)
+		return l1.a - ((disp1 * wedge(disp2, adisp)) / wedge(disp2, disp1));
+	}
+
+	inline bool intersects(const line_segment2i& l, const aligned_box2i& box) {
+		// test if box contains either endpoint
+		if (contains(box, l.a) || contains(box, l.b)) return true;
+		vector2i disp = l.b - l.a;
+		for (int dim = 0; dim < 2; dim++) if (disp[dim])
+			for (int extrema = 0; extrema < 2; extrema++) {
+				// a[dim] + t*disp[dim] = box[extrema][dim]
+				// t = (box[extrema][dim] - a[dim]) / disp[dim]
+				// if 0 <= t <= 1, then they intersect
+				long value1 = box[extrema][dim] - l.a[dim];
+				long value2 = disp[dim];
+				if (((value1 < 0) == (value2 < 0)) && (abs(value1) >= abs(value2))) return true;
+			}
+		return false;
+	}
+
+	inline line_segment2i intersection(const line_segment2i& l, const aligned_box2i& box) {
+		// new points will either be intersections with box edges or existing endpoints contained in the box
+		vector2i new_pts[2];
+		int pt_idx = 0;
+		if (contains(box, l.a)) new_pts[pt_idx++] = l.a;
+		if (contains(box, l.b)) new_pts[pt_idx++] = l.b;
+		if (pt_idx > 1) return line_segment2i(new_pts[0], new_pts[1]);
+		vector2i disp = l.b - l.a;
+		for (int dim = 0; dim < 2; dim++) if (disp[dim]) {
+			long value2 = disp[dim];
+			for (int extrema = 0; extrema < 2; extrema++) {
+				// explanation for the following is in intersects(line_segment2i, aligned_box2i)
+				long value1 = box[extrema][dim] - l.a[dim];
+				if (((value1 < 0) == (value2 < 0)) && (abs(value1) >= abs(value2))) {
+					new_pts[pt_idx++] = l.a + ((disp * value1) / value2);
+					if (pt_idx > 1) return line_segment2i(new_pts[0], new_pts[1]);
+				}
+			}
+		}
+		return line_segment2i();
+	}
+
+	template <typename T>
+	concept intersectable2i = requires (T a, aligned_box2i b, bool c) {
+		b = boundsof(a);
+		c = intersects(a, b);
+		//intersectable2i<typename decltype(intersection(a, b))>;
+	};
+
+	// Interface for object with the basic functionality of intersectable2i<aligned_box2i> without the proper functions
+	class box_intersector2i {
+	public:
+		virtual bool intersects(const aligned_box2i& box) = 0;
+		virtual box_intersector2i* intersection(const aligned_box2i& box) = 0;
+		virtual box_intersector2i* clone() = 0;
+		virtual aligned_box2i get_bounds() = 0;
+	};
+
+	// Used to create a box_intersector2i out of an intersectable2i<aligned_box2i>
+	template <intersectable2i T>
+	class intersectable_box_intersector2i : public box_intersector2i {
+		T shape;
+	public:
+		intersectable_box_intersector2i(T new_shape) {
+			shape = new_shape;
+		}
+		bool intersects(const aligned_box2i& box) {
+			return gmtry2i::intersects(shape, box);
+		}
+		box_intersector2i* intersection(const aligned_box2i& box) {
+			auto box_intersection = gmtry2i::intersection(shape, box);
+			return new intersectable_box_intersector2i<decltype(box_intersection)>(box_intersection);
+		}
+		box_intersector2i* clone() {
+			return new intersectable_box_intersector2i(shape);
+		}
+		aligned_box2i get_bounds() {
+			return gmtry2i::boundsof(shape);
+		}
+	};
+
+	//  Memory manager for a box_intersector2i*, through which it satisfies intersectable2i<aligned_box2i>
+	class box_intersectable2i {
+		box_intersector2i* intersector;
+	public:
+		box_intersectable2i() {
+			intersector = new intersectable_box_intersector2i<aligned_box2i>(aligned_box2i());
+		}
+		box_intersectable2i(box_intersector2i* new_intersector) {
+			intersector = new_intersector->clone();
+		}
+		box_intersectable2i(const box_intersectable2i& object) {
+			intersector = object.intersector->clone();
+		}
+		inline bool intersects(const aligned_box2i& box) const {
+			return intersector->intersects(box);
+		}
+		inline box_intersectable2i intersection(const aligned_box2i& box) const {
+			return box_intersectable2i(intersector->intersection(box));
+		}
+		inline aligned_box2i get_bounds() const {
+			return intersector->get_bounds();
+		}
+		box_intersectable2i operator =(const box_intersectable2i& object) {
+			intersector = object.intersector->clone();
+			return *this;
+		}
+		~box_intersectable2i() {
+			delete intersector;
+		}
+	};
+
+	// Creates a box_intersectable2i out of an intersectable
+	// Practical for passing an intersectable2i<aligned_box> to a non-template class or function
+	template <intersectable2i T>
+	inline box_intersectable2i make_box_intersectable(T shape) {
+		intersectable_box_intersector2i intersector(shape);
+		return box_intersectable2i(&intersector);
+	}
+
+	inline bool intersects(const box_intersectable2i& object, const aligned_box2i& box) {
+		return object.intersects(box);
+	}
+
+	inline box_intersectable2i intersection(const box_intersectable2i& object, const aligned_box2i& box) {
+		return object.intersection(box);
+	}
+
+	inline aligned_box2i boundsof(const box_intersectable2i& object) {
+		return object.get_bounds();
 	}
 }

@@ -3,26 +3,31 @@
 
 // other files
 #include "ocpncy/ocpncy_tests.hpp"
+#include "rs_tests.hpp"
 
 // Main
 int main()try {
-	// return realsense_test0();
 	/*
-	occupancy_test0();
-	occupancy_test3();
-	occupancy_test4();
-	occupancy_test5();
-	occupancy_test7();
+	rs_tests::realsense_test0();
 
-	template_inheritance_test();
-	geometry_test0();
-	geometry_test1();
+	oc_tests::occupancy_test0();
+	oc_tests::occupancy_test3();
+	oc_tests::occupancy_test4();
+	oc_tests::occupancy_test5();
+	oc_tests::occupancy_test7();
 
-	print_map_file_tiles<8>();
-	generate_map_file<8>(gmtry2i::vector2i(), gmtry2i::vector2i());
+	oc_tests::generate_map_file<8>(gmtry2i::vector2i(), gmtry2i::vector2i());
+	oc_tests::print_map_file_tiles<8>();
+
+	oc_tests::template_inheritance_test();
+	oc_tests::inheritance_test2();
+	oc_tests::geometry_test0();
+	oc_tests::geometry_test1();
+	oc_tests::geometry_test2();
+	oc_tests::projection_test0();
 	*/
 
-	print_map_file_item<8>({0, 0}, 3);
+	oc_tests::print_map_file_item<8>({0, 0}, 3);
 
 	return 0;
 }

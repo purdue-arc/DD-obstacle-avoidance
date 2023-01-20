@@ -1,11 +1,11 @@
 #pragma once
 
 #include "occupancy.hpp"
-//#include "maps2_streams.hpp"
+#include "maps2/maps2_streams.hpp"
 
 namespace ocpncy {
 	template <unsigned int log2_w, typename T>
-	class mat_tile_stream : public maps2::tile_istream<btile<log2_w>> {
+	class mat_tile_stream : public maps2::lim_tile_istream<btile<log2_w>> {
 	private:
 		T* mat;
 		gmtry2i::vector2i origin;
@@ -55,7 +55,8 @@ namespace ocpncy {
 		}
 		void set_bounds(const gmtry2i::aligned_box2i& new_bounds) {
 			gmtry2i::aligned_box2i local_new_bounds = new_bounds - origin;
-			if (intersects(mat_bounds, local_new_bounds)) bounds = gmtry2i::intersection(mat_bounds, local_new_bounds);
+			if (gmtry2i::intersects(mat_bounds, local_new_bounds)) 
+				bounds = gmtry2i::intersection(mat_bounds, local_new_bounds);
 			else bounds = { mat_bounds.min, 0 };
 			tilewise_origin = maps2::align_down(bounds.min, tilewise_origin, log2_w);
 			reset();
@@ -76,7 +77,7 @@ namespace ocpncy {
 	}
 
 	template <unsigned int radius_minis>
-	class occ_mini_aggregator : public maps2::point_ostream, public maps2::tile_istream<btile_mini> {
+	class bmini_aggregator : public maps2::point_ostream, public maps2::tile_istream<btile_mini> {
 	protected:
 		btile_mini minis[1 + 2 * radius_minis][1 + 2 * radius_minis] = {};
 		gmtry2i::vector2i origin;
@@ -87,14 +88,14 @@ namespace ocpncy {
 		void reset() {
 			next_mini_origin = read_bounds.min;
 		}
-		occ_mini_aggregator(const gmtry2i::vector2i& center, const gmtry2i::vector2i& any_mini_origin) {
+		bmini_aggregator(const gmtry2i::vector2i& center, const gmtry2i::vector2i& any_mini_origin) {
 			origin = maps2::align_down(center, any_mini_origin, 3) -
 				(gmtry2i::vector2i(radius_minis, radius_minis) << 3);
 			minis_bounds = { {}, (1 + 2 * radius_minis) << 3 };
 			read_bounds = minis_bounds;
 			reset();
 		}
-		void write(const gmtry2i::vector2i& p) {
+		inline void write(const gmtry2i::vector2i& p) {
 			gmtry2i::vector2i local_p = p - origin;
 			if (gmtry2i::contains(minis_bounds, local_p))
 				minis[local_p.x >> 3][local_p.y >> 3] |=
@@ -115,12 +116,17 @@ namespace ocpncy {
 		gmtry2i::vector2i last_origin() {
 			return last_mini_origin + origin;
 		}
-		void set_bounds(const gmtry2i::aligned_box2i& new_bounds) {
+		void set_limiter(const gmtry2i::aligned_box2i& new_bounds) {
 			gmtry2i::aligned_box2i local_new_bounds = new_bounds - origin;
 			if (intersects(minis_bounds, local_new_bounds))
 				read_bounds = gmtry2i::intersection(minis_bounds,
 					maps2::align_out(local_new_bounds, minis_bounds.min, 3));
 			else read_bounds = { minis_bounds.min, 0 };
 		}
+	};
+
+	template <unsigned int log2_w>
+	class btile_monitored_buffer : maps2::map_buffer<log2_w, maps2::nbrng_tile<btile<log2_w>>> {
+
 	};
 }

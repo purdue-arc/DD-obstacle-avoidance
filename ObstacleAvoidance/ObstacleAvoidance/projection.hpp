@@ -4,7 +4,7 @@
 
 namespace prjctn {
 	// 2D projection
-	void project(const float* depths, float fov,
+	void project(const float* depths, float tan_fov,
 		unsigned int width, unsigned int height,
 		gmtry3::transform3 to_cam, gmtry3::vector3 dst_origin,
 		maps2::point_ostream* points_ostream) {
@@ -17,7 +17,7 @@ namespace prjctn {
 		// half width and half height
 		int hwidth = width / 2;
 		int hheight = height / 2;
-		float img_scale = std::tan(fov) / MAX(hwidth, hheight);
+		float img_scale = tan_fov / MAX(hwidth, hheight);
 		for (int x = 0; x < width; x++) for (int y = 0; y < height; y++) {
 			cam_space_point.z = depths[x + y * width];
 			xy_scale = img_scale * cam_space_point.z;
@@ -39,7 +39,7 @@ namespace prjctn {
 	}
 
 	// 3D projection
-	void project(const float* depths, float fov,
+	void project(const float* depths, float tan_fov,
 		unsigned int width, unsigned int height,
 		gmtry3::transform3 to_cam, gmtry3::vector3 dst_origin,
 		maps2::point3_ostream* points_ostream) {
@@ -50,7 +50,7 @@ namespace prjctn {
 		gmtry3::transform3 to_projection = to_cam.T() - dst_origin;
 		int hwidth = width / 2;
 		int hheight = height / 2;
-		float img_scale = std::tan(fov) / MAX(hwidth, hheight);
+		float img_scale = tan_fov / MAX(hwidth, hheight);
 		for (int x = 0; x < width; x++) for (int y = 0; y < height; y++) {
 			cam_space_point.z = depths[x + y * width];
 			xy_scale = img_scale * cam_space_point.z;
