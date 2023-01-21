@@ -98,17 +98,17 @@ namespace ocpncy {
 		inline void write(const gmtry2i::vector2i& p) {
 			gmtry2i::vector2i local_p = p - origin;
 			if (gmtry2i::contains(minis_bounds, local_p))
-				minis[local_p.x >> 3][local_p.y >> 3] |=
-				((btile_mini)0b1) << ((local_p.x & 0b111) + ((local_p.y & 0b111) << 3));
+				minis[local_p.x >> LOG2_MINIW][local_p.y >> LOG2_MINIW] |=
+				((btile_mini)0b1) << ((local_p.x & MINI_COORD_MASK) + ((local_p.y & MINI_COORD_MASK) << LOG2_MINIW));
 		}
 		const btile_mini* next() {
 			if (next_mini_origin.y > read_bounds.max.y) return 0;
 			else {
 				last_mini_origin = next_mini_origin;
-				btile_mini* next_mini_ptr = &(minis[last_mini_origin.y >> 3][last_mini_origin.x >> 3]);
-				if ((next_mini_origin.x += 8) > read_bounds.max.x) {
+				btile_mini* next_mini_ptr = &(minis[last_mini_origin.y >> LOG2_MINIW][last_mini_origin.x >> LOG2_MINIW]);
+				if ((next_mini_origin.x += MINI_WIDTH) > read_bounds.max.x) {
 					next_mini_origin.x = read_bounds.min.x;
-					next_mini_origin.y += 8;
+					next_mini_origin.y += MINI_WIDTH;
 				}
 				return next_mini_ptr;
 			}

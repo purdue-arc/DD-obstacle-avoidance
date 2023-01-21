@@ -60,6 +60,11 @@ namespace maps2 {
 		lim_tile_istream<tile, gmtry2i::box_intersectable2i>* read(const gmtry2i::box_intersectable2i& limit) {
 			return new tree_walker<log2_w, tile, gmtry2i::box_intersectable2i>(get_top_item(), limit);
 		}
+		// not specified by interface
+		template <gmtry2i::intersectable2i T>
+		lim_tile_istream<tile, T>* read(const T& limit) {
+			return new tree_walker<log2_w, tile, T>(get_top_item(), limit);
+		}
 		void write(const gmtry2i::vector2i& p, const tile* src) {
 			this->fit(p);
 			write_tile(get_top_item(), p, src);
@@ -448,6 +453,12 @@ namespace maps2 {
 		lim_tile_istream<tile, gmtry2i::box_intersectable2i>* read(const gmtry2i::box_intersectable2i& limit) {
 			if (!(file.is_open())) throw std::ios::failure("Cannot read map file");
 			return new map_fstream_tstream<gmtry2i::box_intersectable2i>(get_top_item(), limit, this);
+		}
+		// not specified by interface
+		template <gmtry2i::intersectable2i T>
+		lim_tile_istream<tile, T>* read(const T& limit) {
+			if (!(file.is_open())) throw std::ios::failure("Cannot read map file");
+			return new map_fstream_tstream<T>(get_top_item(), limit, this);
 		}
 		void write(const gmtry2i::vector2i& p, const tile* src) {
 			if (!(file.is_open())) throw std::ios::failure("Cannot write to map file");

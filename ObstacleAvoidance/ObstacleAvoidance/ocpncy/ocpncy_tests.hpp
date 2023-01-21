@@ -19,6 +19,7 @@ namespace oc_tests {
 	bool forgy[300] = { 0 };
 	unsigned int forgydims[2] = { 20, 15 };
 	gmtry2i::vector2i forgyorigin = gmtry2i::vector2i(-69, 9); // (5, 5)
+	const float PI = 3.14159265F;
 
 	int render_faces() {
 		smileytile.minis[0][0] =
@@ -343,27 +344,58 @@ namespace oc_tests {
 
 	class image_projector2 : public maps2::point_ostream {
 		maps2::ascii_image& img;
+		gmtry2i::vector2i cam_origin;
 	public:
-		image_projector2(maps2::ascii_image& new_img) : img(new_img) {}
+		image_projector2(maps2::ascii_image& new_img, const gmtry2i::vector2i& new_cam_origin) : img(new_img) {
+			cam_origin = new_cam_origin;
+		}
 		void write(const gmtry2i::vector2i& p) {
-			std::cout << "point detected" << std::endl;
-			std::cout << gmtry2i::to_string(p) << std::endl;
+			//std::cout << "point detected" << std::endl;
+			//std::cout << gmtry2i::to_string(p) << std::endl;
+			img << gmtry2i::line_segment2i(cam_origin, p);
 			img(p) = '@';
 		}
 	};
 
 	int projection_test0() { // PASSED
-		maps2::ascii_image img(gmtry2i::aligned_box2i(gmtry2i::vector2i(), 64), DEFAULT_MAX_LINE_LENGTH);
-		image_projector2 projector(img);
-		float depth = 15.0F;
+		prjctn::cam_info config(PI / 2, 4, 1, {});
+		float* depths = new float[config.width * config.height] {10, 11, 12, 13};
 		gmtry3::vector3 cam_origin(40, 6, 0);
 		gmtry2i::vector2i cam_origin2(cam_origin.x, cam_origin.y);
-		gmtry3::matrix3 cam_orientation = gmtry3::make_rotation(2, 3.1415F / 4.0F);
-		img << gmtry2i::line_segment2i(cam_origin2, cam_origin2 + gmtry2i::vector2i(cam_orientation(0).x * 8, cam_orientation(0).y * 8))
-			<< gmtry2i::line_segment2i(cam_origin2, cam_origin2 + gmtry2i::vector2i(cam_orientation(1).x * 8, cam_orientation(1).y * 8));
+		gmtry3::matrix3 cam_orientation = gmtry3::make_rotation(2, PI / 4);		// Yaw left 45deg
+		//								* gmtry3::make_rotation(0, -PI / 3);	// Pitch down 60deg
+		maps2::ascii_image img(gmtry2i::aligned_box2i(gmtry2i::vector2i(), 64), DEFAULT_MAX_LINE_LENGTH);
+		image_projector2 projector(img, cam_origin2);
+		// Draw camera's local axes
+		//img << gmtry2i::line_segment2i(cam_origin2, cam_origin2 + 
+		//	   gmtry2i::vector2i(cam_orientation(0).x * 8, cam_orientation(0).y * 8))
+		//	<< gmtry2i::line_segment2i(cam_origin2, cam_origin2 + 
+		//	   gmtry2i::vector2i(cam_orientation(1).x * 8, cam_orientation(1).y * 8));
+		config.pose = gmtry3::transform3(cam_orientation, cam_origin);
+		prjctn::deproject(depths, config, {}, &projector);
 		img(cam_origin2) = 'C';
-		prjctn::project(&depth, 0.0001F, 1, 1, gmtry3::transform3(cam_orientation, cam_origin), {}, &projector);
 		std::cout << img;
+
+		delete[] depths;
+		return 0;
+	}
+
+	int projection_test1() { // PASSED
+		prjctn::cam_info config(PI / 3, 3, 2, {});
+		float* depths = new float[config.width * config.height] {6, 7, 8, 9, 10, 11};
+		gmtry3::vector3 cam_origin(40, 6, 0);
+		gmtry2i::vector2i cam_origin2(cam_origin.x, cam_origin.y);
+		gmtry3::matrix3 cam_orientation = gmtry3::make_rotation(2, PI / 4)	// Yaw left
+		//								* gmtry3::make_rotation(0, PI / 2)	// Pitch up
+										* gmtry3::make_rotation(1, -PI / 6);// Roll down to the left
+		maps2::ascii_image img(gmtry2i::aligned_box2i(gmtry2i::vector2i(), 64), DEFAULT_MAX_LINE_LENGTH);
+		image_projector2 projector(img, cam_origin2);
+		config.pose = gmtry3::transform3(cam_orientation, cam_origin);
+		prjctn::deproject(depths, config, {}, &projector);
+		img(cam_origin2) = 'C';
+		std::cout << img;
+
+		delete[] depths;
 		return 0;
 	}
 

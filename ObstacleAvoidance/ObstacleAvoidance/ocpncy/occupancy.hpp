@@ -10,8 +10,9 @@
 #include <iostream>
 
 namespace ocpncy {
-#define LOG2_MINIW (3)
-#define MINI_COORD_MASK (0b111)
+	const unsigned int LOG2_MINIW = 3;
+	const unsigned int MINI_WIDTH = 1 << LOG2_MINIW;
+	const unsigned int MINI_COORD_MASK = MINI_WIDTH - 1;
 
 	// WxW square of occupancy states (W = width of a mini = 2 ^ LOG2_MINIW)
 	typedef std::uint64_t btile_mini;

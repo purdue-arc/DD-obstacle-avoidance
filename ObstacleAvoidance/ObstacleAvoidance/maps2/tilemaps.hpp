@@ -143,7 +143,7 @@ namespace maps2 {
 		virtual ~tile_istream() {};
 	};
 
-	// Stream for receiving tiles in a restricted manner
+	// Stream for receiving only tiles that intersect the given bounds (bounds can be set manually)
 	template <typename tile, gmtry2i::intersectable2i limiter_type = gmtry2i::aligned_box2i>
 	class lim_tile_istream : public tile_istream<tile> {
 	public:
@@ -466,8 +466,8 @@ namespace maps2 {
 			gmtry2i::aligned_box2i limiter_bounds = gmtry2i::boundsof(limiter);
 			gmtry2i::aligned_box2i tree_bounds = info.get_bounds();
 			if (gmtry2i::intersects(limiter_bounds, tree_bounds))
-				return gmtry2i::intersection(limiter_bounds, tree_bounds);
-			else return gmtry2i::aligned_box2i(info.origin, 0);
+				return gmtry2i::intersection(align_out(limiter_bounds, tree_bounds.min, log2_w), tree_bounds);
+			else return gmtry2i::aligned_box2i(tree_bounds.min, 0);
 		}
 		void set_bounds(const limiter_type& new_bounds) {
 			limiter = new_bounds;

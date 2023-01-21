@@ -28,6 +28,7 @@ int main()try {
 	*/
 
 	oc_tests::projection_test0();
+	oc_tests::projection_test1();
 
 	return 0;
 }
