@@ -352,12 +352,17 @@ namespace oc_tests {
 		}
 	};
 
-	int projection_test0() { // NOT WORKING YET
+	int projection_test0() { // PASSED
 		maps2::ascii_image img(gmtry2i::aligned_box2i(gmtry2i::vector2i(), 64), DEFAULT_MAX_LINE_LENGTH);
 		image_projector2 projector(img);
 		float depth = 15.0F;
-		prjctn::project(&depth, 1.0F, 1, 1, gmtry3::transform3(gmtry3::make_rotation(2, 1.5), 
-			{ 40, 0, 6 }), { 0, 0, 0 }, &projector);
+		gmtry3::vector3 cam_origin(40, 6, 0);
+		gmtry2i::vector2i cam_origin2(cam_origin.x, cam_origin.y);
+		gmtry3::matrix3 cam_orientation = gmtry3::make_rotation(2, 3.1415F / 4.0F);
+		img << gmtry2i::line_segment2i(cam_origin2, cam_origin2 + gmtry2i::vector2i(cam_orientation(0).x * 8, cam_orientation(0).y * 8))
+			<< gmtry2i::line_segment2i(cam_origin2, cam_origin2 + gmtry2i::vector2i(cam_orientation(1).x * 8, cam_orientation(1).y * 8));
+		img(cam_origin2) = 'C';
+		prjctn::project(&depth, 0.0001F, 1, 1, gmtry3::transform3(cam_orientation, cam_origin), {}, &projector);
 		std::cout << img;
 		return 0;
 	}

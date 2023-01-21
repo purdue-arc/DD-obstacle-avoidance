@@ -6,23 +6,21 @@ namespace prjctn {
 	// 2D projection
 	void project(const float* depths, float tan_fov,
 		unsigned int width, unsigned int height,
-		gmtry3::transform3 to_cam, gmtry3::vector3 dst_origin,
+		gmtry3::transform3 cam_to_world, gmtry3::vector3 dst_origin,
 		maps2::point_ostream* points_ostream) {
 		gmtry3::vector3 cam_space_point;
 		gmtry2i::vector2i projected_point;
-		// bounds of projection from perspective of projected region
-		gmtry2i::aligned_box2i projection_bounds({}, { 64, 64 });
-		float xy_scale;
-		gmtry3::transform3 to_projection = to_cam.T() - dst_origin;
+		float pxl_scale;
+		gmtry3::transform3 to_projection = cam_to_world - dst_origin;
 		// half width and half height
 		int hwidth = width / 2;
 		int hheight = height / 2;
 		float img_scale = tan_fov / MAX(hwidth, hheight);
-		for (int x = 0; x < width; x++) for (int y = 0; y < height; y++) {
-			cam_space_point.z = depths[x + y * width];
-			xy_scale = img_scale * cam_space_point.z;
-			cam_space_point.x = (x - hwidth) * xy_scale;
-			cam_space_point.y = (y - hheight) * xy_scale;
+		for (int pxl_x = 0; pxl_x < width; pxl_x++) for (int pxl_y = 0; pxl_y < height; pxl_y++) {
+			cam_space_point.y = depths[pxl_x + pxl_y * width];
+			pxl_scale = img_scale * cam_space_point.y;
+			cam_space_point.x = (pxl_x - hwidth) * pxl_scale;
+			cam_space_point.z = (pxl_y - hheight) * pxl_scale;
 			projected_point.x = to_projection.R.n[0][0] * cam_space_point.x +
 				to_projection.R.n[1][0] * cam_space_point.y +
 				to_projection.R.n[2][0] * cam_space_point.z + to_projection.t.x;
@@ -44,8 +42,6 @@ namespace prjctn {
 		gmtry3::transform3 to_cam, gmtry3::vector3 dst_origin,
 		maps2::point3_ostream* points_ostream) {
 		gmtry3::vector3 cam_space_point;
-		// bounds of projection from perspective of projected region
-		gmtry2i::aligned_box2i projection_bounds({}, { 64, 64 });
 		float xy_scale;
 		gmtry3::transform3 to_projection = to_cam.T() - dst_origin;
 		int hwidth = width / 2;
