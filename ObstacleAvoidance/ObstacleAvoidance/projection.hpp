@@ -3,6 +3,20 @@
 #include "maps2/tilemaps.hpp"
 
 namespace prjctn {
+	/*
+	* Holds information about a camera, which can be used to project virtual geometry into the camera
+	*	for it to be displayed, or to deproject perceived geometry into a virtual world.
+	* tan_fov isn't actually tangent of field of view angle
+	* referring to the diagram below, if a = fov angle, then tan_fov = t
+	*      t
+	*   \|---|/
+	*    \   / ---
+	*     \a/   | 1
+	*      V -----
+	* tan_fov is twice the tangent of half the fov angle
+	* fov is defined to be the field of fiew for the longest dimension of the image
+	* so if widith > height, then fov is the horizontal field of view
+	*/
 	struct cam_info {
 		float tan_fov;
 		unsigned int width, height;
@@ -22,7 +36,6 @@ namespace prjctn {
 		gmtry3::vector3 cam_space_point;
 		gmtry2i::vector2i projected_point;
 		float pt_scale;
-		gmtry3::transform3 to_projection = config.pose - dst_origin;
 		// half width and half height
 		const float img_scale = config.tan_fov / (MAX(config.width, config.height));
 		const float pxl_shiftx = -0.5F * config.width + 0.5F;
@@ -32,12 +45,12 @@ namespace prjctn {
 			pt_scale = img_scale * cam_space_point.y;
 			cam_space_point.x = (pxl_x + pxl_shiftx) * pt_scale;
 			cam_space_point.z = (pxl_y + pxl_shifty) * pt_scale;
-			projected_point.x = to_projection.R.n[0][0] * cam_space_point.x +
-				to_projection.R.n[1][0] * cam_space_point.y +
-				to_projection.R.n[2][0] * cam_space_point.z + to_projection.t.x;
-			projected_point.y = to_projection.R.n[0][1] * cam_space_point.x +
-				to_projection.R.n[1][1] * cam_space_point.y +
-				to_projection.R.n[2][1] * cam_space_point.z + to_projection.t.y;
+			projected_point.x = config.pose.R.n[0][0] * cam_space_point.x +
+								config.pose.R.n[1][0] * cam_space_point.y +
+								config.pose.R.n[2][0] * cam_space_point.z + config.pose.t.x;
+			projected_point.y = config.pose.R.n[0][1] * cam_space_point.x +
+								config.pose.R.n[1][1] * cam_space_point.y +
+								config.pose.R.n[2][1] * cam_space_point.z + config.pose.t.y;
 			points_ostream->write(projected_point);
 		}
 		/* Old code, should be moved elsewhere
@@ -48,11 +61,9 @@ namespace prjctn {
 	}
 
 	// 3D projection
-	void deproject(const float* depths, cam_info config, gmtry3::vector3 dst_origin,
-				 maps2::point3_ostream* points_ostream) {
+	void deproject(const float* depths, cam_info config, maps2::point3_ostream* points_ostream) {
 		gmtry3::vector3 cam_space_point;
 		float pt_scale;
-		gmtry3::transform3 to_projection = config.pose - dst_origin;
 		int hwidth = config.width / 2;
 		int hheight = config.height / 2;
 		float img_scale = config.tan_fov / MAX(hwidth, hheight);
@@ -61,7 +72,7 @@ namespace prjctn {
 			pt_scale = img_scale * cam_space_point.y;
 			cam_space_point.x = (x - hwidth) * pt_scale;
 			cam_space_point.z = (y - hheight) * pt_scale;
-			points_ostream->write(to_projection * cam_space_point);
+			points_ostream->write(config.pose * cam_space_point);
 		}
 	}
 

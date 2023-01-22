@@ -17,8 +17,8 @@ int main()try {
 	oc_tests::occupancy_test7();
 
 	oc_tests::generate_map_file<8>(gmtry2i::vector2i(), gmtry2i::vector2i());
-	oc_tests::print_map_file_tiles<8>();
 	oc_tests::print_map_file_item<8>({0, 0}, 3);
+	oc_tests::print_map_file_tiles<8>();
 
 	oc_tests::template_inheritance_test();
 	oc_tests::inheritance_test2();

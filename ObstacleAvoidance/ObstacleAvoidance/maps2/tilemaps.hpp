@@ -26,20 +26,35 @@
 *		be added or supplemented. Information cannot be forgotten from a map.
 */
 namespace maps2 {
+	// Tiles that can be inclusively combined, removed from each other, or totally overwritten
+	template <typename T>
+	concept spacial_tile = requires (T a, T b) {
+		a = a + b;
+		a = a - b;
+		a += b;
+		a -= b;
+		a = b;
+	};
+
 	enum tile_write_mode {
 		TILE_REMOVE_MODE = -1,
 		TILE_OVERWRITE_MODE = 0,
 		TILE_ADD_MODE = 1
 	};
 
-	template <typename T>
-	concept spacial_tile = requires (T a, T b) {
-		a + b;
-		a - b;
-		a += b;
-		a -= b;
-		a = b;
-	};
+	// Preferred way to write tile
+	template<spacial_tile tile>
+	inline void write_tile_to_tile(const tile* new_tile, tile* old_tile, tile_write_mode wmode) {
+		if (wmode == TILE_OVERWRITE_MODE) {
+			*old_tile = *new_tile;
+		}
+		else if (wmode == TILE_ADD_MODE) {
+			*old_tile += *new_tile;
+		}
+		else if (wmode == TILE_REMOVE_MODE) {
+			*old_tile -= *new_tile;
+		}
+	}
 
 	// Rounds each coordinate of p down such that p lies on the nearest tile_origin
 	inline gmtry2i::vector2i align_down(const gmtry2i::vector2i& p, const gmtry2i::vector2i any_tile_origin, 
@@ -130,6 +145,37 @@ namespace maps2 {
 		virtual gmtry2i::aligned_box2i get_bounds() const = 0;
 	};
 
+	// Bounded region that can be iteratively stretched in a direction to expand it to fit points or areas
+	template <unsigned int log2_w>
+	class stretchable_region : bounded_region {
+	public:
+		// Stretches the region in the given direction
+		virtual void stretch(const gmtry2i::vector2i& direction) = 0;
+		// Fits the point into the region by iteratively stretching it as necessary
+		void fit(const gmtry2i::vector2i& p) {
+			gmtry2i::aligned_box2i alloc_box = this->get_bounds();
+			while (!gmtry2i::contains(alloc_box, p)) {
+				stretch(p - gmtry2i::center(alloc_box));
+				alloc_box = this->get_bounds();
+				DEBUG_PRINT("Expanded Map Bounds: " <<
+					alloc_box.min.x << ", " << alloc_box.min.y << "; " <<
+					alloc_box.max.x << ", " << alloc_box.max.y); //test
+			}
+		}
+		// Fits the box into the region by iteratively stretching it as necessary
+		void fit(const gmtry2i::aligned_box2i& box) {
+			gmtry2i::aligned_box2i alloc_box = this->get_bounds();
+			gmtry2i::vector2i box_center = gmtry2i::center(box);
+			while (!gmtry2i::contains(alloc_box, box)) {
+				stretch(box_center - gmtry2i::center(alloc_box));
+				alloc_box = this->get_bounds();
+				DEBUG_PRINT("Expanded Map Bounds: " <<
+					alloc_box.min.x << ", " << alloc_box.min.y << "; " <<
+					alloc_box.max.x << ", " << alloc_box.max.y); //test
+			}
+		}
+	};
+
 	// Stream for receiving tiles in no particular order
 	template <typename tile>
 	class tile_istream : public bounded_region {
@@ -166,37 +212,6 @@ namespace maps2 {
 		// Saves any unsaved changes
 		virtual void flush() {}
 		virtual ~tile_ostream() {};
-	};
-
-	// Bounded region that can be iteratively stretched in a direction to expand it to fit points or areas
-	template <unsigned int log2_w>
-	class stretchable_region : bounded_region {
-	public:
-		// Stretches the region in the given direction
-		virtual void stretch(const gmtry2i::vector2i& direction) = 0;
-		// Fits the point into the region by iteratively stretching it as necessary
-		void fit(const gmtry2i::vector2i& p) {
-			gmtry2i::aligned_box2i alloc_box = this->get_bounds();
-			while (!gmtry2i::contains(alloc_box, p)) {
-				stretch(p - gmtry2i::center(alloc_box));
-				alloc_box = this->get_bounds();
-				DEBUG_PRINT("Expanded Map Bounds: " <<
-					alloc_box.min.x << ", " << alloc_box.min.y << "; " <<
-					alloc_box.max.x << ", " << alloc_box.max.y); //test
-			}
-		}
-		// Fits the box into the region by iteratively stretching it as necessary
-		void fit(const gmtry2i::aligned_box2i& box) {
-			gmtry2i::aligned_box2i alloc_box = this->get_bounds();
-			gmtry2i::vector2i box_center = gmtry2i::center(box);
-			while (!gmtry2i::contains(alloc_box, box)) {
-				stretch(box_center - gmtry2i::center(alloc_box));
-				alloc_box = this->get_bounds();
-				DEBUG_PRINT("Expanded Map Bounds: " <<
-					alloc_box.min.x << ", " << alloc_box.min.y << "; " <<
-					alloc_box.max.x << ", " << alloc_box.max.y); //test
-			}
-		}
 	};
 
 	// Stream for reading tiles from a map in an ordered or unordered manner
@@ -313,6 +328,10 @@ namespace maps2 {
 			unsigned int branch_width = get_branch_width();
 			return get_branch_info(get_branch_idx(branch_origin, branch_width), branch_width);
 		}
+		inline tree_info get_parent_info(const gmtry2i::vector2i& parent_direction) const {
+			return tree_info(origin - gmtry2i::vector2i(parent_direction.x < 0, parent_direction.y < 0) * get_width(),
+				depth + 1);
+		}
 	};
 
 	/*
@@ -354,6 +373,12 @@ namespace maps2 {
 				static_cast<spacial_tree<T>*>(ptr)->branch[branch_idx] = branch_ptr,
 				info.get_branch_info(branch_idx, branch_width)
 			);
+		}
+		inline spacial_item create_parent_item(const gmtry2i::vector2i& parent_direction) {
+			unsigned int my_index = (parent_direction.x < 0) + 2 * (parent_direction.y < 0);
+			spacial_item new_parent(new mixed_tree(), info.get_parent_info(parent_direction));
+			static_cast<spacial_tree<T>*>(new_parent.ptr)->branch[my_index] = ptr;
+			return new_parent;
 		}
 	};
 

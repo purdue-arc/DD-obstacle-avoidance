@@ -24,18 +24,12 @@ namespace maps2 {
 			return mixed_item<log2_w>(root, info);
 		}
 		void stretch(const gmtry2i::vector2i& direction) {
-			long map_init_width = 1 << (info.depth + log2_w);
-			unsigned int old_root_index = (direction.x < 0) + 2 * (direction.y < 0);
-			mixed_tree* new_root = new mixed_tree();
-			new_root->branch[old_root_index] = root;
-			root = new_root;
-			info.depth += 1;
-			info.origin -= gmtry2i::vector2i(direction.x < 0, direction.y < 0) * map_init_width;
+			mixed_item<log2_w> parent_item = mixed_item<log2_w>(root, info).create_parent_item(direction);
+			info = parent_item.info;
+			root = static_cast<mixed_tree*>(parent_item.ptr);
 		}
 		inline void write_tile(const mixed_item<log2_w>& dst, const gmtry2i::vector2i& p, const tile* src) {
-			tile* map_tile = static_cast<tile*>(alloc_mixed_item<log2_w, tile>(dst, p, 0).ptr);
-			if (write_mode == TILE_ADD_MODE) *map_tile += *src;
-			else *map_tile = *src;
+			write_tile_to_tile<tile>(src, static_cast<tile*>(alloc_mixed_item<log2_w, tile>(dst, p, 0).ptr), write_mode);
 		}
 
 	public:
@@ -60,20 +54,17 @@ namespace maps2 {
 		lim_tile_istream<tile, gmtry2i::box_intersectable2i>* read(const gmtry2i::box_intersectable2i& limit) {
 			return new tree_walker<log2_w, tile, gmtry2i::box_intersectable2i>(get_top_item(), limit);
 		}
-		// not specified by interface
-		template <gmtry2i::intersectable2i T>
-		lim_tile_istream<tile, T>* read(const T& limit) {
-			return new tree_walker<log2_w, tile, T>(get_top_item(), limit);
-		}
 		void write(const gmtry2i::vector2i& p, const tile* src) {
 			this->fit(p);
 			write_tile(get_top_item(), p, src);
 		}
 		void write(tile_istream<tile>* src) {
-			if (gmtry2i::area(src->get_bounds()) == 0) return;
-			this->fit(src->get_bounds());
-			tree_info<log2_w> virtual_min_dst_item = get_fitted_item_info<log2_w>(info, src->get_bounds());
-			mixed_item<log2_w> min_dst = alloc_mixed_item<log2_w, tile>(get_top_item(), virtual_min_dst_item.origin, virtual_min_dst_item.depth);
+			gmtry2i::aligned_box2i src_bounds = src->get_bounds();
+			if (gmtry2i::area(src_bounds) == 0) return;
+			this->fit(src_bounds);
+			tree_info<log2_w> min_dst_info = get_fitted_item_info<log2_w>(info, src_bounds);
+			// The minimum-size destination (smallest item that fits the whole stream)
+			mixed_item<log2_w> min_dst = alloc_mixed_item<log2_w, tile>(get_top_item(), min_dst_info.origin, min_dst_info.depth);
 			const tile* next_tile;
 			tile* map_tile;
 			while (next_tile = src->next()) {
@@ -96,47 +87,10 @@ namespace maps2 {
 	};
 
 	/*
-	* Basic map to which tiles may be written and from which neighboring tiles may be read
-	* Existing tiles may be edited as neighbors through a returned tile
-	* Tiles added as neighbors through a returned tile won't be recognized by this stream,
-	*	deleted automatically, or linked with pre-existing or new tiles, and may be unintentionally overwritten.
-	* WORK IN PROGRESS; NOT FULLY IMPLEMENTED
-	*/
-	template <unsigned int log2_w, spacial_tile tile>
-	class map_nbrng_buffer : public map_ostream<tile>, public map_istream<nbrng_tile<tile>> {
-		tree_info<log2_w> info;
-		mixed_tree* root;
-		tile_write_mode write_mode;
-
-	protected:
-		mixed_item<log2_w> get_top_item() {
-			return mixed_item<log2_w>(root, info);
-		}
-		void stretch(const gmtry2i::vector2i& direction) {
-			long map_init_width = 1 << (info.depth + log2_w);
-			unsigned int old_root_index = (direction.x < 0) + 2 * (direction.y < 0);
-			mixed_tree* new_root = new mixed_tree();
-			new_root->branch[old_root_index] = root;
-			root = new_root;
-			info.depth += 1;
-			info.origin -= gmtry2i::vector2i(direction.x < 0, direction.y < 0) * map_init_width;
-		}
-		void write_tile(const mixed_item<log2_w>& dst, const gmtry2i::vector2i& p, const nbrng_tile<tile>* src) {
-			nbrng_tile<tile>* map_tile = static_cast<nbrng_tile<tile>*>(alloc_nbrng_tile<log2_w, tile>(dst, p).ptr);
-			if (write_mode == TILE_ADD_MODE) map_tile->tile += src->tile;
-			else map_tile->tile = src->tile;
-		}
-
-	public:
-		map_nbrng_buffer(const gmtry2i::vector2i& origin) {
-
-		}
-	};
-
-	/*
 	* Stream for efficiently reading and writing tiles to a map file
 	* File is closed when destructor is called
 	* Tiles are not buffered
+	* Construction and every read/write operation may throw an exception
 	*/
 	template <unsigned int log2_w, spacial_tile tile>
 	class map_fstream : public map_iostream<tile>, protected stretchable_region<log2_w>,
@@ -161,14 +115,14 @@ namespace maps2 {
 			file_pos pos;
 		};
 		/*
-		* An index used to remember spacial items within the tree that have already been read from the file
-		*		If an item has been indexed, only one piece of contiguous memory will have to be read from the file in 
-		*			order to access it.
+		* An index_tree is used to remember spacial items within the tree that have already been read from the file.
+		* If an item has been indexed, only one piece of contiguous memory will have to be read from the file in 
+		*	order to access it again.
 		* Both trees and tiles are indexed as an index_tree
-		*		A tile's index_tree will not have any nonzero branches
+		* A tile's index_tree will only have null branches
 		* All subitems (even those that don't exist) of an item are indexed when any one of them are indexed,
 			saving time in future searches.
-		* Either none or all of an index tree's branches are indexed
+		* IMPORTANT: Either none or all of an index tree's branches are indexed
 		* pos (inherited from file_pos_index): position of the represented item in the file
 		*/
 		struct index_tree : public homogeneous_tree<file_pos_index> {
@@ -286,14 +240,13 @@ namespace maps2 {
 			new_root->branch[old_root_index] = indices;
 			indices = new_root;
 			for (int i = 0; i < 4; i++) if (i != old_root_index) indices->branch[i] = new index_tree(0);
+			info = info.get_parent_info(direction);
 
 			file_pos new_root_branches[4] = { 0 };
 			new_root_branches[old_root_index] = map_header.root;
 			append_file(new_root_branches, tree_size);
 
 			map_header.root = new_root->pos;
-			info.depth += 1;
-			info.origin -= gmtry2i::vector2i(direction.x < 0, direction.y < 0) * map_init_width;
 			header_has_unsaved_changes = true;
 			DEBUG_PRINT("Map Expanded!"); //test
 			DEBUG_PRINT("New root: " << map_header.root); //test
@@ -399,16 +352,18 @@ namespace maps2 {
 			if (!(file.is_open())) {
 				FILE* tmp_file = 0;
 				fopen_s(&tmp_file, file_name.c_str(), "w");
-				fclose(tmp_file);
-				file.open(file_name, filemode);
-				info = tree_info<log2_w>(origin, 1);
-				map_header.log2_tile_w = log2_w;
-				map_header.root = file_raw_header_size;
-				map_header.size = file_raw_header_size;
-				write_header();
-				file_pos root_branches[4] = { 0, 0, 0, 0 };
-				append_file(root_branches, tree_size);
-				DEBUG_PRINT("File created!"); //test
+				if (tmp_file) {
+					fclose(tmp_file);
+					file.open(file_name, filemode);
+					info = tree_info<log2_w>(origin, 1);
+					map_header.log2_tile_w = log2_w;
+					map_header.root = file_raw_header_size;
+					map_header.size = file_raw_header_size;
+					write_header();
+					file_pos root_branches[4] = { 0, 0, 0, 0 };
+					append_file(root_branches, tree_size);
+					DEBUG_PRINT("File created!"); //test
+				}
 			}
 			else {
 				read_header();
@@ -470,17 +425,18 @@ namespace maps2 {
 		void write(tile_istream<tile>* src) {
 			if (!(file.is_open())) throw std::ios::failure("Cannot write to map file");
 			if (gmtry2i::area(src->get_bounds()) == 0) return;
-			this->fit(src->get_bounds());
-			DEBUG_PRINT("Bounds of incoming tile stream: " << gmtry2i::to_string(src->get_bounds())); //test
-			tree_info<log2_w> virtual_min_dst = get_fitted_item_info<log2_w>(info, src->get_bounds());
+			gmtry2i::aligned_box2i src_bounds = src->get_bounds();
+			this->fit(src_bounds);
+			DEBUG_PRINT("Bounds of incoming tile stream: " << gmtry2i::to_string(src_bounds)); //test
+			tree_info<log2_w> min_dst_info = get_fitted_item_info<log2_w>(info, src_bounds);
 			DEBUG_PRINT("Bounds of virtual destination for incoming tiles: " <<
-				gmtry2i::to_string(virtual_min_dst.get_bounds())); //test
-			item_index min_dst = alloc_item(get_top_item(), virtual_min_dst.origin, virtual_min_dst.depth);
+				gmtry2i::to_string(min_dst_info.get_bounds())); //test
+			item_index min_dst = alloc_item(get_top_item(), min_dst_info.origin, min_dst_info.depth);
 			const tile* stream_tile;
 			item_index map_tile;
 			while (stream_tile = src->next()) {
 				map_tile = alloc_item(min_dst, src->last_origin(), 0);
-				//std::cout << "Depth of written tile (better be 0 or else ima go insaneo style): " << map_tile.depth << std::endl; //test
+				//DEBUG_PRINT("Depth of written tile (better be 0 or else ima go insaneo style): " << map_tile.depth); //test
 				DEBUG_PRINT("Origin of written tile: " << gmtry2i::to_string(map_tile.info.origin)); //test
 				write_tile(stream_tile, map_tile.ptr->pos);
 			}

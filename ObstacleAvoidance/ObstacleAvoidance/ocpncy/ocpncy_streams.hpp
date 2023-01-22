@@ -116,17 +116,17 @@ namespace ocpncy {
 		gmtry2i::vector2i last_origin() {
 			return last_mini_origin + origin;
 		}
-		void set_limiter(const gmtry2i::aligned_box2i& new_bounds) {
-			gmtry2i::aligned_box2i local_new_bounds = new_bounds - origin;
-			if (intersects(minis_bounds, local_new_bounds))
-				read_bounds = gmtry2i::intersection(minis_bounds,
-					maps2::align_out(local_new_bounds, minis_bounds.min, 3));
-			else read_bounds = { minis_bounds.min, 0 };
-		}
 	};
 
+	/*
+	* Observes nearby occupancies, compares them with buffered occupancies, 
+	*	updates buffered occupancies, records which buffered occupancies have been changed, 
+	*	and feeds newly discovered occupancies to a discovery listener.
+	* Perspective can be moved or reoriented.
+	* NOT IMPLEMENTED YET
+	*/
 	template <unsigned int log2_w>
-	class btile_monitored_buffer : maps2::map_buffer<log2_w, maps2::nbrng_tile<btile<log2_w>>> {
+	class occupancy_observer {
 
 	};
 }
