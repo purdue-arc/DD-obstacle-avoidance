@@ -329,8 +329,24 @@ namespace gmtry2i {
 		return vector2i(v.x < s, v.y < s);
 	}
 
+	inline vector2i operator >=(const vector2i& v, long s) {
+		return vector2i(v.x >= s, v.y >= s);
+	}
+
+	inline vector2i operator <=(const vector2i& v, long s) {
+		return vector2i(v.x <= s, v.y <= s);
+	}
+
+	inline bool operator ==(const vector2i& u, const vector2i& v) {
+		return u.x == v.x && u.y == v.y;
+	}
+
 	inline long dot(const vector2i& u, const vector2i& v) {
 		return u.x * v.x + u.y * v.y;
+	}
+
+	inline long squared(const vector2i& v) {
+		return dot(v, v);
 	}
 
 	// returns pseudoscalar (<u v>_2) / (e_1 e_2)

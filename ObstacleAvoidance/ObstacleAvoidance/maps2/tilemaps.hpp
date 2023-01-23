@@ -58,13 +58,13 @@ namespace maps2 {
 
 	// Rounds each coordinate of p down such that p lies on the nearest tile_origin
 	inline gmtry2i::vector2i align_down(const gmtry2i::vector2i& p, const gmtry2i::vector2i any_tile_origin, 
-										unsigned int log2_w) {
+		                                unsigned int log2_w) {
 		return (((p - any_tile_origin) >> log2_w) << log2_w) + any_tile_origin;
 	}
 
 	// Rounds each coordinate of p up such that p lies on the nearest tile_origin
 	inline gmtry2i::vector2i align_up(const gmtry2i::vector2i& p, const gmtry2i::vector2i any_tile_origin, 
-									  unsigned int log2_w) {
+		                              unsigned int log2_w) {
 		gmtry2i::vector2i dif = p - any_tile_origin;
 		gmtry2i::vector2i shifted_dif = dif >> log2_w;
 		return ((shifted_dif + (dif - (shifted_dif << log2_w) > 0)) << log2_w) + any_tile_origin;
@@ -72,7 +72,7 @@ namespace maps2 {
 
 	// Returns a box that completely and exclusively contains all tiles intersected by box b
 	inline gmtry2i::aligned_box2i align_out(const gmtry2i::aligned_box2i& b, const gmtry2i::vector2i any_tile_origin, 
-											unsigned int log2_w) {
+		                                    unsigned int log2_w) {
 		return gmtry2i::aligned_box2i(align_down(b.min, any_tile_origin, log2_w), 
 									  align_up(b.max, any_tile_origin, log2_w));
 	}
@@ -90,21 +90,32 @@ namespace maps2 {
 		nbrng_tile<base_tile>* nbrs[8];
 	};
 
+	inline gmtry2i::vector2i get_nbrhood_origin(const gmtry2i::vector2i& center_origin, unsigned int log2_w) {
+		return center_origin - gmtry2i::vector2i(1 << log2_w, 1 << log2_w);
+	}
+
 	// Returns bounds of a nbrng_tile's neighborhood (the region including itself and its neighbors)
 	inline gmtry2i::aligned_box2i get_nbrhood_bounds(const gmtry2i::vector2i& center_origin, unsigned int log2_w) {
 		gmtry2i::vector2i corners_disp(1 << log2_w, 1 << log2_w);
 		return gmtry2i::aligned_box2i(center_origin - corners_disp, center_origin + corners_disp * 2);
 	}
 
-	// Returns neighbor's all-positive coordinates relative to the neighborhood origin, in units of tiles
+	// Returns neighbor's non-negative coordinates relative to the neighborhood origin, in units of tiles
 	inline gmtry2i::vector2i get_nbrhood_coords(const gmtry2i::vector2i& nbr_origin, 
-												const gmtry2i::vector2i& nbrhood_origin, unsigned int log2_w) {
+		                                        const gmtry2i::vector2i& nbrhood_origin, unsigned int log2_w) {
 		return (nbr_origin - nbrhood_origin) >> log2_w;
 	}
 
 	// Returns index (for a nbrng_tile's nbrs array) of a neighbor
 	inline unsigned int get_nbr_idx(const gmtry2i::vector2i& nbr_nbrhood_coords) {
 		unsigned int compressed_coords = nbr_nbrhood_coords.x + 3 * nbr_nbrhood_coords.y;
+		return compressed_coords - (compressed_coords > 4);
+	}
+
+	// Returns index (for a nbrng_tile's nbrs array) of neighbor in the direction of center_nbr_disp
+	inline unsigned int get_nbr_idx(const gmtry2i::vector2i& center_nbr_disp, unsigned int log2_w) {
+		unsigned char compressed_coords = (center_nbr_disp.x >= 0) + (center_nbr_disp.x >= (1 << log2_w)) + 
+		                             3 * ((center_nbr_disp.y >= 0) + (center_nbr_disp.y >= (1 << log2_w)));
 		return compressed_coords - (compressed_coords > 4);
 	}
 
@@ -128,14 +139,16 @@ namespace maps2 {
 	}
 	*/
 
-	class point_ostream {
+	class point2_ostream {
 	public:
 		virtual void write(const gmtry2i::vector2i& p) = 0;
+		virtual void flush() {}
 	};
 
 	class point3_ostream {
 	public:
 		virtual void write(const gmtry3::vector3& p) = 0;
+		virtual void flush() {}
 	};
 
 	// Tile-aligned region bounded by an aligned_box2i
@@ -186,7 +199,7 @@ namespace maps2 {
 		virtual const tile* next() = 0;
 		// Returns the origin of the last tile retrieved from next()
 		virtual gmtry2i::vector2i last_origin() = 0;
-		virtual ~tile_istream() {};
+		virtual ~tile_istream() {}
 	};
 
 	// Stream for receiving only tiles that intersect the given bounds (bounds can be set manually)
@@ -330,7 +343,7 @@ namespace maps2 {
 		}
 		inline tree_info get_parent_info(const gmtry2i::vector2i& parent_direction) const {
 			return tree_info(origin - gmtry2i::vector2i(parent_direction.x < 0, parent_direction.y < 0) * get_width(),
-				depth + 1);
+			                 depth + 1);
 		}
 	};
 
@@ -354,10 +367,8 @@ namespace maps2 {
 			ptr = item_ptr;
 		}
 		inline spacial_item get_branch_item(unsigned int branch_idx, unsigned int branch_width) const {
-			return spacial_item(
-				static_cast<spacial_tree<T>*>(ptr)->branch[branch_idx],
-				info.get_branch_info(branch_idx, branch_width)
-			);
+			return spacial_item(static_cast<spacial_tree<T>*>(ptr)->branch[branch_idx],
+				                info.get_branch_info(branch_idx, branch_width));
 		}
 		inline spacial_item get_branch_item(unsigned int branch_idx) const {
 			return get_branch_item(branch_idx, info.get_branch_width());
@@ -369,10 +380,8 @@ namespace maps2 {
 		inline spacial_item create_branch_item(const gmtry2i::vector2i& branch_origin, T* branch_ptr) {
 			unsigned int branch_width = info.get_branch_width();
 			unsigned int branch_idx = info.get_branch_idx(branch_origin, branch_width);
-			return spacial_item(
-				static_cast<spacial_tree<T>*>(ptr)->branch[branch_idx] = branch_ptr,
-				info.get_branch_info(branch_idx, branch_width)
-			);
+			return spacial_item(static_cast<spacial_tree<T>*>(ptr)->branch[branch_idx] = branch_ptr,
+				                info.get_branch_info(branch_idx, branch_width));
 		}
 		inline spacial_item create_parent_item(const gmtry2i::vector2i& parent_direction) {
 			unsigned int my_index = (parent_direction.x < 0) + 2 * (parent_direction.y < 0);
@@ -447,7 +456,7 @@ namespace maps2 {
 					// test if next item is in the designated search bounds
 					if (gmtry2i::intersects(limiter, gmtry2i::aligned_box2i(origins[current_level + 1], half_width))) {
 						DEBUG_PRINT("Reading item from depth " << (current_depth + 1) <<
-									" and position " << gmtry2i::to_string(origins[current_level + 1])); //test
+						            " and position " << gmtry2i::to_string(origins[current_level + 1])); //test
 						items[current_level + 1] = get_next_item(items[current_level], branch_indices[current_level]);
 
 						// test if the next item was successfully loaded (exists)
@@ -456,7 +465,7 @@ namespace maps2 {
 							// if next item yields a tile, get and return the tile
 							if (current_depth == 1) {
 								DEBUG_PRINT("Reading tile from position " <<
-									gmtry2i::to_string(origins[current_level + 1])); //test
+								            gmtry2i::to_string(origins[current_level + 1])); //test
 								// get tile from next item
 								tile* next_tile = get_tile(items[current_level + 1]);
 								// move on to next branch of current item (next item is fully explored)
@@ -468,7 +477,7 @@ namespace maps2 {
 								branch_indices[current_level + 1] = 0;
 								current_level++;
 								DEBUG_PRINT("Stepping into tree at depth " << (current_depth) <<
-									" and position " << gmtry2i::to_string(origins[current_level])); //test
+								            " and position " << gmtry2i::to_string(origins[current_level])); //test
 							}
 						}
 						// next item is decidedly irrelevent; move on to next branch of current item

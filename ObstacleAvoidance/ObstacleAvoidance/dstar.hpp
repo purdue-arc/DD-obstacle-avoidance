@@ -15,7 +15,7 @@ namespace dstar {
 	typedef unsigned int dcosttype;
 
 	template <unsigned int log2_w>
-	struct dtile2 : public maps2::nbrng_tile<ocpncy::btile<log2_w>> {
+	struct dtile2 : public maps2::nbrng_tile<ocpncy::req_otile<log2_w>> {
 		dcosttype g[1 << log2_w][1 << log2_w];
 		dcosttype rhs[1 << log2_w][1 << log2_w];
 		void* queue_items[1 << log2_w][1 << log2_w];

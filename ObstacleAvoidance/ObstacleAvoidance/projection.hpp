@@ -31,8 +31,7 @@ namespace prjctn {
 	};
 
 	// 2D projection
-	void deproject(const float* depths, cam_info config, gmtry3::vector3 dst_origin,
-				 maps2::point_ostream* points_ostream) {
+	void deproject(const float* depths, cam_info config, maps2::point2_ostream* points_ostream) {
 		gmtry3::vector3 cam_space_point;
 		gmtry2i::vector2i projected_point;
 		float pt_scale;
@@ -86,10 +85,10 @@ namespace prjctn {
 
 	template <unsigned int log2_w, unsigned int num_layers>
 	void project(const float* depths, float fov, unsigned int width, unsigned int height,
-		gmtry3::transform3 cam_pose, maps2::nbrng_tile<btile3<log2_w, num_layers>>* dst, gmtry3::vector3 dst_origin,
-		local_occ_idcs_ostream<maps2::nbrng_tile<btile3<log2_w, num_layers>>>* changes_ostream) {
-		btile3<log2_w, num_layers> projected[9];
-		for (int i = 0; i < 9; i++) projected[i] = btile3<log2_w, num_layers>();
+		gmtry3::transform3 cam_pose, maps2::nbrng_tile<otile3<log2_w, num_layers>>* dst, gmtry3::vector3 dst_origin,
+		local_occ_idcs_ostream<maps2::nbrng_tile<otile3<log2_w, num_layers>>>* changes_ostream) {
+		otile3<log2_w, num_layers> projected[9];
+		for (int i = 0; i < 9; i++) projected[i] = otile3<log2_w, num_layers>();
 		// origin of projected region
 		gmtry3::vector3 proj_origin = dst_origin - gmtry3::vector3(1 << log2_w, 1 << log2_w, 0);
 		// width of projected region

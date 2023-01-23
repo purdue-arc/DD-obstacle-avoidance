@@ -5,11 +5,11 @@
 
 namespace ocpncy {
 	template <unsigned int log2_w, typename T>
-	class mat_tile_stream : public maps2::lim_tile_istream<btile<log2_w>> {
+	class mat_tile_stream : public maps2::lim_tile_istream<otile<log2_w>> {
 	private:
 		T* mat;
 		gmtry2i::vector2i origin;
-		btile<log2_w> last_tile;
+		otile<log2_w> last_tile;
 		// all geometric objects below are positioned relative to origin
 		gmtry2i::aligned_box2i mat_bounds;
 		gmtry2i::aligned_box2i bounds;
@@ -30,9 +30,9 @@ namespace ocpncy {
 			// = align_down<log2_w>(bounds.min, any_tile_origin - mat_origin);
 			reset();
 		}
-		const btile<log2_w>* next() {
+		const otile<log2_w>* next() {
 			if (tile_origin.y >= bounds.max.y) return 0;
-			btile<log2_w> tile = btile<log2_w>();
+			otile<log2_w> tile = otile<log2_w>();
 			gmtry2i::aligned_box2i readbox = gmtry2i::intersection(bounds, gmtry2i::aligned_box2i(tile_origin, 1 << log2_w));
 			for (int x = readbox.min.x; x < readbox.max.x; x++)
 				for (int y = readbox.min.y; y < readbox.max.y; y++)
@@ -76,10 +76,11 @@ namespace ocpncy {
 		return half_mat;
 	}
 
+	// delete? THIS CLASS MIGHT BE DELETED
 	template <unsigned int radius_minis>
-	class bmini_aggregator : public maps2::point_ostream, public maps2::tile_istream<btile_mini> {
+	class occupancy_aggregator : public maps2::point2_ostream, public maps2::tile_istream<omini> {
 	protected:
-		btile_mini minis[1 + 2 * radius_minis][1 + 2 * radius_minis] = {};
+		omini minis[1 + 2 * radius_minis][1 + 2 * radius_minis] = {};
 		gmtry2i::vector2i origin;
 		// Geometric objects below are defined relative to origin
 		gmtry2i::vector2i next_mini_origin, last_mini_origin;
@@ -88,7 +89,7 @@ namespace ocpncy {
 		void reset() {
 			next_mini_origin = read_bounds.min;
 		}
-		bmini_aggregator(const gmtry2i::vector2i& center, const gmtry2i::vector2i& any_mini_origin) {
+		occupancy_aggregator(const gmtry2i::vector2i& center, const gmtry2i::vector2i& any_mini_origin) {
 			origin = maps2::align_down(center, any_mini_origin, 3) -
 				(gmtry2i::vector2i(radius_minis, radius_minis) << 3);
 			minis_bounds = { {}, (1 + 2 * radius_minis) << 3 };
@@ -99,34 +100,125 @@ namespace ocpncy {
 			gmtry2i::vector2i local_p = p - origin;
 			if (gmtry2i::contains(minis_bounds, local_p))
 				minis[local_p.x >> LOG2_MINIW][local_p.y >> LOG2_MINIW] |=
-				((btile_mini)0b1) << ((local_p.x & MINI_COORD_MASK) + ((local_p.y & MINI_COORD_MASK) << LOG2_MINIW));
+				((omini)0b1) << ((local_p.x & MINI_COORD_MASK) + ((local_p.y & MINI_COORD_MASK) << LOG2_MINIW));
 		}
-		const btile_mini* next() {
-			if (next_mini_origin.y > read_bounds.max.y) return 0;
-			else {
+		const omini* next() {
+			while (next_mini_origin.y < read_bounds.max.y) {
 				last_mini_origin = next_mini_origin;
-				btile_mini* next_mini_ptr = &(minis[last_mini_origin.y >> LOG2_MINIW][last_mini_origin.x >> LOG2_MINIW]);
+				omini* next_mini_ptr = &(minis[last_mini_origin.y >> LOG2_MINIW][last_mini_origin.x >> LOG2_MINIW]);
 				if ((next_mini_origin.x += MINI_WIDTH) > read_bounds.max.x) {
 					next_mini_origin.x = read_bounds.min.x;
 					next_mini_origin.y += MINI_WIDTH;
 				}
-				return next_mini_ptr;
+				if (next_mini_ptr) return next_mini_ptr;
 			}
+			return 0;
 		}
 		gmtry2i::vector2i last_origin() {
 			return last_mini_origin + origin;
 		}
 	};
 
+	// 
+	template <unsigned int log2_w>
+	class occupancy_ostream {
+	public:
+		virtual void write(otile<log2_w>* tile_ptr, unsigned int occupancy_idx) = 0;
+	};
+
 	/*
-	* Observes nearby occupancies, compares them with buffered occupancies, 
-	*	updates buffered occupancies, records which buffered occupancies have been changed, 
-	*	and feeds newly discovered occupancies to a discovery listener.
-	* Perspective can be moved or reoriented.
+	* Observes new nearby occupancies, compares them with recorded occupancies, 
+	*	updates records, tracks which recorded tiles have been changed, 
+	*	and feeds newly discovered occupancies to an occupancy_ostream.
+	* Only cares about occupancies of observer's current tile and its neighbors.
+	* Does not manage the map; cannot add new tiles or manually load in existing ones
 	* NOT IMPLEMENTED YET
 	*/
-	template <unsigned int log2_w>
-	class occupancy_observer {
-
+	template <unsigned int log2_w, unsigned int observation_radius>
+	class occupancy_observer : public maps2::point2_ostream {
+		static const int radius_minis = std::min((observation_radius >> LOG2_MINIW), get_tile_width_minis(log2_w));
+		static const int aggregator_width = 1 + 2 * radius_minis;
+		gmtry2i::vector2i position, tile_origin;
+		maps2::nbrng_tile<req_otile<log2_w>>* current_tile;
+		/*
+		* When the observer needs a neighboring tile that hasn't been added to the map yet, it submits a request
+		* through the tile_requestee. If the tile exists, it will be added to the map by the requestee. Otherwise,
+		* and exception will be thrown.
+		*/
+		maps2::point2_ostream* tile_requestee;
+		// For reporting changed-state occupancies
+		occupancy_ostream<log2_w>* changes_listener;
+		// Aggregates occupancies from one wave of observed points
+		omini aggregator[aggregator_width][aggregator_width] = {};
+		gmtry2i::aligned_box2i aggregator_bounds;
+	public:
+		// Clears aggregator
+		void clear() {
+			for (int i = 0; i < aggregator_width * aggregator_width; i++)
+				(*aggregator)[i] = omini();
+		}
+		occupancy_observer(const gmtry2i::vector2i& init_position, maps2::nbrng_tile<req_otile<log2_w>>* init_tile,
+		                   const gmtry2i::vector2i& any_tile_origin) {
+			position = init_position;
+			current_tile = init_tile;
+			tile_origin = maps2::align_down(position, any_tile_origin, log2_w);
+			tile_requestee = 0;
+			changes_listener = 0;
+			clear();
+		}
+		// Listener is alerted to changes made to occupancy states
+		void set_listener(occupancy_ostream<log2_w>* new_listener) {
+			changes_listener = new_listener;
+		}
+		// Requestee is expected to load requested tiles into the map
+		void set_requestee(maps2::point2_ostream* new_requestee) {
+			tile_requestee = new_requestee;
+		}
+		// Throws exception if path to the destination crosses tiles that don't exist
+		void move(const gmtry2i::vector2i& new_position) {
+			gmtry2i::vector2i new_tile_origin = maps2::align_down(new_position, tile_origin, log2_w);
+			// in the loop, position is always tile-aligned
+			while (tile_origin != new_tile_origin) {
+				gmtry2i::vector2i disp = new_tile_origin - tile_origin;
+				gmtry2i::vector2i nbr_nbrhood_coords = (disp >= 0) + (disp >= (1 << log2_w));
+				gmtry2i::vector2i nbr_origin = tile_origin + ((nbr_nbrhood_coords - gmtry2i::vector2i(1, 1)) << log2_w);
+				unsigned int nbr_compressed_coords = nbr_nbrhood_coords.x + 3 * nbr_nbrhood_coords.y;
+				unsigned int nbr_idx = nbr_compressed_coords - (nbr_compressed_coords > 4);
+				if (tile_requestee && !current_tile->nbrs[nbr_idx]) {
+					tile_requestee->write(nbr_origin);
+					tile_requestee->flush();
+				}
+				current_tile = current_tile->nbrs[nbr_idx];
+				if (!current_tile) throw std::exception("Observer fell off the map!");
+				tile_origin = nbr_origin;
+			}
+			position = new_position;
+			aggregator_bounds = maps2::get_nbrhood_bounds(tile_origin, log2_w);
+			clear();
+		}
+		/*
+		* Relocates observer to new tile and position
+		* Can be used to move observer to an entirely new map
+		* Use this if observer falls off the map
+		*/
+		void relocate(const gmtry2i::vector2i& new_position, maps2::nbrng_tile<req_otile<log2_w>>* new_tile) {
+			position = new_position;
+			current_tile = new_tile;
+		}
+		void write(const gmtry2i::vector2i& p) {
+			if (gmtry2i::contains(aggregator_bounds, p)) {
+				gmtry2i::vector2i local_p = p - aggregator_bounds.min;
+				aggregator[local_p.x >> LOG2_MINIW][local_p.y >> LOG2_MINIW] |=
+					((omini)0b1) << ((local_p.x & MINI_COORD_MASK) + ((local_p.y & MINI_COORD_MASK) << LOG2_MINIW));
+			}
+		}
+		void flush() {
+			req_otile<log2_w>* nbrhood[3][3] = {
+				&(current_tile->nbrs[0]->tile), &(current_tile->nbrs[1]->tile), &(current_tile->nbrs[2]->tile),
+				&(current_tile->nbrs[3]->tile), &(current_tile->tile)         , &(current_tile->nbrs[4]->tile),
+				&(current_tile->nbrs[5]->tile), &(current_tile->nbrs[6]->tile), &(current_tile->nbrs[7]->tile)
+			};
+			// do all the important stuff here
+		}
 	};
 }

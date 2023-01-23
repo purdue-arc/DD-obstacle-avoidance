@@ -22,6 +22,7 @@ int main()try {
 
 	oc_tests::template_inheritance_test();
 	oc_tests::inheritance_test2();
+	oc_tests::inheritance_test3();
 	oc_tests::geometry_test0();
 	oc_tests::geometry_test1();
 	oc_tests::geometry_test2();
