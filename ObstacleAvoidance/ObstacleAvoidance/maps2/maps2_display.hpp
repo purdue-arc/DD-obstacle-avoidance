@@ -2,6 +2,8 @@
 
 #include "tilemaps.hpp"
 
+#define DEFAULT_MAX_LINE_LENGTH (1536)
+
 namespace maps2 {
 	class ascii_image {
 	private:

@@ -142,12 +142,14 @@
     <ClInclude Include="maps2\maps2_display.hpp" />
     <ClInclude Include="maps2\maps2_streams.hpp" />
     <ClInclude Include="ocpncy\occupancy.hpp" />
-    <ClInclude Include="ocpncy\ocpncy_tests.hpp" />
+    <ClInclude Include="tests\gmtry_tests.hpp" />
+    <ClInclude Include="tests\misc_tests.hpp" />
+    <ClInclude Include="tests\ocpncy_tests.hpp" />
     <ClInclude Include="ocpncy\ocpncy_streams.hpp" />
     <ClInclude Include="projection.hpp" />
     <ClInclude Include="maps2\tilemaps.hpp" />
     <ClInclude Include="header.hh" />
-    <ClInclude Include="rs_tests.hpp" />
+    <ClInclude Include="tests\rs_tests.hpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

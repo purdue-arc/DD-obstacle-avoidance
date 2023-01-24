@@ -1,8 +1,8 @@
 #pragma once 
 
 #define DEBUG
-#include "occupancy.hpp"
-#include "ocpncy_streams.hpp"
+#include "ocpncy/occupancy.hpp"
+#include "ocpncy/ocpncy_streams.hpp"
 #include "maps2/maps2_streams.hpp"
 
 #include "projection.hpp"
@@ -19,7 +19,6 @@ namespace oc_tests {
 	bool forgy[300] = { 0 };
 	unsigned int forgydims[2] = { 20, 15 };
 	gmtry2i::vector2i forgyorigin = gmtry2i::vector2i(-69, 9); // (5, 5)
-	const float PI = 3.14159265F;
 
 	int render_faces() {
 		smileytile.minis[0] =
@@ -246,194 +245,6 @@ namespace oc_tests {
 		std::cout << file_tile_stream;
 		delete file_tile_stream;
 
-		return 0;
-	}
-
-	template <int i>
-	class A {
-	protected:
-		const char* hidden_message = "Class a's hidden message";
-	public:
-		A() = default;
-		virtual const char* message() { return "Class a's message"; }
-		void print_message() { std::cout << message() << std::endl; }
-	};
-
-	template <int i>
-	class B : public A<i> {
-	public:
-		B() = default;
-		virtual const char* message() { return A<i>::hidden_message; }
-	};
-
-	int template_inheritance_test() {
-		A<4> a = A<4>();
-		a.print_message();
-		B<4> b = B<4>();
-		b.print_message();
-
-		A<4>* undercoverB = new B<4>();
-		undercoverB->print_message();
-		delete undercoverB;
-
-		return 0;
-	}
-
-	class C {
-	public:
-		virtual void print_message() = 0;
-	};
-
-	class D : public C {
-	protected:
-		const char* get_message() {
-			return "hello";
-		}
-	public:
-		void print_message() {
-			std::cout << get_message() << std::endl;
-		}
-	};
-
-	class E : public D {
-	protected:
-		const char* get_message() {
-			return "goodbye";
-		}
-	};
-
-	int inheritance_test2()  {
-		D d = D();
-		E e = E();
-
-		C* c_ptr = &d;
-		c_ptr->print_message();
-		c_ptr = &e;
-		c_ptr->print_message();
-
-		e.print_message();
-
-		return 0;
-	}
-
-	struct POD1 {
-		float some_floats[8][8];
-	};
-	struct POD2 {
-		int some_ints[8][8];
-	};
-	struct POD_combo : public POD1, public POD2 {
-		char some_chars[8][8];
-	};
-
-	int inheritance_test3() {
-		POD_combo a = POD_combo();
-		a.some_floats[5][5] = 69.420F;
-		a.some_ints[5][5] = 3000;
-		a.some_chars[5][5] = 'e';
-
-		std::cout << &a << std::endl;
-		POD1* b = &a;
-		std::cout << b << std::endl;
-		std::cout << b->some_floats[5][5] << std::endl;
-		POD2* c = &a;
-		std::cout << c << std::endl;
-		std::cout << c->some_ints[5][5] << std::endl;
-		POD_combo* d = static_cast<POD_combo*>(c);
-		std::cout << d << std::endl;
-		std::cout << d->some_chars[5][5] << std::endl;
-
-		return 0;
-	}
-
-	int geometry_test0() {
-		float theta = 3.1415 / 6;
-		gmtry3::rotor3 r = gmtry3::unit_make_rotor(gmtry3::vector3(0, 1, 0), theta) *
-			gmtry3::unit_make_rotor(gmtry3::vector3(0, 0, 1), 2 * theta);
-		gmtry3::matrix3 M = gmtry3::make_rotation(1, theta) * gmtry3::make_rotation(2, 2 * theta);
-		std::cout << gmtry3::to_string(r * gmtry3::vector3(1.5, 2, 1)) << std::endl;
-		std::cout << gmtry3::to_string(M * gmtry3::vector3(1.5, 2, 1)) << std::endl;
-
-		return 0;
-	}
-
-	int geometry_test1() {
-		maps2::ascii_image img(gmtry2i::aligned_box2i(-gmtry2i::vector2i(1, 1) << 5, 1 << 6), -1);
-		gmtry2i::aligned_box2i box1({ 5, 10 }, 5);
-		gmtry2i::aligned_box2i box2({ 15, 0 }, 5);
-		img << maps2::named_rect(box1, 'a')
-			<< maps2::named_rect(box2, 'b')
-			<< maps2::named_rect(box1 - box2, 'c');
-		std::cout << img;
-		return 0;
-	}
-
-	int geometry_test2() {
-		maps2::ascii_image img(gmtry2i::aligned_box2i(gmtry2i::vector2i(), 100), DEFAULT_MAX_LINE_LENGTH);
-		img.write("hello", { 99, 50 });
-		gmtry2i::vector2i p1(20, 15), p2(105, 40), q1(76, -50), q2(5, 90);
-		gmtry2i::line_segment2i l1(p1, p2), l2(q1, q2);
-		img << l1 << l2;
-		img << p1 << p2 << q1 << q2;
-		img(gmtry2i::intersection(l1, l2)) = 'I';
-		std::cout << img;
-		return 0;
-	}
-
-	class image_projector2 : public maps2::point2_ostream {
-		maps2::ascii_image& img;
-		gmtry2i::vector2i cam_origin;
-	public:
-		image_projector2(maps2::ascii_image& new_img, const gmtry2i::vector2i& new_cam_origin) : img(new_img) {
-			cam_origin = new_cam_origin;
-		}
-		void write(const gmtry2i::vector2i& p) {
-			//std::cout << "point detected" << std::endl;
-			//std::cout << gmtry2i::to_string(p) << std::endl;
-			img << gmtry2i::line_segment2i(cam_origin, p);
-			img(p) = '@';
-		}
-	};
-
-	int projection_test0() { // PASSED
-		prjctn::cam_info config(PI / 2, 4, 1, {});
-		float* depths = new float[config.width * config.height] {10, 11, 12, 13};
-		gmtry3::vector3 cam_origin(40, 6, 0);
-		gmtry2i::vector2i cam_origin2(cam_origin.x, cam_origin.y);
-		gmtry3::matrix3 cam_orientation = gmtry3::make_rotation(2, PI / 4);		// Yaw left 45deg
-		//								* gmtry3::make_rotation(0, -PI / 3);	// Pitch down 60deg
-		maps2::ascii_image img(gmtry2i::aligned_box2i(gmtry2i::vector2i(), 64), DEFAULT_MAX_LINE_LENGTH);
-		image_projector2 projector(img, cam_origin2);
-		// Draw camera's local axes
-		//img << gmtry2i::line_segment2i(cam_origin2, cam_origin2 + 
-		//	   gmtry2i::vector2i(cam_orientation(0).x * 8, cam_orientation(0).y * 8))
-		//	<< gmtry2i::line_segment2i(cam_origin2, cam_origin2 + 
-		//	   gmtry2i::vector2i(cam_orientation(1).x * 8, cam_orientation(1).y * 8));
-		config.pose = gmtry3::transform3(cam_orientation, cam_origin);
-		prjctn::deproject(depths, config, &projector);
-		img(cam_origin2) = 'C';
-		std::cout << img;
-
-		delete[] depths;
-		return 0;
-	}
-
-	int projection_test1() { // PASSED
-		prjctn::cam_info config(PI / 3, 3, 2, {});
-		float* depths = new float[config.width * config.height] {6, 7, 8, 9, 10, 11};
-		gmtry3::vector3 cam_origin(40, 6, 0);
-		gmtry2i::vector2i cam_origin2(cam_origin.x, cam_origin.y);
-		gmtry3::matrix3 cam_orientation = gmtry3::make_rotation(2, PI / 4)	// Yaw left
-		//								* gmtry3::make_rotation(0, PI / 2)	// Pitch up
-										* gmtry3::make_rotation(1, -PI / 6);// Roll down to the left
-		maps2::ascii_image img(gmtry2i::aligned_box2i(gmtry2i::vector2i(), 64), DEFAULT_MAX_LINE_LENGTH);
-		image_projector2 projector(img, cam_origin2);
-		config.pose = gmtry3::transform3(cam_orientation, cam_origin);
-		prjctn::deproject(depths, config, &projector);
-		img(cam_origin2) = 'C';
-		std::cout << img;
-
-		delete[] depths;
 		return 0;
 	}
 

@@ -479,15 +479,17 @@ namespace gmtry2i {
 		vector2i disp2 = l2.b - l2.a; // from l2.a to l2.b
 		vector2i adisp = l1.a - l2.a; // from l2.a to l1.a
 		long wedge1 = wedge(disp2, adisp);
-		long wedge2 = wedge(disp2, disp1);
+		long wedge2 = wedge(disp1, adisp);
+		long wedge3 = wedge(disp2, disp1);
 		// test for parallelity
-		if (wedge2 == 0) return false;
+		if (wedge3 == 0) return false;
 		// see intersection(line_segment2i, line_segment2i) for first half of following derivation
 		// if t >= 0 and abs(t) <= 1, then l1 and l2 intersect
 		//		[ t >= 0 ] = XOR(wedge(disp2, adisp) < 0, wedge(disp2, disp1) < 0)
 		//		[ abs(t) <= 1 ] = [ abs(wedge(disp2, adisp)) / abs(wedge(disp2, disp1)) <= 1 ]
 		//						= [ abs(wedge(disp2, adisp)) <= abs(wedge(disp2, disp1)) ]
-		return ((wedge1 < 0) != (wedge2 < 0)) && (abs(wedge1) <= abs(wedge2));
+		return ((wedge1 < 0) != (wedge3 < 0)) && ((wedge2 < 0) != (wedge3 < 0)) && 
+		       (abs(wedge1) <= abs(wedge3)) && (abs(wedge2) <= abs(wedge3));
 	}
 
 	// result invalid if l1 and l2 do not intersect
@@ -505,14 +507,21 @@ namespace gmtry2i {
 		// test if box contains either endpoint
 		if (contains(box, l.a) || contains(box, l.b)) return true;
 		vector2i disp = l.b - l.a;
+		vector2i box_pts[2] = { box.min, box.max - vector2i(1, 1) };
 		for (int dim = 0; dim < 2; dim++) if (disp[dim])
 			for (int extrema = 0; extrema < 2; extrema++) {
 				// a[dim] + t*disp[dim] = box[extrema][dim]
 				// t = (box[extrema][dim] - a[dim]) / disp[dim]
-				// if 0 <= t <= 1, then they intersect
-				long value1 = box[extrema][dim] - l.a[dim];
+				// if 0 <= t <= 1 then they intersect
+				long value1 = box_pts[extrema][dim] - l.a[dim];
 				long value2 = disp[dim];
-				if (((value1 < 0) == (value2 < 0)) && (abs(value1) >= abs(value2))) return true;
+				// if t is not negative AND t is less than 1
+				if (((value1 < 0) == (value2 < 0)) && (abs(value1) <= abs(value2))) {
+					int other_dim = 1 & ~dim;
+					long other_intersection = l.a[other_dim] + ((disp[other_dim] * value1) / value2);
+					if (box.min[other_dim] <= other_intersection && other_intersection < box.max[other_dim])
+						return true;
+				}
 			}
 		return false;
 	}
@@ -525,13 +534,15 @@ namespace gmtry2i {
 		if (contains(box, l.b)) new_pts[pt_idx++] = l.b;
 		if (pt_idx > 1) return line_segment2i(new_pts[0], new_pts[1]);
 		vector2i disp = l.b - l.a;
+		vector2i box_pts[2] = { box.min, box.max - vector2i(1, 1) };
 		for (int dim = 0; dim < 2; dim++) if (disp[dim]) {
 			long value2 = disp[dim];
 			for (int extrema = 0; extrema < 2; extrema++) {
 				// explanation for the following is in intersects(line_segment2i, aligned_box2i)
-				long value1 = box[extrema][dim] - l.a[dim];
-				if (((value1 < 0) == (value2 < 0)) && (abs(value1) >= abs(value2))) {
-					new_pts[pt_idx++] = l.a + ((disp * value1) / value2);
+				long value1 = box_pts[extrema][dim] - l.a[dim];
+				if (((value1 < 0) == (value2 < 0)) && (abs(value1) <= abs(value2))) {
+					vector2i intersection = l.a + ((disp * value1) / value2);
+					if (contains(box, intersection)) new_pts[pt_idx++] = intersection;
 					if (pt_idx > 1) return line_segment2i(new_pts[0], new_pts[1]);
 				}
 			}

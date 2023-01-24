@@ -4,8 +4,6 @@
 #include "maps2/tilemaps.hpp"
 #include "maps2/maps2_display.hpp"
 
-#define DEFAULT_MAX_LINE_LENGTH (1536)
-
 #include <stdint.h>
 #include <iostream>
 

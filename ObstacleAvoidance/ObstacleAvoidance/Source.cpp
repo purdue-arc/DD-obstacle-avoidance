@@ -2,8 +2,10 @@
 // #include "header.hh"
 
 // other files
-#include "ocpncy/ocpncy_tests.hpp"
-#include "rs_tests.hpp"
+#include "tests/ocpncy_tests.hpp"
+#include "tests/rs_tests.hpp"
+#include "tests/misc_tests.hpp"
+#include "tests/gmtry_tests.hpp"
 
 // Main
 int main()try {
@@ -20,17 +22,17 @@ int main()try {
 	oc_tests::print_map_file_item<8>({0, 0}, 3);
 	oc_tests::print_map_file_tiles<8>();
 
-	oc_tests::template_inheritance_test();
-	oc_tests::inheritance_test2();
-	oc_tests::inheritance_test3();
-	oc_tests::geometry_test0();
-	oc_tests::geometry_test1();
-	oc_tests::geometry_test2();
-	oc_tests::projection_test0();
-	oc_tests::projection_test1();
+	misc_tests::template_inheritance_test();
+	misc_tests::inheritance_test2();
+	misc_tests::inheritance_test3();
+	gmtry_tests::geometry_test0();
+	gmtry_tests::geometry_test1();
+	gmtry_tests::geometry_test2();
+	gmtry_tests::projection_test0();
+	gmtry_tests::projection_test1();
 	*/
 
-	oc_tests::render_forgy();
+	gmtry_tests::geometry_test3();
 
 	return 0;
 }

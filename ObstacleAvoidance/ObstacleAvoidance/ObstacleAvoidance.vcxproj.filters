@@ -19,6 +19,9 @@
     <Filter Include="Source Files\ocpncy_maps">
       <UniqueIdentifier>{40b0f1e2-b727-4ef1-bff0-2e1e4a80aba7}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\tests">
+      <UniqueIdentifier>{c48a1e73-42be-4e01-ab8b-d447b56194d9}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source.cpp">
@@ -43,9 +46,6 @@
     <ClInclude Include="maps2\tilemaps.hpp">
       <Filter>Source Files\maps</Filter>
     </ClInclude>
-    <ClInclude Include="rs_tests.hpp">
-      <Filter>Source Files</Filter>
-    </ClInclude>
     <ClInclude Include="maps2\maps2_streams.hpp">
       <Filter>Source Files\maps</Filter>
     </ClInclude>
@@ -58,11 +58,20 @@
     <ClInclude Include="ocpncy\ocpncy_streams.hpp">
       <Filter>Source Files\ocpncy_maps</Filter>
     </ClInclude>
-    <ClInclude Include="ocpncy\ocpncy_tests.hpp">
-      <Filter>Source Files\ocpncy_maps</Filter>
-    </ClInclude>
     <ClInclude Include="projection.hpp">
       <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="tests\gmtry_tests.hpp">
+      <Filter>Source Files\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="tests\misc_tests.hpp">
+      <Filter>Source Files\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="tests\ocpncy_tests.hpp">
+      <Filter>Source Files\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="tests\rs_tests.hpp">
+      <Filter>Source Files\tests</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
