@@ -45,18 +45,15 @@ namespace ocpncy {
 	*/
 	template <unsigned int log2_w>
 	struct otile {
-		omini minis[get_tile_width_minis(log2_w)][get_tile_width_minis(log2_w)];
-		otile() = default;
+		omini minis[get_tile_area_minis(log2_w)];
 		inline otile& operator +=(const otile& tile) {
-			for (int x = 0; x < get_tile_width_minis(log2_w); x++)
-				for (int y = 0; y < get_tile_width_minis(log2_w); y++)
-					minis[x][y] |= tile.minis[x][y];
+			for (int i = 0; i < get_tile_area_minis(log2_w); i++)
+				minis[i] |= tile.minis[i];
 			return *this;
 		}
 		inline otile& operator -=(const otile& tile) {
-			for (int x = 0; x < get_tile_width_minis(log2_w); x++)
-				for (int y = 0; y < get_tile_width_minis(log2_w); y++)
-					minis[x][y] &= ~tile.minis[x][y];
+			for (int i = 0; i < get_tile_area_minis(log2_w); i++)
+				minis[i] &= ~tile.minis[i];
 			return *this;
 		}
 	};
@@ -65,8 +62,8 @@ namespace ocpncy {
 	template <unsigned int log2_w>
 	bool is_occupied(const otile<log2_w>& t) {
 		bool occupied = false;
-		for (int i = 0; i < get_tile_area_mini(log2_w); i++)
-			occupied |= (*t.minis)[i];
+		for (int i = 0; i < get_tile_area_minis(log2_w); i++)
+			occupied |= t.minis[i];
 		return occupied;
 	}
 
@@ -74,8 +71,8 @@ namespace ocpncy {
 	template <unsigned int log2_w>
 	otile<log2_w> operator +(const otile<log2_w>& t1, const otile<log2_w>& t2) {
 		otile<log2_w> sum;
-		for (int i = 0; i < get_tile_area_mini(log2_w); i++)
-			(*sum.minis)[i] = (*t1.minis)[i] | (*t2.minis)[i];
+		for (int i = 0; i < get_tile_area_minis(log2_w); i++)
+			sum.minis[i] = t1.minis[i] | t2.minis[i];
 		return sum;
 	}
 
@@ -83,8 +80,8 @@ namespace ocpncy {
 	template <unsigned int log2_w>
 	otile<log2_w> operator ^(const otile<log2_w>& t1, const otile<log2_w>& t2) {
 		otile<log2_w> dif;
-		for (int i = 0; i < get_tile_area_mini(log2_w); i++)
-			(*dif.minis)[i] = (*t1.minis)[i] ^ (*t2.minis)[i];
+		for (int i = 0; i < get_tile_area_minis(log2_w); i++)
+			dif.minis[i] = t1.minis[i] ^ t2.minis[i];
 		return dif;
 	}
 
@@ -92,21 +89,21 @@ namespace ocpncy {
 	template <unsigned int log2_w>
 	otile<log2_w> operator -(const otile<log2_w>& t1, const otile<log2_w>& t2) {
 		otile<log2_w> dif;
-		for (int i = 0; i < get_tile_area_mini(log2_w); i++)
-			(*dif.minis)[i] = (*t1.minis)[i] & ~((*t2.minis)[i]);
+		for (int i = 0; i < get_tile_area_minis(log2_w); i++)
+			dif.minis[i] = t1.minis[i] & ~t2.minis[i];
 		return dif;
 	}
 
 	// Accessors for individual bits in a tile
 	template <unsigned int log2_w>
 	inline bool get_bit(int x, int y, const otile<log2_w>& ot) {
-		return ((ot.minis[y >> LOG2_MINIW][x >> LOG2_MINIW]) >> 
-			((x & MINI_COORD_MASK) + ((y & MINI_COORD_MASK) << LOG2_MINIW))) & 0b1;
+		return ((ot.minis[(x >> LOG2_MINIW) + ((y >> LOG2_MINIW) << (log2_w - LOG2_MINIW))]) >>
+			((x & MINI_COORD_MASK) + ((y & MINI_COORD_MASK) << LOG2_MINIW))) & 1;
 	}
 	template <unsigned int log2_w>
 	inline void set_bit(int x, int y, otile<log2_w>& ot, bool value) {
-		ot.minis[y >> LOG2_MINIW][x >> LOG2_MINIW] |= 
-			value * (((omini) 0b1) << ((x & MINI_COORD_MASK) + ((y & MINI_COORD_MASK) << LOG2_MINIW)));
+		ot.minis[(x >> LOG2_MINIW) + ((y >> LOG2_MINIW) << (log2_w - LOG2_MINIW))] |=
+			value * (((omini) 1) << ((x & MINI_COORD_MASK) + ((y & MINI_COORD_MASK) << LOG2_MINIW)));
 	}
 
 	// Converts between 2D tile-space coordinates and their compressed integer representation

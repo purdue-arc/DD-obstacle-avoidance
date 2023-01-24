@@ -128,7 +128,7 @@ namespace maps2 {
 			bounds = img.bounds;
 		}
 		~ascii_image() {
-			for (int y = width - 1; y >= 0; y--) delete[] lines[y];
+			for (int y = height - 1; y >= 0; y--) delete[] lines[y];
 			delete[] lines;
 		}
 	};

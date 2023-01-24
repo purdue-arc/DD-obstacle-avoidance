@@ -26,10 +26,11 @@ int main()try {
 	oc_tests::geometry_test0();
 	oc_tests::geometry_test1();
 	oc_tests::geometry_test2();
-	*/
-
 	oc_tests::projection_test0();
 	oc_tests::projection_test1();
+	*/
+
+	oc_tests::render_forgy();
 
 	return 0;
 }

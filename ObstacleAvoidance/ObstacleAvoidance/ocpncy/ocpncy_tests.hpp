@@ -22,7 +22,7 @@ namespace oc_tests {
 	const float PI = 3.14159265F;
 
 	int render_faces() {
-		smileytile.minis[0][0] =
+		smileytile.minis[0] =
 			(0b00000000ULL << 48) +
 			(0b00100100ULL << 40) +
 			(0b00100100ULL << 32) +
@@ -30,7 +30,7 @@ namespace oc_tests {
 			(0b01000010ULL << 16) +
 			(0b00111100ULL << 8) +
 			(0b00000000ULL << 0);
-		frownytile.minis[0][0] =
+		frownytile.minis[0] =
 			(0b00000000ULL << 48) +
 			(0b00100100ULL << 40) +
 			(0b00100100ULL << 32) +
@@ -79,7 +79,7 @@ namespace oc_tests {
 			ocpncy::set_bit(x, circley, dogtile, true);
 			ocpncy::set_bit(x, circley - 1, dogtile, true);
 		}
-		//PrintTile(dogtile);
+		std::cout << dogtile;
 		return 0;
 	}
 
@@ -104,6 +104,14 @@ namespace oc_tests {
 		ocpncy::mat_tile_stream<4, bool> iterator(forgy, forgydims[0], forgydims[1], forgyorigin, gmtry2i::vector2i(42, 35));
 		maps2::ascii_image img(4, gmtry2i::vector2i(42, 35), gmtry2i::aligned_box2i(forgyorigin, 1 << (4 + 2)), -1);
 		std::cout << (img << maps2::named_rect(iterator.get_bounds(), 'x', 0) << &iterator);
+		//
+
+		/* Prints just the matrix (no tiles)
+		maps2::ascii_image img({ {0, 0}, gmtry2i::vector2i(forgydims[0], forgydims[1])}, DEFAULT_MAX_LINE_LENGTH);
+		for (int x = 0; x < forgydims[0]; x++) for (int y = 0; y < forgydims[1]; y++)
+			if (forgy[x + y * forgydims[0]]) img(x, y) = '@';
+		std::cout << img;
+		*/
 
 		return 0;
 	}
