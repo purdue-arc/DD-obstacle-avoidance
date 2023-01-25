@@ -1,8 +1,8 @@
 #pragma once
 
-#include <iostream>
-
 #include "geometry.hpp"
+
+#include <iostream>
 
 #ifdef DEBUG
 #	define DEBUG_PRINT(s) std::cout << s << std::endl;
@@ -118,6 +118,19 @@ namespace maps2 {
 		                             3 * ((center_nbr_disp.y >= 0) + (center_nbr_disp.y >= (1 << log2_w)));
 		return compressed_coords - (compressed_coords > 4);
 	}
+
+	template <unsigned int log2_w, typename tile>
+	struct tile_nbrhood {
+		gmtry2i::vector2i origin;
+		tile* tiles[3][3];
+		tile_nbrhood(const gmtry2i::vector2i& center_origin, nbrng_tile<tile>* center) : tiles {
+			&(center->nbrs[5]->tile), &(center->nbrs[6]->tile), &(center->nbrs[7]->tile),
+			&(center->nbrs[3]->tile), &(center->tile)         , &(center->nbrs[4]->tile),
+			&(center->nbrs[0]->tile), &(center->nbrs[1]->tile), &(center->nbrs[2]->tile)
+		} {
+			origin = center_origin - gmtry2i::vector2i(1 << log2_w, 1 << log2_w);
+		}
+	};
 
 	/*
 	* TEMPORARILY DEPRECATED (will definitely cause double-deletions)

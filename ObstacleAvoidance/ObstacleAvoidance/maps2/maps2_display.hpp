@@ -144,6 +144,13 @@ namespace maps2 {
 		}
 	};
 
+	struct crosshair_point {
+		gmtry2i::vector2i point;
+		crosshair_point(const gmtry2i::vector2i& new_point) {
+			point = new_point;
+		}
+	};
+
 	struct named_rect {
 		gmtry2i::aligned_box2i box;
 		char name;
@@ -181,6 +188,14 @@ namespace maps2 {
 		return img;
 	}
 
+	ascii_image& operator << (ascii_image& img, const crosshair_point& p) {
+		img(p.point + gmtry2i::vector2i( 1, 0)) = '-';
+		img(p.point + gmtry2i::vector2i(-1, 0)) = '-';
+		img(p.point + gmtry2i::vector2i(0,  1)) = '|';
+		img(p.point + gmtry2i::vector2i(0, -1)) = '|';
+		return img;
+	}
+
 	ascii_image& operator << (ascii_image& img, const gmtry2i::vector2i& p) {
 		return img << named_point(p, '@');
 	}
@@ -208,21 +223,24 @@ namespace maps2 {
 		gmtry2i::vector2i disp = l.b - l.a;
 		if (disp.x && disp.y) {
 			char angle = ((disp.x > 0) == (disp.y > 0)) ? '/' : '\\';
-			int length = std::sqrt(gmtry2i::dot(disp, disp));
-			float inv_length = 1.0F / static_cast<float>(length);
+			float length = std::sqrt(gmtry2i::dot(disp, disp));
+			int length_int = length;
+			if (length_int < length) length_int++;
+			float inv_length = 1.0F / length;
 			float norm_x = disp.x * inv_length;
 			float norm_y = disp.y * inv_length;
-			for (int i = 0; i < length; i++) img(l.a + gmtry2i::vector2i(i * norm_x, i * norm_y)) = angle;
+			for (int i = 0; i <= length_int; i++) 
+				img(l.a + gmtry2i::vector2i(i * norm_x, i * norm_y)) = angle;
 		}
 		else if (disp.x) {
 			int norm_x = (disp.x > 0) ? 1 : -1;
 			int length = std::abs(disp.x);
-			for (int i = 0; i < length; i++) img(l.a + gmtry2i::vector2i(i * norm_x, 0)) = '-';
+			for (int i = 0; i <= length; i++) img(l.a + gmtry2i::vector2i(i * norm_x, 0)) = '-';
 		}
 		else if (disp.y) {
 			int norm_y = (disp.y > 0) ? 1 : -1;
 			int length = std::abs(disp.y);
-			for (int i = 0; i < length; i++) img(l.a + gmtry2i::vector2i(0, i * norm_y)) = '|';
+			for (int i = 0; i <= length; i++) img(l.a + gmtry2i::vector2i(0, i * norm_y)) = '|';
 		}
 		return img;
 	}

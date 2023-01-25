@@ -22,6 +22,9 @@
     <Filter Include="Source Files\tests">
       <UniqueIdentifier>{c48a1e73-42be-4e01-ab8b-d447b56194d9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source Files\util">
+      <UniqueIdentifier>{8f092d1a-c807-4849-8c02-ac8a699158be}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source.cpp">
@@ -72,6 +75,9 @@
     </ClInclude>
     <ClInclude Include="tests\rs_tests.hpp">
       <Filter>Source Files\tests</Filter>
+    </ClInclude>
+    <ClInclude Include="util\data_structs.hpp">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

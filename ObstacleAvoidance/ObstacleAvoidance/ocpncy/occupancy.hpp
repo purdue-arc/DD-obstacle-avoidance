@@ -1,6 +1,5 @@
 #pragma once
 
-#include "geometry.hpp"
 #include "maps2/tilemaps.hpp"
 #include "maps2/maps2_display.hpp"
 
@@ -15,13 +14,13 @@ namespace ocpncy {
 	// WxW square of occupancy states (W = width of a mini = 2 ^ LOG2_MINIW)
 	typedef std::uint64_t omini;
 
-	inline omini sum(const omini& m1, const omini& m2) {
+	inline omini mini_sum(const omini& m1, const omini& m2) {
 		return m1 | m2;
 	}
-	inline omini minus(const omini& m1, const omini& m2) {
+	inline omini mini_minus(const omini& m1, const omini& m2) {
 		return m1 & ~m2;
 	}
-	inline omini diff(const omini& m1, const omini& m2) {
+	inline omini mini_diff(const omini& m1, const omini& m2) {
 		return m1 ^ m2;
 	}
 
@@ -32,6 +31,10 @@ namespace ocpncy {
 	// Returns the area of a tile in units of minis
 	constexpr unsigned int get_tile_area_minis(unsigned int log2_tile_w) {
 		return 1 << ((log2_tile_w - LOG2_MINIW) * 2);
+	}
+	// Returns a mask for sub-tile coordinates
+	constexpr unsigned int get_tile_coord_mask(unsigned int log2_tile_w) {
+		return (1 << log2_tile_w) - 1;
 	}
 
 	/*
@@ -92,16 +95,27 @@ namespace ocpncy {
 		return dif;
 	}
 
+	// Returns the index of a mini that contains the point (x, y), relative to the respective tile's origin
+	template <unsigned int log2_w>
+	inline bool get_mini_idx(unsigned int x, unsigned int y) {
+		return (x >> LOG2_MINIW) + ((y >> LOG2_MINIW) << (log2_w - LOG2_MINIW));
+	}
+
+	// Returns the index, relative to the respective mini, of a bit at the point (x, y), relative to the tile's origin
+	template <unsigned int log2_w>
+	inline bool get_bit_idx(unsigned int x, unsigned int y) {
+		return (x & MINI_COORD_MASK) + ((y & MINI_COORD_MASK) << LOG2_MINIW);
+	}
+
+
 	// Accessors for individual bits in a tile
 	template <unsigned int log2_w>
-	inline bool get_bit(int x, int y, const otile<log2_w>& ot) {
-		return ((ot.minis[(x >> LOG2_MINIW) + ((y >> LOG2_MINIW) << (log2_w - LOG2_MINIW))]) >>
-			((x & MINI_COORD_MASK) + ((y & MINI_COORD_MASK) << LOG2_MINIW))) & 1;
+	inline bool get_bit(unsigned int x, unsigned int y, const otile<log2_w>& ot) {
+		return (ot.minis[get_mini_idx<log2_w>(x, y)] >> get_bit_idx<log2_w>(x, y)) & 1;
 	}
 	template <unsigned int log2_w>
-	inline void set_bit(int x, int y, otile<log2_w>& ot, bool value) {
-		ot.minis[(x >> LOG2_MINIW) + ((y >> LOG2_MINIW) << (log2_w - LOG2_MINIW))] |=
-			value * (((omini) 1) << ((x & MINI_COORD_MASK) + ((y & MINI_COORD_MASK) << LOG2_MINIW)));
+	inline void set_bit(unsigned int x, unsigned int y, otile<log2_w>& ot, bool value) {
+		ot.minis[get_mini_idx<log2_w>(x, y)] |= static_cast<omini>(value) << get_bit_idx<log2_w>(x, y);
 	}
 
 	// Converts between 2D tile-space coordinates and their compressed integer representation

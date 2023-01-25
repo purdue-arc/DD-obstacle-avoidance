@@ -102,6 +102,19 @@ namespace gmtry_tests {
 		return 0;
 	}
 
+	int geometry_test5() {
+		const int num_examples = 30;
+		gmtry2i::aligned_box2i img_bounds({ 0, 0 }, { 16, 16 });
+		for (int i = 0; i < num_examples; i++) {
+			maps2::ascii_image img(img_bounds, DEFAULT_MAX_LINE_LENGTH);
+			gmtry2i::vector2i a(random_vector(img_bounds)), b(random_vector(img_bounds));
+			gmtry2i::vector2i shift(1, 0);
+			img << gmtry2i::line_segment2i(a, b) << maps2::named_point(a + shift, 'a') << maps2::named_point(b + shift, 'b');
+			std::cout << img << "\n\n";
+		}
+		return 0;
+	}
+
 	class image_projector2 : public maps2::point2_ostream {
 		maps2::ascii_image& img;
 		gmtry2i::vector2i cam_origin;

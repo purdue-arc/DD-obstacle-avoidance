@@ -32,7 +32,7 @@ int main()try {
 	gmtry_tests::projection_test1();
 	*/
 
-	gmtry_tests::geometry_test3();
+	gmtry_tests::geometry_test4();
 
 	return 0;
 }
