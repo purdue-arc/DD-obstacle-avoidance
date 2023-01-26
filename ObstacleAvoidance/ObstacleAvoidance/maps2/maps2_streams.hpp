@@ -12,7 +12,7 @@ namespace maps2 {
 	/*
 	* Basic map to which tiles may be written and from which they may be read
 	*/
-	template <unsigned int log2_w, spacial_tile tile>
+	template <unsigned int log2_w, spatial_tile tile>
 	class map_buffer : public map_iostream<tile>, protected stretchable_region<log2_w>, 
 		public lim_tile_istream_vendor<tile>, lim_tile_istream_vendor<tile, gmtry2i::box_intersectable2i> {
 		tree_info<log2_w> info;
@@ -92,7 +92,7 @@ namespace maps2 {
 	* Tiles are not buffered
 	* Construction and every read/write operation may throw an exception
 	*/
-	template <unsigned int log2_w, spacial_tile tile>
+	template <unsigned int log2_w, spatial_tile tile>
 	class map_fstream : public map_iostream<tile>, protected stretchable_region<log2_w>,
 		public lim_tile_istream_vendor<tile>, public lim_tile_istream_vendor<tile, gmtry2i::box_intersectable2i> {
 	protected:
@@ -115,7 +115,7 @@ namespace maps2 {
 			file_pos pos;
 		};
 		/*
-		* An index_tree is used to remember spacial items within the tree that have already been read from the file.
+		* An index_tree is used to remember spatial items within the tree that have already been read from the file.
 		* If an item has been indexed, only one piece of contiguous memory will have to be read from the file in 
 		*	order to access it again.
 		* Both trees and tiles are indexed as an index_tree
@@ -130,7 +130,7 @@ namespace maps2 {
 				file_pos_index::pos = item_pos;
 			}
 		};
-		typedef spacial_item<log2_w, homogeneous_tree<file_pos_index>> item_index;
+		typedef spatial_item<log2_w, homogeneous_tree<file_pos_index>> item_index;
 
 	private:
 		bmap_file_header map_header;

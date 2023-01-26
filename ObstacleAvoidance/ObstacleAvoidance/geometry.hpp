@@ -126,7 +126,7 @@ namespace gmtry3 {
 			return *(reinterpret_cast<const vector3*>(n[i]));
 		}
 		// Inversion if column vectors are normalized and orthogonal
-		matrix3 T() {
+		matrix3 T() const {
 			return matrix3(n[0][0], n[1][0], n[2][0], 
 						   n[0][1], n[1][1], n[2][1], 
 						   n[0][2], n[1][2], n[2][2]);
@@ -192,7 +192,7 @@ namespace gmtry3 {
 			t = v;
 		}
 		// Inversion if column vectors of rotation matrix are normalized and orthogonal
-		transform3 T() {
+		transform3 T() const {
 			matrix3 RT = R.T();
 			return transform3(RT, RT * -t);
 		}
@@ -258,6 +258,29 @@ namespace gmtry3 {
 	inline rotor3 invert(const rotor3& r) {
 		return rotor3(r.a, -r.B);
 	}
+
+	struct ray3 {
+		vector3 p, d;
+		ray3(const vector3& point, const vector3& direction) {
+			p = point;
+			d = direction;
+		}
+	};
+
+	struct triangle3 {
+		vector3 a, b, c;
+		triangle3(const vector3& p, const vector3& q, const vector3& r) {
+			a = p;
+			b = q;
+			c = r;
+		}
+		inline vector3& operator [](int i) {
+			return (&a)[i];
+		}
+		inline const vector3& operator [](int i) const {
+			return (&a)[i];
+		}
+	};
 }
 
 // 2D integer geometry
@@ -474,7 +497,7 @@ namespace gmtry2i {
 		return contains(b, l.a) && contains(b, l.b);
 	}
 
-	inline bool intersects(const line_segment2i& l1, const line_segment2i& l2) {
+	bool intersects(const line_segment2i& l1, const line_segment2i& l2) {
 		vector2i disp1 = l1.b - l1.a; // from l1.a to l1.b
 		vector2i disp2 = l2.b - l2.a; // from l2.a to l2.b
 		vector2i adisp = l1.a - l2.a; // from l2.a to l1.a
@@ -493,7 +516,7 @@ namespace gmtry2i {
 	}
 
 	// result invalid if l1 and l2 do not intersect
-	inline vector2i intersection(const line_segment2i& l1, const line_segment2i& l2) {
+	vector2i intersection(const line_segment2i& l1, const line_segment2i& l2) {
 		vector2i disp1 = l1.b - l1.a; // from l1.a to l1.b
 		vector2i disp2 = l2.b - l2.a; // from l2.a to l2.b
 		vector2i adisp = l1.a - l2.a; // from l2.a to l1.a
@@ -503,7 +526,7 @@ namespace gmtry2i {
 		return l1.a - ((disp1 * wedge(disp2, adisp)) / wedge(disp2, disp1));
 	}
 
-	inline bool intersects(const line_segment2i& l, const aligned_box2i& box) {
+	bool intersects(const line_segment2i& l, const aligned_box2i& box) {
 		// test if box contains either endpoint
 		if (contains(box, l.a) || contains(box, l.b)) return true;
 		vector2i disp = l.b - l.a;
@@ -526,7 +549,7 @@ namespace gmtry2i {
 		return false;
 	}
 
-	inline line_segment2i intersection(const line_segment2i& l, const aligned_box2i& box) {
+	line_segment2i intersection(const line_segment2i& l, const aligned_box2i& box) {
 		// new points will either be intersections with box edges or existing endpoints contained in the box
 		vector2i new_pts[2];
 		int pt_idx = 0;
@@ -548,6 +571,23 @@ namespace gmtry2i {
 			}
 		}
 		return line_segment2i();
+	}
+
+	// Current implementation is slow
+	bool intersects(const line_segment2i& l, const vector2i& p) {
+		// slow
+		return intersects(l, boundsof(p));
+
+		/* Original implementation, fails to identify most intersecting points
+		
+		vector2i ldisp = l.b - l.a, pdisp = p - l.a;
+		if (!ldisp.x && !ldisp.y) return false;
+		long ldisp_squared = squared(ldisp);
+		long disps_dot = dot(ldisp, pdisp);
+		if (ldisp_squared < disps_dot || disps_dot < 0) return false;
+		else return p == l.a + ldisp * (disps_dot / static_cast<float>(ldisp_squared));
+
+		*/
 	}
 
 	template <typename T>

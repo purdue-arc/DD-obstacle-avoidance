@@ -1,12 +1,18 @@
 #pragma once
 
 namespace strcts {
-	template <typename T>
+	template <typename T, unsigned int linked_array_length = 32>
 	class linked_arraylist {
-		static const unsigned int linked_array_length = 32;
 		struct linked_array {
 			T items[linked_array_length];
 			linked_array* next;
+			linked_array() = default;
+			linked_array(const linked_array& array) {
+				for (int i = 0; i < linked_array_length; i++)
+					items[i] = array.items[i];
+				if (array.next) next = new linked_array(*array.next);
+				else next = 0;
+			}
 		};
 
 		linked_array *first_array, *current_array, *last_array;
@@ -22,6 +28,17 @@ namespace strcts {
 			len = 0;
 			last_array_len = 0;
 			reset();
+		}
+		linked_arraylist& operator =(const linked_arraylist& list) {
+			len = list.len;
+			last_array_len = list.last_array_len;
+			first_array = new linked_array(*list.first_array);
+			last_array = first_array;
+			while (last_array->next) last_array = last_array->next;
+			reset();
+		}
+		linked_arraylist(const linked_arraylist& list) {
+			*this = list;
 		}
 		inline void add(T item) {
 			if (last_array_len == linked_array_length) {

@@ -1,8 +1,9 @@
 #pragma once
 
 #include "tilemaps.hpp"
-
 #define DEFAULT_MAX_LINE_LENGTH (1536)
+
+#include <type_traits>
 
 namespace maps2 {
 	class ascii_image {
@@ -53,6 +54,15 @@ namespace maps2 {
 				write(text, pixel_p.x, pixel_p.y);
 			}
 		}
+		void overwrite(ascii_image& img) {
+			if (!gmtry2i::intersects(bounds, img.bounds)) return;
+			gmtry2i::aligned_box2i intersection = gmtry2i::intersection(bounds, img.bounds);
+			for (int x = intersection.min.x; x < intersection.max.x; x++)
+				for (int y = intersection.min.y; y < intersection.max.y; y++) {
+					char img_char = img({ x, y });
+					if (img_char != '.') (*this)({ x, y }) = img_char;
+				}
+		}
 		const char* get_line(int i) const {
 			if (i < height) return lines[height - (i + 1)];
 			else return &out_of_bounds_rpixel;
@@ -89,6 +99,7 @@ namespace maps2 {
 			(*this)(gmtry2i::vector2i()) = 'O';
 			caption = "Image Bounds: " + gmtry2i::to_string(bounds);
 		}
+		ascii_image(const gmtry2i::aligned_box2i& viewport) : ascii_image(viewport, DEFAULT_MAX_LINE_LENGTH) {}
 		ascii_image(unsigned int log2_tile_width, const gmtry2i::vector2i& any_tile_origin,
 			const gmtry2i::aligned_box2i& viewport, unsigned int max_line_length) {
 			bounds = maps2::align_out(viewport, any_tile_origin, log2_tile_width);
@@ -116,7 +127,7 @@ namespace maps2 {
 			(*this)(gmtry2i::vector2i()) = 'O';
 			caption = "Image Bounds: " + gmtry2i::to_string(bounds);
 		}
-		ascii_image(const ascii_image& img) {
+		ascii_image& operator =(const ascii_image& img) {
 			log2_pw = img.log2_pw;
 			width = img.width;
 			height = img.height;
@@ -128,6 +139,10 @@ namespace maps2 {
 			}
 			caption = img.caption;
 			bounds = img.bounds;
+			return *this;
+		}
+		ascii_image(const ascii_image& img) {
+			*this = img;
 		}
 		~ascii_image() {
 			for (int y = height - 1; y >= 0; y--) delete[] lines[y];
@@ -135,21 +150,59 @@ namespace maps2 {
 		}
 	};
 
-	struct named_point {
+	std::ostream& operator << (std::ostream& os, const ascii_image& img) {
+		for (int y = 0; y < img.get_num_lines(); y++) os << img.get_line(y) << std::endl;
+		os << img.get_caption() << std::endl;
+		return os;
+	}
+
+	struct decorated_point {
 		gmtry2i::vector2i point;
-		char name;
-		named_point(const gmtry2i::vector2i& new_point, char new_name) {
+		char decoration;
+		decorated_point(const gmtry2i::vector2i& new_point, char new_decoration) {
 			point = new_point;
-			name = new_name;
+			decoration = new_decoration;
 		}
 	};
 
-	struct crosshair_point {
-		gmtry2i::vector2i point;
-		crosshair_point(const gmtry2i::vector2i& new_point) {
-			point = new_point;
-		}
-	};
+	ascii_image& operator << (ascii_image& img, const decorated_point& p) {
+		img(p.point) = p.decoration;
+		return img;
+	}
+
+	ascii_image& operator << (ascii_image& img, const gmtry2i::vector2i& p) {
+		return img << decorated_point(p, '@');
+	}
+
+	decorated_point named_point(const gmtry2i::vector2i& point, char name) {
+		return decorated_point(point, name);
+	}
+
+	decorated_point gradient_point(const gmtry2i::vector2i& point, const gmtry2i::vector2i& gradient) {
+		char slope;
+		if (!gradient.x && !gradient.y)
+			slope = '.';
+		else if (2.4 * std::abs(gradient.x) < std::abs(gradient.y))
+			slope = '|';
+		else if (2.4 * std::abs(gradient.y) < std::abs(gradient.x))
+			slope = '-';
+		else slope = ((gradient.x > 0) == (gradient.y > 0)) ? '/' : '\\';
+		return decorated_point(point, slope);
+	}
+
+	const char char_shade_set1[70] = ".'`^\",:;Il!i><~+_-?][}{1)(|\\/tfjrxnuvczXYUJCLQ0OZmwqpdbkhao*#MW&8%B@$";
+	const char char_shade_set2[10] = ".:-=+*#%@";
+	const char char_shade_set3[28] = ".'`,^\":;!i>][}{)(1?&8%#WB@$";
+
+	decorated_point shaded_point(const gmtry2i::vector2i& point, float normalized_shade) {
+		char shade = char_shade_set1[static_cast<int>(std::min(1.0F, std::max(0.0F, normalized_shade)) * 69)];
+		return decorated_point(point, shade);
+	}
+
+	decorated_point simple_shaded_point(const gmtry2i::vector2i& point, float normalized_shade) {
+		char shade = ".:-=+*#%@"[static_cast<int>(std::min(1.0F, std::max(0.0F, normalized_shade)) * 9)];
+		return decorated_point(point, shade);
+	}
 
 	struct named_rect {
 		gmtry2i::aligned_box2i box;
@@ -166,39 +219,6 @@ namespace maps2 {
 			fill = new_fill;
 		}
 	};
-
-	template <typename tile_type>
-	struct located_tile {
-		const tile_type* tile;
-		gmtry2i::vector2i origin;
-		located_tile(const tile_type* new_tile, const gmtry2i::vector2i& new_origin) {
-			tile = new_tile;
-			origin = new_origin;
-		}
-	};
-
-	std::ostream& operator << (std::ostream& os, const ascii_image& img) {
-		for (int y = 0; y < img.get_num_lines(); y++) os << img.get_line(y) << std::endl;
-		os << img.get_caption() << std::endl;
-		return os;
-	}
-
-	ascii_image& operator << (ascii_image& img, const named_point& p) {
-		img(p.point) = p.name;
-		return img;
-	}
-
-	ascii_image& operator << (ascii_image& img, const crosshair_point& p) {
-		img(p.point + gmtry2i::vector2i( 1, 0)) = '-';
-		img(p.point + gmtry2i::vector2i(-1, 0)) = '-';
-		img(p.point + gmtry2i::vector2i(0,  1)) = '|';
-		img(p.point + gmtry2i::vector2i(0, -1)) = '|';
-		return img;
-	}
-
-	ascii_image& operator << (ascii_image& img, const gmtry2i::vector2i& p) {
-		return img << named_point(p, '@');
-	}
 
 	ascii_image& operator << (ascii_image& img, const named_rect& box) {
 		char fill = box.fill;
@@ -221,29 +241,31 @@ namespace maps2 {
 
 	ascii_image& operator << (ascii_image& img, const gmtry2i::line_segment2i& l) {
 		gmtry2i::vector2i disp = l.b - l.a;
-		if (disp.x && disp.y) {
-			char angle = ((disp.x > 0) == (disp.y > 0)) ? '/' : '\\';
-			float length = std::sqrt(gmtry2i::dot(disp, disp));
-			int length_int = length;
-			if (length_int < length) length_int++;
-			float inv_length = 1.0F / length;
-			float norm_x = disp.x * inv_length;
-			float norm_y = disp.y * inv_length;
-			for (int i = 0; i <= length_int; i++) 
-				img(l.a + gmtry2i::vector2i(i * norm_x, i * norm_y)) = angle;
-		}
-		else if (disp.x) {
-			int norm_x = (disp.x > 0) ? 1 : -1;
-			int length = std::abs(disp.x);
-			for (int i = 0; i <= length; i++) img(l.a + gmtry2i::vector2i(i * norm_x, 0)) = '-';
-		}
-		else if (disp.y) {
-			int norm_y = (disp.y > 0) ? 1 : -1;
-			int length = std::abs(disp.y);
-			for (int i = 0; i <= length; i++) img(l.a + gmtry2i::vector2i(0, i * norm_y)) = '|';
+		float length = std::sqrt(gmtry2i::dot(disp, disp));
+		int length_int = length;
+		if (length_int < length) length_int++;
+		float inv_length = 1.0F / length;
+		float norm_x = disp.x * inv_length;
+		float norm_y = disp.y * inv_length;
+		gmtry2i::vector2i pt_buf[3] = { l.a, l.a, l.a };
+		for (int i = 0; i <= length_int; i++) {
+			pt_buf[2] = l.a + gmtry2i::vector2i(i * norm_x, i * norm_y);
+			img << gradient_point(pt_buf[2], pt_buf[2] - pt_buf[0]);
+			pt_buf[0] = pt_buf[1];
+			pt_buf[1] = pt_buf[2];
 		}
 		return img;
 	}
+
+	template <typename tile_type>
+	struct located_tile {
+		const tile_type* tile;
+		gmtry2i::vector2i origin;
+		located_tile(const tile_type* new_tile, const gmtry2i::vector2i& new_origin) {
+			tile = new_tile;
+			origin = new_origin;
+		}
+	};
 
 	template <typename T>
 	concept drawable_tile = requires (const T* a, const gmtry2i::vector2i& p, maps2::ascii_image& img) {
@@ -264,6 +286,45 @@ namespace maps2 {
 		tile_istream<tile>* tiles = map->read();
 		img << tiles;
 		delete tiles;
+		return img;
+	}
+
+	template <typename T>
+	using spatial_field2 = T(*)(const gmtry2i::vector2i& p);
+
+	using vector_field2 = spatial_field2<gmtry2i::vector2i>;
+
+	template <typename T>
+	concept number_type = std::is_arithmetic<T>::value;
+
+	template <number_type T>
+	ascii_image& operator << (ascii_image& img, spatial_field2<T> field) {
+		const gmtry2i::vector2i shift1(1, 1);
+		gmtry2i::aligned_box2i img_bounds = img.get_bounds();
+		gmtry2i::aligned_box2i field_bounds(img_bounds.min - shift1, img_bounds.max + shift1);
+		gmtry2i::vector2i field_dims(field_bounds.max - field_bounds.min);
+		T** field_values = new T* [field_dims.y];
+		for (int y = field_bounds.min.y; y < field_bounds.max.y; y++) {
+			field_values[y - field_bounds.min.y] = new T[field_dims.x];
+			for (int x = field_bounds.min.x; x < field_bounds.max.x; x++) {
+				field_values[y - field_bounds.min.y][x - field_bounds.min.x] = field({ x, y });
+			}
+		}
+		for (int y = img_bounds.min.y; y < img_bounds.max.y; y++) {
+			for (int x = img_bounds.min.x; x < img_bounds.max.x; x++) {
+				gmtry2i::vector2i gradient = gmtry2i::vector2i();
+				for (int ny = -1; ny < 2; ny++) for (int nx = -1; nx < 2; nx++)
+					if (ny != 0 || nx != 0)
+						gradient += gmtry2i::vector2i(nx, ny) * 
+							field_values[y + ny - field_bounds.min.y][x + nx - field_bounds.min.x];
+				img << gradient_point({ x, y }, gradient);
+			}
+		}
+		for (int y = 0; y < field_dims.y; y++) {
+			delete[] field_values[y];
+			field_values[y] = 0;
+		}
+		delete[] field_values;
 		return img;
 	}
 }

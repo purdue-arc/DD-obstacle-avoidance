@@ -12,15 +12,8 @@ int main()try {
 	/*
 	rs_tests::realsense_test0();
 
-	oc_tests::occupancy_test0();
-	oc_tests::occupancy_test3();
-	oc_tests::occupancy_test4();
-	oc_tests::occupancy_test5();
-	oc_tests::occupancy_test7();
-
-	oc_tests::generate_map_file<8>(gmtry2i::vector2i(), gmtry2i::vector2i());
-	oc_tests::print_map_file_item<8>({0, 0}, 3);
-	oc_tests::print_map_file_tiles<8>();
+	oc_tests::run_all_tests();
+	oc_tests::print_map_file_item<8>({ 0, 0 }, 3);
 
 	misc_tests::template_inheritance_test();
 	misc_tests::inheritance_test2();
@@ -28,11 +21,12 @@ int main()try {
 	gmtry_tests::geometry_test0();
 	gmtry_tests::geometry_test1();
 	gmtry_tests::geometry_test2();
+	gmtry_tests::geometry_test3();
 	gmtry_tests::projection_test0();
 	gmtry_tests::projection_test1();
 	*/
 
-	gmtry_tests::geometry_test4();
+	gmtry_tests::projection_test2();
 
 	return 0;
 }

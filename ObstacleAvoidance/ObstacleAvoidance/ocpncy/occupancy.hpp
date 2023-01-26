@@ -9,6 +9,7 @@
 namespace ocpncy {
 	const unsigned int LOG2_MINIW = 3;
 	const unsigned int MINI_WIDTH = 1 << LOG2_MINIW;
+	const unsigned int MINI_AREA = 1 << (2 * LOG2_MINIW);
 	const unsigned int MINI_COORD_MASK = MINI_WIDTH - 1;
 
 	// WxW square of occupancy states (W = width of a mini = 2 ^ LOG2_MINIW)
@@ -96,36 +97,40 @@ namespace ocpncy {
 	}
 
 	// Returns the index of a mini that contains the point (x, y), relative to the respective tile's origin
-	template <unsigned int log2_w>
-	inline bool get_mini_idx(unsigned int x, unsigned int y) {
-		return (x >> LOG2_MINIW) + ((y >> LOG2_MINIW) << (log2_w - LOG2_MINIW));
+	constexpr inline unsigned int get_mini_idx(unsigned int x, unsigned int y, unsigned int log2_w) {
+		return (x >> LOG2_MINIW) | ((y >> LOG2_MINIW) << (log2_w - LOG2_MINIW));
 	}
-
 	// Returns the index, relative to the respective mini, of a bit at the point (x, y), relative to the tile's origin
-	template <unsigned int log2_w>
-	inline bool get_bit_idx(unsigned int x, unsigned int y) {
-		return (x & MINI_COORD_MASK) + ((y & MINI_COORD_MASK) << LOG2_MINIW);
+	constexpr inline unsigned int get_bit_idx(unsigned int x, unsigned int y) {
+		return (x & MINI_COORD_MASK) | ((y & MINI_COORD_MASK) << LOG2_MINIW);
 	}
 
+	// Returns the offset of a mini from its tile
+	inline gmtry2i::vector2i get_mini_offset(unsigned int mini_idx, unsigned int log2_w) {
+		return gmtry2i::vector2i((mini_idx & MINI_COORD_MASK) << LOG2_MINIW, 
+		                         (mini_idx >> (log2_w - LOG2_MINIW)) << LOG2_MINIW);
+	}
+	// Returns the offset of a single occupancy state from its mini
+	inline gmtry2i::vector2i get_bit_offset(unsigned int bit_idx) {
+		return gmtry2i::vector2i(bit_idx & MINI_COORD_MASK, bit_idx >> LOG2_MINIW);
+	}
 
 	// Accessors for individual bits in a tile
 	template <unsigned int log2_w>
 	inline bool get_bit(unsigned int x, unsigned int y, const otile<log2_w>& ot) {
-		return (ot.minis[get_mini_idx<log2_w>(x, y)] >> get_bit_idx<log2_w>(x, y)) & 1;
+		return (ot.minis[get_mini_idx(x, y, log2_w)] >> get_bit_idx(x, y)) & 1;
 	}
 	template <unsigned int log2_w>
 	inline void set_bit(unsigned int x, unsigned int y, otile<log2_w>& ot, bool value) {
-		ot.minis[get_mini_idx<log2_w>(x, y)] |= static_cast<omini>(value) << get_bit_idx<log2_w>(x, y);
+		ot.minis[get_mini_idx(x, y, log2_w)] |= static_cast<omini>(value) << get_bit_idx(x, y);
 	}
 
 	// Converts between 2D tile-space coordinates and their compressed integer representation
-	template <unsigned int log2_w>
-	inline unsigned int compress_coords2(const gmtry2i::vector2i& p) {
-		return p.x + (p.y << log2_w);
+	inline unsigned int compress_coords2(const gmtry2i::vector2i& p, unsigned int log2_w) {
+		return p.x | (p.y << log2_w);
 	}
-	template <unsigned int log2_w>
-	inline gmtry2i::vector2i decompress_coords2(unsigned int idx) {
-		return gmtry2i::vector2i(idx & ((1 << log2_w) - 1), (idx >> log2_w) & ((1 << log2_w) - 1));
+	inline gmtry2i::vector2i decompress_coords2(unsigned int idx, unsigned int log2_w) {
+		return gmtry2i::vector2i(idx & MINI_COORD_MASK, idx >> log2_w);
 	}
 
 	// Prints a tile

@@ -14,21 +14,21 @@
 * Tile Map (2D) Terminology
 *	tile: A data-structure that describes a square region of space with a width of 2 ^ n
 *	log2_w/log2_tile_w: The base-2 logarithm of the tile width (equal to n from the above expression)
-*	spacial tree: A quad-tree (like a binary tree along each dimension) which holds tiles at the bottom layer
-*	branch: A tree's branch is a spacial object pointed to by the tree, which will either be another tree or a tile
-*	spacial item: Either a spacial tree or a tile; has an origin and is square-shaped
-*	depth: Describes how many steps it takes to get from a spacial item down to the tile level
+*	spatial tree: A quad-tree (like a binary tree along each dimension) which holds tiles at the bottom layer
+*	branch: A tree's branch is a spatial object pointed to by the tree, which will either be another tree or a tile
+*	spatial item: Either a spatial tree or a tile; has an origin and is square-shaped
+*	depth: Describes how many steps it takes to get from a spatial item down to the tile level
 *		For instance, the depth of a tile item is 0 because it is already on the tile level.
-*		The depth of a spacial tree which points directly to four tiles is 1 because only one pointer must be 
+*		The depth of a spatial tree which points directly to four tiles is 1 because only one pointer must be 
 *			traversed to reach tile level.
-*		The width of a spacial item, in UNITS OF TILES, is 2 ^ depth, or 2 ^ (log2_w + depth) in normal units
+*		The width of a spatial item, in UNITS OF TILES, is 2 ^ depth, or 2 ^ (log2_w + depth) in normal units
 *	map: A structure that stores tiles, wherein any one point is only described by one tile, and to which tiles may
 *		be added or supplemented. Information cannot be forgotten from a map.
 */
 namespace maps2 {
 	// Tiles that can be inclusively combined, removed from each other, or totally overwritten
 	template <typename T>
-	concept spacial_tile = requires (T a, T b) {
+	concept spatial_tile = requires (T a, T b) {
 		a = a + b;
 		a = a - b;
 		a += b;
@@ -43,7 +43,7 @@ namespace maps2 {
 	};
 
 	// Preferred way to write tile
-	template<spacial_tile tile>
+	template<spatial_tile tile>
 	inline void write_tile_to_tile(const tile* new_tile, tile* old_tile, tile_write_mode wmode) {
 		if (wmode == TILE_OVERWRITE_MODE) {
 			*old_tile = *new_tile;
@@ -76,81 +76,6 @@ namespace maps2 {
 		return gmtry2i::aligned_box2i(align_down(b.min, any_tile_origin, log2_w), 
 									  align_up(b.max, any_tile_origin, log2_w));
 	}
-
-	// Tile that can be traversed to its adjacent and diagonal neighbors
-	template <typename base_tile>
-	struct nbrng_tile {
-		base_tile tile;
-		/*
-		* Neighbors configured as shown below (X is position of this tile, n is position of nbrs[n])
-		* 5 6 7
-		* 3 X 4
-		* 0 1 2
-		*/
-		nbrng_tile<base_tile>* nbrs[8];
-	};
-
-	inline gmtry2i::vector2i get_nbrhood_origin(const gmtry2i::vector2i& center_origin, unsigned int log2_w) {
-		return center_origin - gmtry2i::vector2i(1 << log2_w, 1 << log2_w);
-	}
-
-	// Returns bounds of a nbrng_tile's neighborhood (the region including itself and its neighbors)
-	inline gmtry2i::aligned_box2i get_nbrhood_bounds(const gmtry2i::vector2i& center_origin, unsigned int log2_w) {
-		gmtry2i::vector2i corners_disp(1 << log2_w, 1 << log2_w);
-		return gmtry2i::aligned_box2i(center_origin - corners_disp, center_origin + corners_disp * 2);
-	}
-
-	// Returns neighbor's non-negative coordinates relative to the neighborhood origin, in units of tiles
-	inline gmtry2i::vector2i get_nbrhood_coords(const gmtry2i::vector2i& nbr_origin, 
-		                                        const gmtry2i::vector2i& nbrhood_origin, unsigned int log2_w) {
-		return (nbr_origin - nbrhood_origin) >> log2_w;
-	}
-
-	// Returns index (for a nbrng_tile's nbrs array) of a neighbor
-	inline unsigned int get_nbr_idx(const gmtry2i::vector2i& nbr_nbrhood_coords) {
-		unsigned int compressed_coords = nbr_nbrhood_coords.x + 3 * nbr_nbrhood_coords.y;
-		return compressed_coords - (compressed_coords > 4);
-	}
-
-	// Returns index (for a nbrng_tile's nbrs array) of neighbor in the direction of center_nbr_disp
-	inline unsigned int get_nbr_idx(const gmtry2i::vector2i& center_nbr_disp, unsigned int log2_w) {
-		unsigned char compressed_coords = (center_nbr_disp.x >= 0) + (center_nbr_disp.x >= (1 << log2_w)) + 
-		                             3 * ((center_nbr_disp.y >= 0) + (center_nbr_disp.y >= (1 << log2_w)));
-		return compressed_coords - (compressed_coords > 4);
-	}
-
-	template <unsigned int log2_w, typename tile>
-	struct tile_nbrhood {
-		gmtry2i::vector2i origin;
-		tile* tiles[3][3];
-		tile_nbrhood(const gmtry2i::vector2i& center_origin, nbrng_tile<tile>* center) : tiles {
-			&(center->nbrs[5]->tile), &(center->nbrs[6]->tile), &(center->nbrs[7]->tile),
-			&(center->nbrs[3]->tile), &(center->tile)         , &(center->nbrs[4]->tile),
-			&(center->nbrs[0]->tile), &(center->nbrs[1]->tile), &(center->nbrs[2]->tile)
-		} {
-			origin = center_origin - gmtry2i::vector2i(1 << log2_w, 1 << log2_w);
-		}
-	};
-
-	/*
-	* TEMPORARILY DEPRECATED (will definitely cause double-deletions)
-	* 
-	// Deletes a graph of neighboring tiles. Very recursive; may cause a stack overflow (called once per tile).
-	template <typename tile>
-	void delete_tile_graph(nbrng_tile<tile>* start) {
-		// Disconnect all neighbors from start first so none of them will try to delete it a second time
-		for (int x = 0; x < 3; x++) for (int y = 0; y < 3; y++) {
-			int nbr_compressed_coords = x + 3 * y;
-			if (nbr_compressed_coords != 4) {
-				int nbr_idx = nbr_compressed_coords - (nbr_compressed_coords > 4);
-				if (start->nbrs[nbr_idx]) start->nbrs[nbr_idx]->nbrs[(2 - x) + 3 * (2 - y)] = 0;
-			}
-		}
-		// Delete all neighbors
-		for (int i = 0; i < 8; i++) delete_tile_graph(start->nbrs[i]);
-		delete start;
-	}
-	*/
 
 	class point2_ostream {
 	public:
@@ -265,7 +190,7 @@ namespace maps2 {
 	};
 
 	// Stream for writing tiles to a map with options for specifying how new tiles will be written to existing ones
-	template <spacial_tile tile>
+	template <spatial_tile tile>
 	class map_ostream : public tile_ostream<tile> {
 	public:
 		// Accessors for writing mode (determines how a written tile will be combined with an existing one)
@@ -279,12 +204,12 @@ namespace maps2 {
 
 	// tree used to represent a square region of space whose width is 2^n for some positive integer n
 	template <typename T>
-	struct spacial_tree {
+	struct spatial_tree {
 		T* branch[4];
 	};
 
 	// tree whose branches may either be all tiles or all trees, depending on its depth
-	using mixed_tree = spacial_tree<void>;
+	using mixed_tree = spatial_tree<void>;
 
 	/*
 	* item: is a mixed_tree* if depth > 0 or a tile* if depth == 0
@@ -303,7 +228,7 @@ namespace maps2 {
 
 	// tree that holds the data of T while also branching off to similar trees
 	template <typename T>
-	struct homogeneous_tree : public spacial_tree<homogeneous_tree<T>>, public T {};
+	struct homogeneous_tree : public spatial_tree<homogeneous_tree<T>>, public T {};
 
 	template <typename T>
 	void delete_homogeneous_tree(homogeneous_tree<T>* tree, unsigned int depth) {
@@ -319,7 +244,7 @@ namespace maps2 {
 	}
 
 	/*
-	* Holds information about a spacial tree
+	* Holds information about a spatial tree
 	* depth: depth of the tree (# of layers in the tree above the tile layer)
 	* origin: origin (southeasternmost position) of tree in world-space
 	*/
@@ -361,52 +286,52 @@ namespace maps2 {
 	};
 
 	/*
-	* Temporarily holds information about a part of a spacial tree (either another tree or a tile)
+	* Temporarily holds information about a part of a spatial tree (either another tree or a tile)
 	* Does not free tree memory
 	* Ptr is assumed to be non-null; it points to a tree if depth > 0 or tile if depth = 0
 	* T must either be void or an extension of homogeneous_tree
 	*/
 	template <unsigned int log2_tile_w, typename T>
-	struct spacial_item {
+	struct spatial_item {
 		tree_info<log2_tile_w> info;
 		T* ptr;
-		spacial_item() = default;
-		spacial_item(T* item_ptr, gmtry2i::vector2i item_origin, unsigned int item_depth) {
+		spatial_item() = default;
+		spatial_item(T* item_ptr, gmtry2i::vector2i item_origin, unsigned int item_depth) {
 			info = tree_info<log2_tile_w>(item_origin, item_depth);
 			ptr = item_ptr;
 		}
-		spacial_item(T* item_ptr, const tree_info<log2_tile_w>& item_info) {
+		spatial_item(T* item_ptr, const tree_info<log2_tile_w>& item_info) {
 			info = item_info;
 			ptr = item_ptr;
 		}
-		inline spacial_item get_branch_item(unsigned int branch_idx, unsigned int branch_width) const {
-			return spacial_item(static_cast<spacial_tree<T>*>(ptr)->branch[branch_idx],
+		inline spatial_item get_branch_item(unsigned int branch_idx, unsigned int branch_width) const {
+			return spatial_item(static_cast<spatial_tree<T>*>(ptr)->branch[branch_idx],
 				                info.get_branch_info(branch_idx, branch_width));
 		}
-		inline spacial_item get_branch_item(unsigned int branch_idx) const {
+		inline spatial_item get_branch_item(unsigned int branch_idx) const {
 			return get_branch_item(branch_idx, info.get_branch_width());
 		}
-		inline spacial_item get_branch_item(const gmtry2i::vector2i& branch_origin) const {
+		inline spatial_item get_branch_item(const gmtry2i::vector2i& branch_origin) const {
 			unsigned int branch_width = info.get_branch_width();
 			return get_branch_item(info.get_branch_idx(branch_origin, branch_width), branch_width);
 		}
-		inline spacial_item create_branch_item(const gmtry2i::vector2i& branch_origin, T* branch_ptr) {
+		inline spatial_item create_branch_item(const gmtry2i::vector2i& branch_origin, T* branch_ptr) {
 			unsigned int branch_width = info.get_branch_width();
 			unsigned int branch_idx = info.get_branch_idx(branch_origin, branch_width);
-			return spacial_item(static_cast<spacial_tree<T>*>(ptr)->branch[branch_idx] = branch_ptr,
+			return spatial_item(static_cast<spatial_tree<T>*>(ptr)->branch[branch_idx] = branch_ptr,
 				                info.get_branch_info(branch_idx, branch_width));
 		}
-		inline spacial_item create_parent_item(const gmtry2i::vector2i& parent_direction) {
+		inline spatial_item create_parent_item(const gmtry2i::vector2i& parent_direction) {
 			unsigned int my_index = (parent_direction.x < 0) + 2 * (parent_direction.y < 0);
-			spacial_item new_parent(new mixed_tree(), info.get_parent_info(parent_direction));
-			static_cast<spacial_tree<T>*>(new_parent.ptr)->branch[my_index] = ptr;
+			spatial_item new_parent(new mixed_tree(), info.get_parent_info(parent_direction));
+			static_cast<spatial_tree<T>*>(new_parent.ptr)->branch[my_index] = ptr;
 			return new_parent;
 		}
 	};
 
-	// Spacial item for representing some component of a mixed tree
+	// spatial item for representing some component of a mixed tree
 	template <unsigned int log2_w>
-	using mixed_item = spacial_item<log2_w, void>;
+	using mixed_item = spatial_item<log2_w, void>;
 	
 	/*
 	* Walks through the bottom layer (depth = 0) of a tree, returning each tile found along the way
@@ -545,7 +470,7 @@ namespace maps2 {
 	}
 
 	/*
-	* Retrieves the spacial item closest to the desired depth which contains the given point in its span
+	* Retrieves the spatial item closest to the desired depth which contains the given point in its span
 	* Returned item will contain the given point if the starting item contained it
 	* Returned item depth will be less than or equal to the starting item depth
 	* TREE MUST CONTAIN THE GIVEN POINT
@@ -588,6 +513,81 @@ namespace maps2 {
 		}
 		return next_item;
 	}
+
+	// Tile that can be traversed to its adjacent and diagonal neighbors
+	template <typename base_tile>
+	struct nbrng_tile {
+		base_tile tile;
+		/*
+		* Neighbors configured as shown below (X is position of this tile, n is position of nbrs[n])
+		* 5 6 7
+		* 3 X 4
+		* 0 1 2
+		*/
+		nbrng_tile<base_tile>* nbrs[8];
+	};
+
+	inline gmtry2i::vector2i get_nbrhood_origin(const gmtry2i::vector2i& center_origin, unsigned int log2_w) {
+		return center_origin - gmtry2i::vector2i(1 << log2_w, 1 << log2_w);
+	}
+
+	// Returns bounds of a nbrng_tile's neighborhood (the region including itself and its neighbors)
+	inline gmtry2i::aligned_box2i get_nbrhood_bounds(const gmtry2i::vector2i& center_origin, unsigned int log2_w) {
+		gmtry2i::vector2i corners_disp(1 << log2_w, 1 << log2_w);
+		return gmtry2i::aligned_box2i(center_origin - corners_disp, center_origin + corners_disp * 2);
+	}
+
+	// Returns neighbor's non-negative coordinates relative to the neighborhood origin, in units of tiles
+	inline gmtry2i::vector2i get_nbrhood_coords(const gmtry2i::vector2i& nbr_origin, 
+		                                        const gmtry2i::vector2i& nbrhood_origin, unsigned int log2_w) {
+		return (nbr_origin - nbrhood_origin) >> log2_w;
+	}
+
+	// Returns index (for a nbrng_tile's nbrs array) of a neighbor
+	inline unsigned int get_nbr_idx(const gmtry2i::vector2i& nbr_nbrhood_coords) {
+		unsigned int compressed_coords = nbr_nbrhood_coords.x + 3 * nbr_nbrhood_coords.y;
+		return compressed_coords - (compressed_coords > 4);
+	}
+
+	// Returns index (for a nbrng_tile's nbrs array) of neighbor in the direction of center_nbr_disp
+	inline unsigned int get_nbr_idx(const gmtry2i::vector2i& center_nbr_disp, unsigned int log2_w) {
+		unsigned char compressed_coords = (center_nbr_disp.x >= 0) + (center_nbr_disp.x >= (1 << log2_w)) + 
+		                             3 * ((center_nbr_disp.y >= 0) + (center_nbr_disp.y >= (1 << log2_w)));
+		return compressed_coords - (compressed_coords > 4);
+	}
+
+	template <unsigned int log2_w, typename tile>
+	struct tile_nbrhood {
+		gmtry2i::vector2i origin;
+		tile* tiles[3][3];
+		tile_nbrhood(const gmtry2i::vector2i& center_origin, nbrng_tile<tile>* center) : tiles {
+			&(center->nbrs[5]->tile), &(center->nbrs[6]->tile), &(center->nbrs[7]->tile),
+			&(center->nbrs[3]->tile), &(center->tile)         , &(center->nbrs[4]->tile),
+			&(center->nbrs[0]->tile), &(center->nbrs[1]->tile), &(center->nbrs[2]->tile)
+		} {
+			origin = center_origin - gmtry2i::vector2i(1 << log2_w, 1 << log2_w);
+		}
+	};
+
+	/*
+	* TEMPORARILY DEPRECATED (will definitely cause double-deletions)
+	* 
+	// Deletes a graph of neighboring tiles. Very recursive; may cause a stack overflow (called once per tile).
+	template <typename tile>
+	void delete_tile_graph(nbrng_tile<tile>* start) {
+		// Disconnect all neighbors from start first so none of them will try to delete it a second time
+		for (int x = 0; x < 3; x++) for (int y = 0; y < 3; y++) {
+			int nbr_compressed_coords = x + 3 * y;
+			if (nbr_compressed_coords != 4) {
+				int nbr_idx = nbr_compressed_coords - (nbr_compressed_coords > 4);
+				if (start->nbrs[nbr_idx]) start->nbrs[nbr_idx]->nbrs[(2 - x) + 3 * (2 - y)] = 0;
+			}
+		}
+		// Delete all neighbors
+		for (int i = 0; i < 8; i++) delete_tile_graph(start->nbrs[i]);
+		delete start;
+	}
+	*/
 
 	/*
 	* Allocates a neighboring tile in a tree, connects it bidirectionally with its neighbors, and returns it

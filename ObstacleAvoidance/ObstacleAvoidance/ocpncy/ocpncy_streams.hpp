@@ -272,9 +272,8 @@ namespace ocpncy {
 					// Origin of mini relative to neighborhood
 					gmtry2i::vector2i mini_origin = (gmtry2i::vector2i(ax, ay) << LOG2_MINIW) + gator_nbrhd_shift;
 					// Per occupancy in the observed mini
-					for (int bit = 0; bit < (1 << (LOG2_MINIW * 2)); bit++) if ((observed_mini >> bit) & 1) {
-						gmtry2i::vector2i nbrhd_oc_pos(mini_origin.x + (bit & MINI_COORD_MASK), 
-						                               mini_origin.y + (bit >> LOG2_MINIW));
+					for (int bit_idx = 0; bit_idx < MINI_AREA; bit_idx++) if ((observed_mini >> bit_idx) & 1) {
+						gmtry2i::vector2i nbrhd_oc_pos(mini_origin + get_bit_offset(bit_idx));
 						observed_points.add(nbrhd_oc_pos);
 						gmtry2i::line_segment2i nbrhd_oc_line(nbrhd_position, nbrhd_oc_pos), tile_oc_line;
 						for (int nbrhd_x = 0; nbrhd_x < 3; nbrhd_x++) for (int nbrhd_y = 0; nbrhd_y < 3; nbrhd_y++) {
@@ -287,11 +286,12 @@ namespace ocpncy {
 								float inv_length = 1.0F / length;
 								float norm_x = oc_disp.x * inv_length;
 								float norm_y = oc_disp.y * inv_length;
+								float x = tile_oc_line.a.x + 0.5, y = tile_oc_line.a.y + 0.5;
 								gradient_tile* intersected_tile = gradients[nbrhd_y][nbrhd_x];
 								for (int t = 0; t <= length_int; t++) {
-									unsigned int x = t * norm_x + tile_oc_line.a.x;
-									unsigned int y = t * norm_y + tile_oc_line.a.y;
-									unsigned char& intrsctd_char = intersected_tile->certainties[x + (y << log2_w)];
+									x += norm_x; y += norm_y;
+									unsigned char& intrsctd_char = intersected_tile->
+										certainties[static_cast<int>(x) + (static_cast<int>(y) << log2_w)];
 									if (intrsctd_char) intrsctd_char--;
 								}
 							}
@@ -318,7 +318,17 @@ namespace ocpncy {
 					req_otile<log2_w>* existing_tile = nbrhood.tiles[nbrhd_y][nbrhd_x];
 					otile<log2_w> diff_tile = (compiled_tile - existing_tile->req) ^ 
 					                          (existing_tile->tmp - existing_tile->req);
-					// Scan diff_tile for occupancies and report any
+					gmtry2i::vector2i tile_origin(nbrhood.origin + (gmtry2i::vector2i(nbrhd_x, nbrhd_y) << log2_w));
+					for (int m_idx = 0; m_idx < get_tile_area_minis(log2_w); m_idx++) if (diff_tile.minis[m_idx]) {
+						omini diff_mini = diff_tile.minis[m_idx];
+						gmtry2i::vector2i mini_origin(tile_origin + get_mini_offset(m_idx, log2_w));
+						for (int bit_idx = 0; bit_idx < MINI_AREA; bit_idx++) {
+							if ((diff_mini >> bit_idx) & 1)
+								changes_listener->write(&(existing_tile->tmp),
+									compress_coords2(mini_origin + get_bit_offset(bit_idx), log2_w));
+						}
+					}
+					existing_tile->tmp = compiled_tile + existing_tile->req;
 				}
 			}
 

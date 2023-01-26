@@ -150,7 +150,7 @@ namespace oc_tests {
 
 	typedef maps2::map_fstream<4, ocpncy::otile<4>> bmap_fstream4;
 	typedef maps2::map_buffer<4, ocpncy::otile<4>> bmap_buffer4;
-	typedef maps2::spacial_item<4, void> bmap_item4;
+	typedef maps2::spatial_item<4, void> bmap_item4;
 	typedef maps2::lim_tile_istream<ocpncy::otile<4>> btile_lim_stream4;
 	typedef maps2::tile_istream<ocpncy::otile<4>> btile_stream4;
 
@@ -261,6 +261,11 @@ namespace oc_tests {
 		return pixels;
 	}
 
+	std::string get_map_file_name(unsigned int log2_w) {
+		std::string width_str = std::to_string(1 << log2_w);
+		return "map" + width_str + "x" + width_str;
+	}
+
 	template <unsigned int log2_w>
 	void generate_map_file(const gmtry2i::vector2i& map_origin, const gmtry2i::vector2i& any_tile_origin) {
 		std::uint32_t og_width, og_height;
@@ -274,7 +279,7 @@ namespace oc_tests {
 		ocpncy::mat_tile_stream<log2_w, unsigned char> tiles_in(pixels, width, height, map_origin, any_tile_origin);
 		std::cout << "Original map file bounds: " << gmtry2i::to_string(tiles_in.get_bounds()) << std::endl;
 		std::string width_str = std::to_string(1 << log2_w);
-		maps2::map_fstream<log2_w, ocpncy::otile<log2_w>> map_file("map" + width_str + "x" + width_str, any_tile_origin);
+		maps2::map_fstream<log2_w, ocpncy::otile<log2_w>> map_file(get_map_file_name(log2_w), any_tile_origin);
 		map_file.write(&tiles_in);
 
 		delete[] pixels;
@@ -282,8 +287,7 @@ namespace oc_tests {
 
 	template <unsigned int log2_w>
 	void print_map_file_item(const gmtry2i::vector2i& item_to_print_origin, unsigned int item_to_print_depth) {
-		std::string width_str = std::to_string(1 << log2_w);
-		maps2::map_fstream<log2_w, ocpncy::otile<log2_w>> map_file("map" + width_str + "x" + width_str, gmtry2i::vector2i());
+		maps2::map_fstream<log2_w, ocpncy::otile<log2_w>> map_file(get_map_file_name(log2_w), gmtry2i::vector2i());
 		maps2::lim_tile_istream<ocpncy::otile<log2_w>>* tiles_out = 
 			map_file.read(gmtry2i::aligned_box2i(item_to_print_origin, 1 << (log2_w + item_to_print_depth)));
 		std::cout << "Bounds of region to print: " << gmtry2i::to_string(tiles_out->get_bounds()) << std::endl;
@@ -294,8 +298,7 @@ namespace oc_tests {
 
 	template <unsigned int log2_w>
 	void print_map_file_tiles() {
-		std::string width_str = std::to_string(1 << log2_w);
-		maps2::map_fstream<log2_w, ocpncy::otile<log2_w>> map_file("map" + width_str + "x" + width_str, gmtry2i::vector2i());
+		maps2::map_fstream<log2_w, ocpncy::otile<log2_w>> map_file(get_map_file_name(log2_w), gmtry2i::vector2i());
 		maps2::tile_istream<ocpncy::otile<log2_w>>* tiles_out = map_file.read();
 		int num_tiles_read = 0;
 		const ocpncy::otile<log2_w>* tile;
@@ -307,5 +310,34 @@ namespace oc_tests {
 		std::cout << "Total number of tiles read: " << num_tiles_read << std::endl;
 
 		delete tiles_out;
+	}
+
+	void prep_tests_0to7() {
+		std::cout << "Prepping test 0... " << (!remove("mymap") ? "Success!" : "Failed") << std::endl;
+		std::cout << "Prepping tests 3-7... " << (!remove("mymap4") ? "Success!" : "Failed") << std::endl;
+	}
+
+	template <unsigned int log2_w>
+	void prep_real_map_tests() {
+		std::string map_name = get_map_file_name(log2_w);
+		std::cout << "Prepping real map tests... " << 
+			(!remove(map_name.c_str()) ? "Success!" : "Failed") << std::endl;
+	}
+
+	int run_all_tests() {
+		prep_tests_0to7();
+		prep_real_map_tests<8>();
+
+		oc_tests::occupancy_test0();
+		oc_tests::occupancy_test3();
+		//oc_tests::occupancy_test4();
+		oc_tests::occupancy_test5();
+		oc_tests::occupancy_test7();
+
+		oc_tests::generate_map_file<8>(gmtry2i::vector2i(), gmtry2i::vector2i());
+		oc_tests::print_map_file_item<8>({ 0, 0 }, 3);
+		//oc_tests::print_map_file_tiles<8>();
+
+		return 0;
 	}
 }
