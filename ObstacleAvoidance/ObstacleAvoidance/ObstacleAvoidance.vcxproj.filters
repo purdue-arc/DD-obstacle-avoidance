@@ -25,6 +25,9 @@
     <Filter Include="Source Files\util">
       <UniqueIdentifier>{8f092d1a-c807-4849-8c02-ac8a699158be}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Resource Files\output">
+      <UniqueIdentifier>{f54697e1-f565-4ec6-983b-47656e5a71e3}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Source.cpp">
@@ -35,6 +38,12 @@
     <None Include="realsense2.dll">
       <Filter>Source Files</Filter>
     </None>
+    <None Include="resources\map.b">
+      <Filter>Resource Files</Filter>
+    </None>
+    <None Include="resources\output\map256x256">
+      <Filter>Resource Files\output</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="header.hh">
@@ -43,16 +52,10 @@
     <ClInclude Include="dstar.hpp">
       <Filter>Source Files</Filter>
     </ClInclude>
-    <ClInclude Include="geometry.hpp">
-      <Filter>Source Files</Filter>
-    </ClInclude>
     <ClInclude Include="maps2\tilemaps.hpp">
       <Filter>Source Files\maps</Filter>
     </ClInclude>
     <ClInclude Include="maps2\maps2_streams.hpp">
-      <Filter>Source Files\maps</Filter>
-    </ClInclude>
-    <ClInclude Include="maps2\maps2_display.hpp">
       <Filter>Source Files\maps</Filter>
     </ClInclude>
     <ClInclude Include="ocpncy\occupancy.hpp">
@@ -60,9 +63,6 @@
     </ClInclude>
     <ClInclude Include="ocpncy\ocpncy_streams.hpp">
       <Filter>Source Files\ocpncy_maps</Filter>
-    </ClInclude>
-    <ClInclude Include="projection.hpp">
-      <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="tests\gmtry_tests.hpp">
       <Filter>Source Files\tests</Filter>
@@ -77,7 +77,32 @@
       <Filter>Source Files\tests</Filter>
     </ClInclude>
     <ClInclude Include="util\data_structs.hpp">
-      <Filter>Header Files</Filter>
+      <Filter>Source Files\util</Filter>
     </ClInclude>
+    <ClInclude Include="maps2\maps2_display.hpp">
+      <Filter>Source Files\maps</Filter>
+    </ClInclude>
+    <ClInclude Include="ocpncy\ocpncy_display.hpp">
+      <Filter>Source Files\ocpncy_maps</Filter>
+    </ClInclude>
+    <ClInclude Include="ascii_display.hpp">
+      <Filter>Source Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="geometry.hpp">
+      <Filter>Source Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="projection.hpp">
+      <Filter>Source Files\util</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="resources\photo.jpg">
+      <Filter>Resource Files</Filter>
+    </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="resources\output\prjctn_dprjctn_26Jan2023.txt">
+      <Filter>Resource Files\output</Filter>
+    </Text>
   </ItemGroup>
 </Project>

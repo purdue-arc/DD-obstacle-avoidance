@@ -1,6 +1,6 @@
 #pragma once
 
-#include "maps2/tilemaps.hpp"
+#include "geometry.hpp"
 
 namespace prjctn {
 	/*
@@ -51,7 +51,7 @@ namespace prjctn {
 	}
 
 	// 2D deprojection
-	void deproject(const float* depths, cam_info config, maps2::point2_ostream* points_ostream) {
+	void deproject(const float* depths, cam_info config, gmtry2i::point2_ostream* points_ostream) {
 		gmtry3::vector3 cam_space_point;
 		gmtry2i::vector2i projected_point;
 		float pt_scale;
@@ -75,7 +75,7 @@ namespace prjctn {
 	}
 
 	// 3D deprojection
-	void deproject(const float* depths, cam_info config, maps2::point3_ostream* points_ostream) {
+	void deproject(const float* depths, cam_info config, gmtry3::point3_ostream* points_ostream) {
 		gmtry3::vector3 cam_space_point;
 		float pt_scale;
 		int hwidth = config.width / 2;
@@ -89,4 +89,61 @@ namespace prjctn {
 			points_ostream->write(config.cam_to_world * cam_space_point);
 		}
 	}
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////
+	//    IMPLEMENTATIONS                                                                             //
+	////////////////////////////////////////////////////////////////////////////////////////////////////
+
+	class measurable_object {
+	public:
+		virtual float get_distance(const gmtry3::vector3& p) const = 0;
+		//virtual measurable_object* clone() const = 0;
+	};
+
+	class measurable_sphere : public measurable_object {
+		gmtry3::vector3 center;
+		float radius;
+	public:
+		measurable_sphere(const gmtry3::vector3& sphere_center, float sphere_radius) {
+			center = sphere_center;
+			radius = sphere_radius;
+		}
+		float get_distance(const gmtry3::vector3& p) const {
+			return gmtry3::magnitude(center - p) - radius;
+		}
+		measurable_object* clone() const {
+			return new measurable_sphere(center, radius);
+		}
+	};
+
+	class ray_tracer : public ray_collider {
+		const float MIN_DISTANCE = 0.01; // one one-hundredth
+		const float MAX_DISTANCE = 1000; // one million
+		strcts::linked_arraylist<const measurable_object*> objects;
+
+		float get_min_distance(const gmtry3::vector3& p) {
+			objects.reset();
+			int num_objects = objects.get_length();
+			float min_dst = MAX_DISTANCE;
+			for (int i = 0; i < num_objects; i++) {
+				min_dst = std::min(min_dst, objects.next()->get_distance(p));
+			}
+			return min_dst;
+		}
+	public:
+		ray_tracer() : objects() {};
+		void add_object(const measurable_object* object) {
+			objects.add(object);
+		}
+		gmtry3::vector3 collide(const gmtry3::ray3& r) {
+			gmtry3::vector3 p = r.p;
+			gmtry3::vector3 direction = gmtry3::normalize(r.d);
+			float step_size = get_min_distance(p);
+			while (MIN_DISTANCE < step_size && step_size < MAX_DISTANCE) {
+				p += direction * step_size;
+				step_size = get_min_distance(p);
+			}
+			return p;
+		}
+	};
 }

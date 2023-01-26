@@ -1,8 +1,8 @@
 #pragma once 
 
 #define DEBUG
-#include "ocpncy/occupancy.hpp"
 #include "ocpncy/ocpncy_streams.hpp"
+#include "ocpncy/ocpncy_display.hpp"
 #include "maps2/maps2_streams.hpp"
 
 #ifndef OUTPUT_FILEPATH 
@@ -106,12 +106,13 @@ namespace oc_tests {
 		forgy[8 + (ovaly - 1) * forgydims[0]] = true;
 
 		ocpncy::mat_tile_stream<4, bool> iterator(forgy, forgydims[0], forgydims[1], forgyorigin, gmtry2i::vector2i(42, 35));
-		maps2::ascii_image img(4, gmtry2i::vector2i(42, 35), gmtry2i::aligned_box2i(forgyorigin, 1 << (4 + 2)), -1);
-		std::cout << (img << maps2::named_rect(iterator.get_bounds(), 'x', 0) << &iterator);
+		ascii_dsp::ascii_image img = maps2::make_tile_image(4, gmtry2i::vector2i(42, 35), 
+		                                                    gmtry2i::aligned_box2i(forgyorigin, 1 << (4 + 2)), -1);
+		std::cout << (img << ascii_dsp::named_rect(iterator.get_bounds(), 'x', 0) << &iterator);
 		//
 
 		/* Prints just the matrix (no tiles)
-		maps2::ascii_image img({ {0, 0}, gmtry2i::vector2i(forgydims[0], forgydims[1])}, DEFAULT_MAX_LINE_LENGTH);
+		maps2::ascii_image img({ {0, 0}, gmtry2i::vector2i(forgydims[0], forgydims[1])});
 		for (int x = 0; x < forgydims[0]; x++) for (int y = 0; y < forgydims[1]; y++)
 			if (forgy[x + y * forgydims[0]]) img(x, y) = '@';
 		std::cout << img;

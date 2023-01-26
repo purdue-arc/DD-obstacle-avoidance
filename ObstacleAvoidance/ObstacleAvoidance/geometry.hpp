@@ -94,6 +94,12 @@ namespace gmtry3 {
 		return std::to_string(v.x) + std::string(", ") + std::to_string(v.y) + std::string(", ") + std::to_string(v.z);
 	}
 
+	class point3_ostream {
+	public:
+		virtual void write(const gmtry3::vector3& p) = 0;
+		virtual void flush() {}
+	};
+
 	struct matrix3 {
 		float n[3][3];
 		matrix3() {
@@ -381,6 +387,12 @@ namespace gmtry2i {
 		return std::to_string(v.x) + std::string(", ") + std::to_string(v.y);
 	}
 
+	class point2_ostream {
+	public:
+		virtual void write(const gmtry2i::vector2i& p) = 0;
+		virtual void flush() {}
+	};
+
 	struct aligned_box2i {
 		// inclusive min, exclusive max
 		vector2i min, max;
@@ -457,6 +469,18 @@ namespace gmtry2i {
 		return aligned_box2i(dif1_is_min ? dif1 : dif2, dif1_is_min ? dif2 : dif1);
 	}
 
+	inline aligned_box2i operator +(const aligned_box2i& b, const vector2i& v) {
+		return aligned_box2i(b.min + v, b.max + v);
+	}
+
+	inline aligned_box2i operator -(const aligned_box2i& b, const vector2i& v) {
+		return aligned_box2i(b.min - v, b.max - v);
+	}
+
+	inline aligned_box2i operator -(const vector2i& v, const aligned_box2i& b) {
+		return aligned_box2i(v - b.max, v - b.min);
+	}
+
 	inline bool intersects(const aligned_box2i& b1, const aligned_box2i& b2) {
 		return contains(b1 - b2, vector2i());
 	}
@@ -466,14 +490,6 @@ namespace gmtry2i {
 						 vector2i(MIN(b1.max.x, b2.max.x), MIN(b1.max.y, b2.max.y)));
 		if ((b3.min.x < b3.max.x) && (b3.min.y < b3.max.y)) return b3;
 		else return aligned_box2i();
-	}
-
-	inline aligned_box2i operator +(const aligned_box2i& b, const vector2i& v) {
-		return aligned_box2i(b.min + v, b.max + v);
-	}
-
-	inline aligned_box2i operator -(const aligned_box2i& b, const vector2i& v) {
-		return aligned_box2i(b.min - v, b.max - v);
 	}
 
 	std::string to_string(const aligned_box2i& b) {
@@ -589,6 +605,28 @@ namespace gmtry2i {
 
 		*/
 	}
+
+	struct line_stepper2i {
+		float dir_x, dir_y;
+		float x, y;
+		int length;
+		gmtry2i::vector2i p;
+		line_stepper2i(const line_segment2i& l) {
+			gmtry2i::vector2i disp = l.b - l.a;
+			float lengthf = std::sqrt(gmtry2i::dot(disp, disp));
+			length = lengthf;
+			float inv_length = 1.0F / lengthf;
+			dir_x = disp.x * inv_length;
+			dir_y = disp.y * inv_length;
+			x = l.a.x + 0.5F;
+			p = l.a;
+			y = l.a.y + 0.5F;
+		}
+		inline void step() {
+			p = gmtry2i::vector2i(static_cast<long>(x) - (x < 0), static_cast<long>(y) - (y < 0));
+			x += dir_x; y += dir_y;
+		}
+	};
 
 	template <typename T>
 	concept intersectable2i = requires (T a, aligned_box2i b, bool c) {

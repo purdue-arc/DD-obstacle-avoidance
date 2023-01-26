@@ -15,6 +15,7 @@ int main()try {
 	/*
 	rs_tests::realsense_test0();
 
+	oc_tests::run_all_tests();
 	oc_tests::print_map_file_item<8>({ 0, 0 }, 3);
 
 	misc_tests::template_inheritance_test();
@@ -24,12 +25,13 @@ int main()try {
 	gmtry_tests::geometry_test1();
 	gmtry_tests::geometry_test2();
 	gmtry_tests::geometry_test3();
+	gmtry_tests::geometry_test5();
+	gmtry_tests::geometry_test7();
 	gmtry_tests::projection_test0();
 	gmtry_tests::projection_test1();
-	gmtry_tests::projection_test2();
 	*/
 
-	oc_tests::run_all_tests();
+	gmtry_tests::projection_test2();
 
 	return 0;
 }

@@ -135,12 +135,16 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="realsense2.dll" />
+    <None Include="resources\map.b" />
+    <None Include="resources\output\map256x256" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="dstar.hpp" />
+    <ClInclude Include="maps2\maps2_display.hpp" />
+    <ClInclude Include="ocpncy\ocpncy_display.hpp" />
     <ClInclude Include="util\data_structs.hpp" />
     <ClInclude Include="geometry.hpp" />
-    <ClInclude Include="maps2\maps2_display.hpp" />
+    <ClInclude Include="ascii_display.hpp" />
     <ClInclude Include="maps2\maps2_streams.hpp" />
     <ClInclude Include="ocpncy\occupancy.hpp" />
     <ClInclude Include="tests\gmtry_tests.hpp" />
@@ -151,6 +155,12 @@
     <ClInclude Include="maps2\tilemaps.hpp" />
     <ClInclude Include="header.hh" />
     <ClInclude Include="tests\rs_tests.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="resources\photo.jpg" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="resources\output\prjctn_dprjctn_26Jan2023.txt" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

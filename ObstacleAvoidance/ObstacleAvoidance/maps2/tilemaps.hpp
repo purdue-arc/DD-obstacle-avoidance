@@ -77,18 +77,6 @@ namespace maps2 {
 									  align_up(b.max, any_tile_origin, log2_w));
 	}
 
-	class point2_ostream {
-	public:
-		virtual void write(const gmtry2i::vector2i& p) = 0;
-		virtual void flush() {}
-	};
-
-	class point3_ostream {
-	public:
-		virtual void write(const gmtry3::vector3& p) = 0;
-		virtual void flush() {}
-	};
-
 	// Tile-aligned region bounded by an aligned_box2i
 	class bounded_region {
 	public:
@@ -527,18 +515,18 @@ namespace maps2 {
 		nbrng_tile<base_tile>* nbrs[8];
 	};
 
-	inline gmtry2i::vector2i get_nbrhood_origin(const gmtry2i::vector2i& center_origin, unsigned int log2_w) {
+	inline gmtry2i::vector2i get_nbrhd_origin(const gmtry2i::vector2i& center_origin, unsigned int log2_w) {
 		return center_origin - gmtry2i::vector2i(1 << log2_w, 1 << log2_w);
 	}
 
 	// Returns bounds of a nbrng_tile's neighborhood (the region including itself and its neighbors)
-	inline gmtry2i::aligned_box2i get_nbrhood_bounds(const gmtry2i::vector2i& center_origin, unsigned int log2_w) {
+	inline gmtry2i::aligned_box2i get_nbrhd_bounds(const gmtry2i::vector2i& center_origin, unsigned int log2_w) {
 		gmtry2i::vector2i corners_disp(1 << log2_w, 1 << log2_w);
 		return gmtry2i::aligned_box2i(center_origin - corners_disp, center_origin + corners_disp * 2);
 	}
 
 	// Returns neighbor's non-negative coordinates relative to the neighborhood origin, in units of tiles
-	inline gmtry2i::vector2i get_nbrhood_coords(const gmtry2i::vector2i& nbr_origin, 
+	inline gmtry2i::vector2i get_nbrhd_coords(const gmtry2i::vector2i& nbr_origin, 
 		                                        const gmtry2i::vector2i& nbrhood_origin, unsigned int log2_w) {
 		return (nbr_origin - nbrhood_origin) >> log2_w;
 	}
@@ -557,10 +545,10 @@ namespace maps2 {
 	}
 
 	template <unsigned int log2_w, typename tile>
-	struct tile_nbrhood {
+	struct tile_nbrhd {
 		gmtry2i::vector2i origin;
 		tile* tiles[3][3];
-		tile_nbrhood(const gmtry2i::vector2i& center_origin, nbrng_tile<tile>* center) : tiles {
+		tile_nbrhd(const gmtry2i::vector2i& center_origin, nbrng_tile<tile>* center) : tiles {
 			&(center->nbrs[5]->tile), &(center->nbrs[6]->tile), &(center->nbrs[7]->tile),
 			&(center->nbrs[3]->tile), &(center->tile)         , &(center->nbrs[4]->tile),
 			&(center->nbrs[0]->tile), &(center->nbrs[1]->tile), &(center->nbrs[2]->tile)
@@ -598,7 +586,7 @@ namespace maps2 {
 	template <unsigned int log2_w, typename tile>
 	mixed_item<log2_w> alloc_nbrng_tile(const mixed_item<log2_w>& start, const gmtry2i::vector2i& p) {
 		gmtry2i::aligned_box2i neighborhood_bounds = 
-			get_nbrhood_bounds(align_down(p, start.info.origin, log2_w), log2_w);
+			get_nbrhd_bounds(align_down(p, start.info.origin, log2_w), log2_w);
 		mixed_item<log2_w> item = seek_mixed_item(start, p, 0);
 		// If tile was already allocated and connected to neighbors, return
 		if (item.info.depth == 0) return item;

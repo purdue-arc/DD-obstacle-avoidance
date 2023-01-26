@@ -1,10 +1,8 @@
 #pragma once
 
 #include "maps2/tilemaps.hpp"
-#include "maps2/maps2_display.hpp"
 
 #include <stdint.h>
-#include <iostream>
 
 namespace ocpncy {
 	const unsigned int LOG2_MINIW = 3;
@@ -46,6 +44,7 @@ namespace ocpncy {
 	* log2_w MUST BE GREATER THAN OR EQUAL TO LOG2_MINIW (= 3 at the time of writing this)!!!
 	*/
 	template <unsigned int log2_w>
+		requires (log2_w >= 3)
 	struct otile {
 		omini minis[get_tile_area_minis(log2_w)];
 		inline otile& operator +=(const otile& tile) {
@@ -131,45 +130,6 @@ namespace ocpncy {
 	}
 	inline gmtry2i::vector2i decompress_coords2(unsigned int idx, unsigned int log2_w) {
 		return gmtry2i::vector2i(idx & MINI_COORD_MASK, idx >> log2_w);
-	}
-
-	// Prints a tile
-	template <unsigned int log2_w>
-	std::ostream& operator << (std::ostream& os, const otile<log2_w>& tile) {
-		for (int y = (1 << log2_w) - 1; y >= 0; y--) {
-			for (int x = 0; x < (1 << log2_w); x++) {
-				os << (get_bit(x, y, tile) ? "@" : ".") << ' ';
-			}
-			os << std::endl;
-		}
-		return os;
-	}
-
-	// Draws a tile at a position on an ASCII image
-	template <unsigned int log2_w>
-	maps2::ascii_image& operator << (maps2::ascii_image& img, const maps2::located_tile<otile<log2_w>>& tile) {
-		for (int y = 0; y < (1 << log2_w); y++)
-			for (int x = 0; x < (1 << log2_w); x++)
-				if (get_bit(x, y, *tile.tile)) img(gmtry2i::vector2i(x, y) + tile.origin) = '@';
-		return img;
-	}
-
-	// Makes an ASCII image fitted to the stream's output
-	template <unsigned int log2_w>
-	inline maps2::ascii_image make_fitted_image(maps2::tile_istream<otile<log2_w>>* stream, unsigned int max_line_length) {
-		return maps2::ascii_image(log2_w, stream->get_bounds().min, stream->get_bounds(), max_line_length);
-	}
-
-	// Draws tile stream to ASCII image and then prints it
-	template <unsigned int log2_w>
-	std::ostream& operator << (std::ostream& os, maps2::tile_istream<otile<log2_w>>* stream) {
-		maps2::ascii_image img(log2_w, stream->get_bounds().min, stream->get_bounds(), DEFAULT_MAX_LINE_LENGTH);
-		return os << (img << stream);
-	}
-	template <unsigned int log2_w>
-	std::ostream& operator << (std::ostream& os, maps2::map_istream<otile<log2_w>>* map) {
-		maps2::ascii_image img(log2_w, map->get_bounds().min, map->get_bounds(), DEFAULT_MAX_LINE_LENGTH);
-		return os << (img << map);
 	}
 
 	// Temporary/modifiable occupancy tile (tmp) that has a required minimum version (req), such that req - tmp = 0
