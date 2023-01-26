@@ -5,7 +5,12 @@
 #include "ocpncy/ocpncy_streams.hpp"
 #include "maps2/maps2_streams.hpp"
 
-#include "projection.hpp"
+#ifndef OUTPUT_FILEPATH 
+#	define OUTPUT_FILEPATH (std::string(""))
+#endif
+#ifndef RESOURCES_FILEPATH
+#	define RESOURCES_FILEPATH (std::string(""))
+#endif
 
 #include <iostream>
 
@@ -120,7 +125,7 @@ namespace oc_tests {
 	int occupancy_test0() { // PASSED!
 		std::cout << "OCCUPANCY TEST 0" << std::endl;
 		render_faces();
-		maps2::map_fstream<3, ocpncy::otile<3>> mapstream("mymap", gmtry2i::vector2i(4, 5));
+		maps2::map_fstream<3, ocpncy::otile<3>> mapstream(OUTPUT_FILEPATH + "mymap", gmtry2i::vector2i(4, 5));
 		const ocpncy::otile<3>* mytile = 0;
 
 		// Running the program with enable_write = true allows it to write the smiley and frowny tiles
@@ -159,7 +164,7 @@ namespace oc_tests {
 		std::cout << "OCCUPANCY TEST 3" << std::endl;
 		render_cat();
 
-		bmap_fstream4 mapstream("mymap4", gmtry2i::vector2i(42, 35));
+		bmap_fstream4 mapstream(OUTPUT_FILEPATH + "mymap4", gmtry2i::vector2i(42, 35));
 		const ocpncy::otile<4>* mytile = 0;
 
 		std::cout << "Tile to Write: " << std::endl << cattile;
@@ -179,7 +184,7 @@ namespace oc_tests {
 	// Reads the mymap4 file and prints part of its contents
 	int occupancy_test4() { // PASSED!
 		std::cout << "OCCUPANCY TEST 4" << std::endl;
-		bmap_fstream4 mapstream("mymap4", gmtry2i::vector2i());
+		bmap_fstream4 mapstream(OUTPUT_FILEPATH + "mymap4", gmtry2i::vector2i());
 		bmap_buffer4 map(mapstream.get_bounds().min);
 
 		btile_stream4* file_tile_stream = mapstream.read();
@@ -197,7 +202,7 @@ namespace oc_tests {
 		std::cout << "OCCUPANCY TEST 5" << std::endl;
 		render_dog();
 
-		bmap_fstream4 mapstream("mymap4", gmtry2i::vector2i());
+		bmap_fstream4 mapstream(OUTPUT_FILEPATH + "mymap4", gmtry2i::vector2i());
 
 		bmap_buffer4 map(mapstream.get_bounds().min);
 		map.write(dogtileorigin, &dogtile);
@@ -232,7 +237,7 @@ namespace oc_tests {
 	int occupancy_test7() {
 		std::cout << "OCCUPANCY TEST 7" << std::endl;
 
-		bmap_fstream4 mapstream("mymap4", gmtry2i::vector2i());
+		bmap_fstream4 mapstream(OUTPUT_FILEPATH + "mymap4", gmtry2i::vector2i());
 		mapstream.set_wmode(maps2::TILE_ADD_MODE);
 
 		std::cout << "Tiles to Write: " << std::endl;
@@ -250,7 +255,7 @@ namespace oc_tests {
 
 	unsigned char* get_map_image(std::uint32_t* width, std::uint32_t* height) {
 		std::fstream file;
-		file.open("map.b");
+		file.open(RESOURCES_FILEPATH + "map.b");
 		if (!file.is_open()) return 0;
 		file.read(reinterpret_cast<char*>(width), 4);
 		file.read(reinterpret_cast<char*>(height), 4);
@@ -263,7 +268,7 @@ namespace oc_tests {
 
 	std::string get_map_file_name(unsigned int log2_w) {
 		std::string width_str = std::to_string(1 << log2_w);
-		return "map" + width_str + "x" + width_str;
+		return OUTPUT_FILEPATH + "map" + width_str + "x" + width_str;
 	}
 
 	template <unsigned int log2_w>
@@ -313,8 +318,10 @@ namespace oc_tests {
 	}
 
 	void prep_tests_0to7() {
-		std::cout << "Prepping test 0... " << (!remove("mymap") ? "Success!" : "Failed") << std::endl;
-		std::cout << "Prepping tests 3-7... " << (!remove("mymap4") ? "Success!" : "Failed") << std::endl;
+		std::string filename = OUTPUT_FILEPATH + "mymap";
+		std::cout << "Prepping test 0... " << (!remove(filename.c_str()) ? "Success!" : "Failed") << std::endl;
+		filename += "4";
+		std::cout << "Prepping tests 3-7... " << (!remove(filename.c_str()) ? "Success!" : "Failed") << std::endl;
 	}
 
 	template <unsigned int log2_w>

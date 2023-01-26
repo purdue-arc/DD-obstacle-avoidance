@@ -263,7 +263,8 @@ namespace gmtry_tests {
 		maps2::ascii_image balls_img({ {}, gmtry2i::vector2i(config.width, config.height)});
 		for (int x = 0; x < config.width; x++) for (int y = 0; y < config.height; y++)
 			balls_img << maps2::shaded_point({ x, y }, 1 - inv_max_depth * depths[x + y * config.width]);
-		std::cout << balls_img << "First-person rendering of environment" << std::endl;
+		balls_img.set_caption("First-person rendering of environment");
+		std::cout << balls_img << std::endl;
 
 		gmtry2i::vector2i cam_origin2(config.cam_to_world.t.x, config.cam_to_world.t.y);
 		maps2::ascii_image img({ {-24, -24}, {24, 24} }), traces_img({ {-24, -24}, {24, 24} });
@@ -271,7 +272,8 @@ namespace gmtry_tests {
 		prjctn::deproject(depths, config, &projector);
 		img(cam_origin2) = 'C';
 		traces_img.overwrite(img);
-		std::cout << traces_img << "Top-down view of perceived environment" << std::endl;
+		traces_img.set_caption("Top-down view of perceived environment");
+		std::cout << traces_img << std::endl;
 
 		delete[] depths;
 		return 0;

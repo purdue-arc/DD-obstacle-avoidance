@@ -36,6 +36,7 @@ namespace strcts {
 			last_array = first_array;
 			while (last_array->next) last_array = last_array->next;
 			reset();
+			return *this;
 		}
 		linked_arraylist(const linked_arraylist& list) {
 			*this = list;
