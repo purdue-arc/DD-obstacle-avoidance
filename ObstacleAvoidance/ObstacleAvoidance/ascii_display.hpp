@@ -108,7 +108,6 @@ namespace ascii_dsp {
 			caption = "Image Bounds: " + gmtry2i::to_string(bounds);
 		}
 		ascii_image(const gmtry2i::aligned_box2i& viewport) : ascii_image(viewport, DEFAULT_MAX_LINE_LENGTH) {}
-		// Produces ASCII image with square-tile pattern pre-printed on it
 		ascii_image& operator =(const ascii_image& img) {
 			log2_pw = img.log2_pw;
 			width = img.width;
@@ -163,7 +162,7 @@ namespace ascii_dsp {
 	decorated_point gradient_point(const gmtry2i::vector2i& point, const gmtry2i::vector2i& gradient) {
 		char slope;
 		if (!gradient.x && !gradient.y)
-			slope = '.';
+			slope = '*';
 		else if (2.414 * std::abs(gradient.x) < std::abs(gradient.y))
 			slope = '|';
 		else if (2.414 * std::abs(gradient.y) < std::abs(gradient.x))
@@ -184,6 +183,10 @@ namespace ascii_dsp {
 		char shade = ".:-=+*#%@"[static_cast<int>(std::min(1.0F, std::max(0.0F, normalized_shade)) * 9)];
 		return decorated_point(point, shade);
 	}
+
+	struct circle {
+
+	};
 
 	struct named_rect {
 		gmtry2i::aligned_box2i box;
@@ -221,9 +224,9 @@ namespace ascii_dsp {
 	}
 
 	ascii_image& operator << (ascii_image& img, const gmtry2i::line_segment2i& l) {
-		gmtry2i::line_stepper2i stepper(l);
+		gmtry2i::line_stepper2i stepper(l, 1.0F);
 		gmtry2i::vector2i pt_buf[3] = { l.b, l.b, l.a };
-		for (int t = 0; t <= stepper.length; t++) {
+		for (int t = 0; t < stepper.waypoints; t++) {
 			pt_buf[2] = stepper.p;
 			// Direction displayed is based on average of the two most recent displacements
 			//		This is to make the line slopes both continuous and smooth

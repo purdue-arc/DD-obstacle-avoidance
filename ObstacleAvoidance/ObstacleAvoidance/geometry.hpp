@@ -3,8 +3,8 @@
 #include <string>
 #include <cmath>
 
-#define MIN(a, b) (a < b) ? a : b
-#define MAX(a, b) (a > b) ? a : b
+#define MIN(a, b) ((a < b) ? a : b)
+#define MAX(a, b) ((a > b) ? a : b)
 
 // 3D floating-point geometry
 namespace gmtry3 {
@@ -291,6 +291,16 @@ namespace gmtry3 {
 
 // 2D integer geometry
 namespace gmtry2i {
+	inline long floor(float f) {
+		long l = f;
+		return l - (l > f);
+	}
+
+	inline long ceil(float f) {
+		long l = f;
+		return l + (l < f);
+	}
+
 	struct vector2i {
 		long x, y;
 		vector2i() = default;
@@ -434,12 +444,12 @@ namespace gmtry2i {
 	}
 
 	inline aligned_box2i boundsof(const vector2i& p1, const vector2i& p2) {
-		return aligned_box2i({ MIN(p1.x, p2.x), MIN(p1.y, p2.y) }, 
+		return aligned_box2i({ MIN(p1.x, p2.x),     MIN(p1.y, p2.y) }, 
 							 { MAX(p1.x, p2.x) + 1, MAX(p1.y, p2.y) + 1 });
 	}
 
 	inline aligned_box2i boundsof(const aligned_box2i& b, const vector2i& p) {
-		return aligned_box2i({ MIN(b.min.x, p.x), MIN(b.min.y, p.y) }, 
+		return aligned_box2i({ MIN(b.min.x, p.x),     MIN(b.min.y, p.y) }, 
 							 { MAX(b.max.x, p.x + 1), MAX(b.max.y, p.y + 1) });
 	}
 
@@ -543,7 +553,8 @@ namespace gmtry2i {
 		// wedge(disp2, adisp + t*disp1) = 0
 		// = wedge(disp2, adisp) + t*wedge(disp2, disp1)
 		// t = - wedge(disp2, adisp) / wedge(disp2, disp1)
-		return l1.a - ((disp1 * wedge(disp2, adisp)) / wedge(disp2, disp1));
+		float disp_scale = static_cast<float>(wedge(disp2, adisp)) / wedge(disp2, disp1);
+		return l1.a + gmtry2i::vector2i(floor(0.5F - disp1.x * disp_scale), floor(0.5F - disp1.y * disp_scale));
 	}
 
 	bool intersects(const line_segment2i& l, const aligned_box2i& box) {
@@ -556,12 +567,13 @@ namespace gmtry2i {
 				// a[dim] + t*disp[dim] = box[extrema][dim]
 				// t = (box[extrema][dim] - a[dim]) / disp[dim]
 				// if 0 <= t <= 1 then they intersect
-				long value1 = box_pts[extrema][dim] - l.a[dim];
-				long value2 = disp[dim];
+				float value1 = box_pts[extrema][dim] - (l.a[dim] + 0.5F);
+				int value2 = disp[dim];
 				// if t is not negative AND t is less than 1
 				if (((value1 < 0) == (value2 < 0)) && (abs(value1) <= abs(value2))) {
 					int other_dim = 1 & ~dim;
-					long other_intersection = l.a[other_dim] + ((disp[other_dim] * value1) / value2);
+					long other_intersection = l.a[other_dim] + floor(0.5F + 
+					                          disp[other_dim] * (static_cast<float>(value1) / value2));
 					if (box.min[other_dim] <= other_intersection && other_intersection < box.max[other_dim])
 						return true;
 				}
@@ -582,9 +594,11 @@ namespace gmtry2i {
 			long value2 = disp[dim];
 			for (int extrema = 0; extrema < 2; extrema++) {
 				// explanation for the following is in intersects(line_segment2i, aligned_box2i)
-				long value1 = box_pts[extrema][dim] - l.a[dim];
+				float value1 = box_pts[extrema][dim] - (l.a[dim] + 0.5F);
 				if (((value1 < 0) == (value2 < 0)) && (abs(value1) <= abs(value2))) {
-					vector2i intersection = l.a + ((disp * value1) / value2);
+					float scale = static_cast<float>(value1) / value2;
+					vector2i intersection = l.a + gmtry2i::vector2i(floor(0.5F + disp.x * scale), 
+					                                                floor(0.5F + disp.y * scale));
 					if (contains(box, intersection)) new_pts[pt_idx++] = intersection;
 					if (pt_idx > 1) return line_segment2i(new_pts[0], new_pts[1]);
 				}
@@ -595,40 +609,48 @@ namespace gmtry2i {
 
 	// Current implementation is slow
 	bool intersects(const line_segment2i& l, const vector2i& p) {
-		// slow
-		return intersects(l, boundsof(p));
-
-		/* Original implementation, fails to identify most intersecting points
-		
-		vector2i ldisp = l.b - l.a, pdisp = p - l.a;
-		if (!ldisp.x && !ldisp.y) return false;
-		long ldisp_squared = squared(ldisp);
-		long disps_dot = dot(ldisp, pdisp);
-		if (ldisp_squared < disps_dot || disps_dot < 0) return false;
-		else return p == l.a + ldisp * (disps_dot / static_cast<float>(ldisp_squared));
-
-		*/
+		gmtry2i::aligned_box2i box(boundsof(p));
+		// test if box contains either endpoint
+		if (contains(box, l.a) || contains(box, l.b)) return true;
+		vector2i disp = l.b - l.a;
+		for (int dim = 0; dim < 2; dim++) if (disp[dim])
+			for (int extrema = 0; extrema < 2; extrema++) {
+				// a[dim] + t*disp[dim] = box[extrema][dim]
+				// t = (box[extrema][dim] - a[dim]) / disp[dim]
+				// if 0 <= t <= 1 then they intersect
+				float value1 = box[extrema][dim] - (l.a[dim] + 0.5F);
+				int value2 = disp[dim];
+				// if t is not negative AND t is less than 1
+				if (((value1 < 0) == (value2 < 0)) && (abs(value1) <= abs(value2))) {
+					int other_dim = 1 & ~dim;
+					float other_intersection = l.a[other_dim] + 0.5F +
+						disp[other_dim] * (static_cast<float>(value1) / (value2));
+					if (box.min[other_dim] <= other_intersection && other_intersection <= box.max[other_dim])
+						return true;
+				}
+			}
+		return false;
 	}
 
 	struct line_stepper2i {
 		float step_x, step_y;
 		float x, y;
-		int length;
+		unsigned int waypoints;
 		vector2i p;
-		line_stepper2i(const line_segment2i& l) {
+		line_stepper2i(const line_segment2i& l, float step_size) {
 			vector2i disp = l.b - l.a;
 			float lengthf = std::sqrt(squared(disp));
-			length = lengthf;
-			float inv_length = 1.0F / lengthf;
-			step_x = disp.x * inv_length;
-			step_y = disp.y * inv_length;
-			x = l.a.x + 0.5F;
-			y = l.a.y + 0.5F;
+			waypoints = (lengthf / step_size) + 1;
+			float step_scale = step_size / lengthf;
+			step_x = disp.x * step_scale;
+			step_y = disp.y * step_scale;
+			x = static_cast<float>(l.a.x) + 0.5F;
+			y = static_cast<float>(l.a.y) + 0.5F;
 			p = l.a;
 		}
 		inline void step() {
-			p = vector2i(static_cast<long>(x) - (x < 0), static_cast<long>(y) - (y < 0));
 			x += step_x; y += step_y;
+			p = vector2i(floor(x), floor(y));
 		}
 	};
 

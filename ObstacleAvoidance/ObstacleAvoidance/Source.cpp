@@ -29,9 +29,10 @@ int main()try {
 	gmtry_tests::geometry_test7();
 	gmtry_tests::projection_test0();
 	gmtry_tests::projection_test1();
+	gmtry_tests::projection_test2();
 	*/
 
-	gmtry_tests::projection_test2();
+	gmtry_tests::geometry_test8();
 
 	return 0;
 }

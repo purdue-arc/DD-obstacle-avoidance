@@ -146,7 +146,7 @@ namespace ocpncy {
 
 		gmtry2i::vector2i position, tile_origin;
 		maps2::nbrng_tile<gradient_tile>* current_tile;
-		// Tiles used as the control group; compared with map tiles after they're updated to find changed states
+		// Tiles used as the control group; compared with map tiles after map is updated to find changed states
 		gradient_tile* control_tiles[3][3];
 		/*
 		* When the observer needs a neighboring tile that hasn't been added to the map yet, it submits a request
@@ -276,9 +276,9 @@ namespace ocpncy {
 								gradient_tile* intersected_tile = nbrhd(nbr_x, nbr_y);
 								if (!intersected_tile) continue;
 								tile_oc_line = gmtry2i::intersection(nbrhd_oc_line, nbrhd_tile_boxes[nbr_y][nbr_x]);
-								gmtry2i::line_stepper2i stepper(tile_oc_line);
-								const int length_int = stepper.length;
-								for (int t = 0; t <= length_int; t++) {
+								gmtry2i::line_stepper2i stepper(tile_oc_line, 1.0F);
+								const int num_steps = stepper.waypoints;
+								for (int t = 0; t < num_steps; t++) {
 									unsigned char& intrsctd_char = intersected_tile->
 										certainties[stepper.p.x | (stepper.p.y << log2_w)];
 									if (intrsctd_char && ~intrsctd_char) intrsctd_char--;

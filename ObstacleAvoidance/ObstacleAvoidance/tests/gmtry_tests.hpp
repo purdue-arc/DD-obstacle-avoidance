@@ -151,6 +151,43 @@ namespace gmtry_tests {
 		return 0;
 	}
 
+	// Tests line-point intersections
+	int geometry_test8() { // Shows line-point intersection has 99.44% accuracy
+		const int num_lines = 50, tests_per_line = 20;
+		int num_differences = 0;
+		double num_tests = 0, num_correct = 0;
+		gmtry2i::aligned_box2i img_bounds({ 0, 0 }, 16);
+		for (int i = 0; i < num_lines; i++) {
+			//ascii_dsp::ascii_image img(img_bounds);
+			gmtry2i::vector2i a(random_vector(img_bounds)), b(random_vector(img_bounds));
+			gmtry2i::line_segment2i ab(a, b);
+			//img << ab;
+
+			for (int j = 0; j < tests_per_line; j++) {
+				gmtry2i::vector2i p(random_vector(img_bounds));
+				bool intersects = false;
+				
+				// taking tiny steps so every point will be hit
+				gmtry2i::line_stepper2i stepper(ab, 0.00001F);
+				for (int t = 0; t < stepper.waypoints; t++) {
+					if (stepper.p == p) {
+						intersects = true;
+						break;
+					}
+					stepper.step();
+				}
+				if (stepper.p == p) intersects = true;
+
+				num_tests++;
+				if (intersects == gmtry2i::intersects(ab, p)) num_correct++;
+				//else img << ascii_dsp::named_point(p, intersects ? '@' : 'o');
+			}
+			std::cout << "Tested " << i << "/" << num_lines << " lines" << std::endl;
+			std::cout << "Accuracy: " << 100 * (num_correct / num_tests) << "%" << std::endl;
+		}
+		return 0;
+	}
+
 	class image_projector2 : public gmtry2i::point2_ostream {
 		ascii_dsp::ascii_image &img, &traces_img;
 		gmtry2i::vector2i cam_origin;
