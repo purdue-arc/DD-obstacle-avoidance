@@ -9,7 +9,7 @@ namespace ocpncy {
 	std::ostream& operator << (std::ostream& os, const otile<log2_w>& tile) {
 		for (int y = (1 << log2_w) - 1; y >= 0; y--) {
 			for (int x = 0; x < (1 << log2_w); x++) {
-				os << (get_bit(x, y, tile) ? "@" : ".") << ' ';
+				os << (get_occ(x, y, tile) ? "@" : ".") << ' ';
 			}
 			os << std::endl;
 		}
@@ -21,7 +21,7 @@ namespace ocpncy {
 	ascii_dsp::ascii_image& operator << (ascii_dsp::ascii_image& img, const maps2::located_tile<otile<log2_w>>& tile) {
 		for (int y = 0; y < (1 << log2_w); y++)
 			for (int x = 0; x < (1 << log2_w); x++)
-				if (get_bit(x, y, *tile.tile)) img(gmtry2i::vector2i(x, y) + tile.origin) = '@';
+				if (get_occ(x, y, *tile.tile)) img(gmtry2i::vector2i(x, y) + tile.origin) = '@';
 		return img;
 	}
 

@@ -3,7 +3,6 @@
 #define DEBUG
 #include "ocpncy/ocpncy_streams.hpp"
 #include "ocpncy/ocpncy_display.hpp"
-#include "maps2/maps2_streams.hpp"
 
 #ifndef OUTPUT_FILEPATH 
 #	define OUTPUT_FILEPATH (std::string(""))
@@ -52,14 +51,14 @@ namespace oc_tests {
 		int circler = 2;
 		for (int x = 0; x < 16; x++) for (int y = 0; y < 16; y++)
 			if (((x - circlex) * (x - circlex) + (y - circley) * (y - circley) - circler * circler) >> 1 == 0)
-				ocpncy::set_bit(x, y, cattile, true);
-		for (int x = circlex + circler; x < 15; x++) ocpncy::set_bit(x, circley, cattile, true);
+				ocpncy::set_occ(x, y, cattile, true);
+		for (int x = circlex + circler; x < 15; x++) ocpncy::set_occ(x, circley, cattile, true);
 		for (int leg = 0; leg < 4; leg++) {
 			int x = (((10 - circlex + circler) * leg) / 4) + circlex + circler;
-			for (int y = circley; y > 0; y--) ocpncy::set_bit(x, y, cattile, true);
+			for (int y = circley; y > 0; y--) ocpncy::set_occ(x, y, cattile, true);
 		}
-		ocpncy::set_bit(3, 12, cattile, true);
-		ocpncy::set_bit(5, 12, cattile, true);
+		ocpncy::set_occ(3, 12, cattile, true);
+		ocpncy::set_occ(5, 12, cattile, true);
 		//PrintTile(cattile);
 		return 0;
 	}
@@ -71,17 +70,17 @@ namespace oc_tests {
 		int circler = 2;
 		for (int x = 0; x < 16; x++) for (int y = 0; y < 16; y++)
 			if (((x - circlex) * (x - circlex) + (y - circley) * (y - circley) - circler * circler) >> 1 == 0)
-				ocpncy::set_bit(x, y, dogtile, true);
-		for (int x = circlex + circler; x < 15; x++) ocpncy::set_bit(x, circley, dogtile, true);
+				ocpncy::set_occ(x, y, dogtile, true);
+		for (int x = circlex + circler; x < 15; x++) ocpncy::set_occ(x, circley, dogtile, true);
 		for (int leg = 0; leg < 4; leg++) {
 			int x = (((10 - circlex + circler) * leg) / 4) + circlex + circler;
-			for (int y = circley; y > 0; y--) ocpncy::set_bit(x, y, dogtile, true);
+			for (int y = circley; y > 0; y--) ocpncy::set_occ(x, y, dogtile, true);
 		}
-		ocpncy::set_bit(3, 12, dogtile, true); ocpncy::set_bit(3, 13, dogtile, true);
-		ocpncy::set_bit(5, 12, dogtile, true); ocpncy::set_bit(5, 13, dogtile, true);
+		ocpncy::set_occ(3, 12, dogtile, true); ocpncy::set_occ(3, 13, dogtile, true);
+		ocpncy::set_occ(5, 12, dogtile, true); ocpncy::set_occ(5, 13, dogtile, true);
 		for (int x = circlex - circler; x >= 0; x--) {
-			ocpncy::set_bit(x, circley, dogtile, true);
-			ocpncy::set_bit(x, circley - 1, dogtile, true);
+			ocpncy::set_occ(x, circley, dogtile, true);
+			ocpncy::set_occ(x, circley - 1, dogtile, true);
 		}
 		std::cout << dogtile;
 		return 0;

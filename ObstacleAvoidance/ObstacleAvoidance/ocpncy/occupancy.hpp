@@ -1,6 +1,6 @@
 #pragma once
 
-#include "maps2/tilemaps.hpp"
+#include "geometry.hpp"
 
 #include <stdint.h>
 
@@ -35,6 +35,11 @@ namespace ocpncy {
 	constexpr unsigned int get_tile_coord_mask(unsigned int log2_tile_w) {
 		return (1 << log2_tile_w) - 1;
 	}
+
+	template <typename T>
+	concept observable_otile = requires (unsigned int x, unsigned int y, T tile, bool b) {
+		b = get_occ(x, y, T);
+	};
 
 	/*
 	* A square tile of occupancy states (represented as individual bits) with a width of 2 ^ n 
@@ -114,13 +119,13 @@ namespace ocpncy {
 		return gmtry2i::vector2i(bit_idx & MINI_COORD_MASK, bit_idx >> LOG2_MINIW);
 	}
 
-	// Accessors for individual bits in a tile
+	// Accessors for individual occupancy-states in a tile
 	template <unsigned int log2_w>
-	inline bool get_bit(unsigned int x, unsigned int y, const otile<log2_w>& ot) {
+	inline bool get_occ(unsigned int x, unsigned int y, const otile<log2_w>& ot) {
 		return (ot.minis[get_mini_idx(x, y, log2_w)] >> get_bit_idx(x, y)) & 1;
 	}
 	template <unsigned int log2_w>
-	inline void set_bit(unsigned int x, unsigned int y, otile<log2_w>& ot, bool value) {
+	inline void set_occ(unsigned int x, unsigned int y, otile<log2_w>& ot, bool value) {
 		ot.minis[get_mini_idx(x, y, log2_w)] |= static_cast<omini>(value) << get_bit_idx(x, y);
 	}
 
@@ -132,12 +137,59 @@ namespace ocpncy {
 		return gmtry2i::vector2i(idx & MINI_COORD_MASK, idx >> log2_w);
 	}
 
-	// Temporary/modifiable occupancy tile (tmp) that has a required minimum version (req), such that req - tmp = 0
+	// Tile with both required (non-modifiable) and temporary (can be observed or forgotten) occupancies
 	template <unsigned int log2_w>
-	struct req_otile {
+	struct separated_otile {
+		// Purely observed part
 		otile<log2_w> tmp;
+		// Purely required part
 		otile<log2_w> req;
 	};
+
+	// Tile with gradient occupancies ranging in certainty. May represent a normal otile or a separated_otile
+	template <unsigned int log2_w>
+	struct gradient_otile {
+		// Maximum certainty for a temporary occupancy; equal to some positive 2^n - 1
+		static const unsigned char MAX_CERTAINTY = (1 << 6) - 1;
+
+		unsigned char certainties[1 << (log2_w * 2)];
+		gradient_otile() = default;
+		gradient_otile(const otile<log2_w>& t) {
+			for (int y = 0; y < (1 << log2_w); y++)
+				for (int x = 0; x < (1 << log2_w); x++)
+					if (get_occ(x, y, t)) certainties[x | (y << log2_w)] = MAX_CERTAINTY;
+		}
+		gradient_otile(const separated_otile<log2_w>& t) {
+			for (int y = 0; y < (1 << log2_w); y++)
+				for (int x = 0; x < (1 << log2_w); x++) {
+					if (get_occ(x, y, t.req)) certainties[x | (y << log2_w)] = -1;
+					else if (get_occ(x, y, t.tmp)) certainties[x | (y << log2_w)] = MAX_CERTAINTY;
+					else certainties[x | (y << log2_w)] = 0;
+				}
+		}
+		operator otile<log2_w>() const {
+			otile<log2_w> t;
+			for (int y = 0; y < (1 << log2_w); y++)
+				for (int x = 0; x < (1 << log2_w); x++)
+					set_occ(x, y, t, certainties[x | (y << log2_w)]);
+			return t;
+		}
+		operator separated_otile<log2_w>() const {
+			separated_otile<log2_w> t;
+			for (int y = 0; y < (1 << log2_w); y++)
+				for (int x = 0; x < (1 << log2_w); x++) {
+					unsigned char certainty = certainties[x | (y << log2_w)];
+					if (certainty) set_occ(x, y, ~certainty ? t.tmp : t.req, true);
+				}
+			return t;
+		}
+	};
+
+	// Returns the occupancy-state of the given position within the tile
+	template <unsigned int log2_w>
+	inline bool get_occ(unsigned int x, unsigned int y, const gradient_otile<log2_w>& t) {
+		return t.certainties[x | (y << log2_w)];
+	}
 
 	// 3D bit-tile formed by layers of 2D bit-tiles
 	template <unsigned int log2_w, unsigned int num_layers>

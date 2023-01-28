@@ -548,12 +548,19 @@ namespace maps2 {
 	struct tile_nbrhd {
 		gmtry2i::vector2i origin;
 		tile* tiles[3][3];
+		tile_nbrhd() = default;
 		tile_nbrhd(const gmtry2i::vector2i& center_origin, nbrng_tile<tile>* center) : tiles {
 			&(center->nbrs[5]->tile), &(center->nbrs[6]->tile), &(center->nbrs[7]->tile),
 			&(center->nbrs[3]->tile), &(center->tile)         , &(center->nbrs[4]->tile),
 			&(center->nbrs[0]->tile), &(center->nbrs[1]->tile), &(center->nbrs[2]->tile)
 		} {
 			origin = center_origin - gmtry2i::vector2i(1 << log2_w, 1 << log2_w);
+		}
+		inline tile* operator [](int i) {
+			return (*tiles)[i];
+		}
+		inline tile* operator ()(int nbr_x, int nbr_y) {
+			return tiles[nbr_y][nbr_x];
 		}
 	};
 

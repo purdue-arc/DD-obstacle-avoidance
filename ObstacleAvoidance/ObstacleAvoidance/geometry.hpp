@@ -322,6 +322,10 @@ namespace gmtry2i {
 		return vector2i(a.x - b.x, a.y - b.y);
 	}
 
+	inline vector2i operator |(const vector2i& a, const vector2i& b) {
+		return vector2i(a.x | b.x, a.y | b.y);
+	}
+
 	inline vector2i operator -(const vector2i& v) {
 		return vector2i(-v.x, -v.y);
 	}
@@ -607,24 +611,24 @@ namespace gmtry2i {
 	}
 
 	struct line_stepper2i {
-		float dir_x, dir_y;
+		float step_x, step_y;
 		float x, y;
 		int length;
-		gmtry2i::vector2i p;
+		vector2i p;
 		line_stepper2i(const line_segment2i& l) {
-			gmtry2i::vector2i disp = l.b - l.a;
-			float lengthf = std::sqrt(gmtry2i::dot(disp, disp));
+			vector2i disp = l.b - l.a;
+			float lengthf = std::sqrt(squared(disp));
 			length = lengthf;
 			float inv_length = 1.0F / lengthf;
-			dir_x = disp.x * inv_length;
-			dir_y = disp.y * inv_length;
+			step_x = disp.x * inv_length;
+			step_y = disp.y * inv_length;
 			x = l.a.x + 0.5F;
-			p = l.a;
 			y = l.a.y + 0.5F;
+			p = l.a;
 		}
 		inline void step() {
-			p = gmtry2i::vector2i(static_cast<long>(x) - (x < 0), static_cast<long>(y) - (y < 0));
-			x += dir_x; y += dir_y;
+			p = vector2i(static_cast<long>(x) - (x < 0), static_cast<long>(y) - (y < 0));
+			x += step_x; y += step_y;
 		}
 	};
 

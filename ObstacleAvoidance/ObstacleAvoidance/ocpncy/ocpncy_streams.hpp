@@ -5,6 +5,7 @@
 #include "util/data_structs.hpp"
 
 namespace ocpncy {
+	// Produces tiles from a matrix of occupancy values (a state is occupied if it's occupancy value is not 0)
 	template <unsigned int log2_w, typename T>
 	class mat_tile_stream : public maps2::lim_tile_istream<otile<log2_w>> {
 		T* mat;
@@ -37,7 +38,7 @@ namespace ocpncy {
 			for (int x = readbox.min.x; x < readbox.max.x; x++)
 				for (int y = readbox.min.y; y < readbox.max.y; y++)
 					if (mat[x + y * mat_bounds.max.x])
-						set_bit(x - tile_origin.x, y - tile_origin.y, tile, true);
+						set_occ(x - tile_origin.x, y - tile_origin.y, tile, true);
 			last_tile_origin = tile_origin;
 			tile_origin.x += 1 << log2_w;
 			if (tile_origin.x >= bounds.max.x) {
@@ -64,6 +65,7 @@ namespace ocpncy {
 		~mat_tile_stream() { }
 	};
 
+	// Cuts each dimension of the matrix in half
 	template <typename T>
 	T* halve_matrix(const T* mat, unsigned int width, unsigned int height) {
 		unsigned int new_width = width >> 1;
@@ -119,11 +121,11 @@ namespace ocpncy {
 		}
 	};
 
-	// 
+	// Is fed updates on changed-occupancy states from an occupancy map
 	template <unsigned int log2_w>
 	class occmap_monitor {
 	public:
-		virtual void write(otile<log2_w>* tile_ptr, unsigned int occupancy_idx) = 0;
+		virtual void write(gradient_otile<log2_w>* tile_ptr, unsigned int occupancy_idx) = 0;
 	};
 
 	/*
@@ -140,33 +142,12 @@ namespace ocpncy {
 		                                                  get_tile_width_minis(log2_w));
 		static const unsigned int aggregator_width_minis = 1 + 2 * radius_minis;
 
-		/*
-		* For each occupied state, gradient_tile stores a certainty that is decremented when the state is expected to
-		* be observed but is not, and reset to some positive value when observed. A certainty of 0 signifies that the 
-		* state is known not to be occupied; the state is otherwise considered occupied.
-		*/
-		struct gradient_tile {
-			static const unsigned char MAX_CERTAINTY = 32;
-
-			unsigned char certainties[1 << (log2_w * 2)];
-			gradient_tile() = default;
-			gradient_tile(const otile<log2_w>& t) {
-				for (int y = 0; y < (1 << log2_w); y++)
-					for (int x = 0; x < (1 << log2_w); x++)
-						if (get_bit(x, y, t)) certainties[x + (y << log2_w)] = MAX_CERTAINTY;
-			}
-			operator otile<log2_w>() const {
-				otile<log2_w> t;
-				for (int y = 0; y < (1 << log2_w); y++)
-					for (int x = 0; x < (1 << log2_w); x++)
-						set_bit(x, y, t, certainties[x + (y << log2_w)]);
-				return t;
-			}
-		};
+		typedef gradient_otile<log2_w> gradient_tile;
 
 		gmtry2i::vector2i position, tile_origin;
-		maps2::nbrng_tile<req_otile<log2_w>>* current_tile;
-		gradient_tile* gradients[3][3];
+		maps2::nbrng_tile<gradient_tile>* current_tile;
+		// Tiles used as the control group; compared with map tiles after they're updated to find changed states
+		gradient_tile* control_tiles[3][3];
 		/*
 		* When the observer needs a neighboring tile that hasn't been added to the map yet, it submits a request
 		* through the tile_requestee. If the tile exists, it will be added to the map by the requestee. Otherwise,
@@ -188,8 +169,13 @@ namespace ocpncy {
 			aggregator_bounds = gmtry2i::aligned_box2i(-gator_corner_disp, (gmtry2i::vector2i(1, 1) << log2_w) + 
 			                                            gator_corner_disp) + tile_origin;
 		}
+		void fill_control() {
+			maps2::tile_nbrhd<log2_w, gradient_tile> nbrhd({}, current_tile);
+			for (int i = 0; i < 9; i++) if (!((*control_tiles)[i]) && nbrhd[i])
+				(*control_tiles)[i] = new gradient_tile(*nbrhd[i]);
+		}
 	public:
-		occupancy_observer(const gmtry2i::vector2i& init_position, maps2::nbrng_tile<req_otile<log2_w>>* init_tile,
+		occupancy_observer(const gmtry2i::vector2i& init_position, maps2::nbrng_tile<gradient_tile>* init_tile,
 		                   const gmtry2i::vector2i& any_tile_origin) {
 			position = init_position;
 			current_tile = init_tile;
@@ -198,6 +184,7 @@ namespace ocpncy {
 			changes_listener = 0;
 			clear_aggregator();
 			update_aggregator_bounds();
+			fill_control();
 		}
 		// Listener is alerted to changes made to occupancy states
 		void set_listener(occmap_monitor<log2_w>* new_listener) {
@@ -225,24 +212,25 @@ namespace ocpncy {
 				if (!current_tile) throw std::exception("Observer fell off the map!");
 				tile_origin = nbr_origin;
 
-				// Backup the shared gradients and delete the ones that are left behind
-				gradient_tile* new_gradients[3][3] = {};
+				// Backup the shared control_tiles and delete the ones that are left behind
+				gradient_tile* new_control[3][3] = {};
 				for (int x = 1; x < 3; x++) for (int y = 1; y < 3; y++) 
 					if (std::abs(x - nbr_nbrhd_coords.x) <= 1 && std::abs(y - nbr_nbrhd_coords.y) <= 1) 
-						new_gradients[y - nbr_nbrhd_coords.y + 1][x - nbr_nbrhd_coords.x + 1] = gradients[y][x];
-					else delete gradients[y][x];
-				// Copy over new gradients
-				for (int i = 0; i < 9; i++) (*gradients)[i] = (*new_gradients)[i];
+						new_control[y - nbr_nbrhd_coords.y + 1][x - nbr_nbrhd_coords.x + 1] = control_tiles[y][x];
+					else delete control_tiles[y][x];
+				// Copy over new control_tiles
+				for (int i = 0; i < 9; i++) (*control_tiles)[i] = (*new_control)[i];
 			}
 			position = new_position;
 			update_aggregator_bounds();
+			fill_control();
 		}
 		/*
 		* Relocates observer to new tile and position
 		* Can be used to move observer to an entirely new map
 		* Use this if observer falls off the map
 		*/
-		void relocate(const gmtry2i::vector2i& new_position, maps2::nbrng_tile<req_otile<log2_w>>* new_tile) {
+		void relocate(const gmtry2i::vector2i& new_position, maps2::nbrng_tile<gradient_tile>* new_tile) {
 			position = new_position;
 			current_tile = new_tile;
 		}
@@ -254,18 +242,20 @@ namespace ocpncy {
 			}
 		}
 		void flush() {
-			maps2::tile_nbrhd<log2_w, req_otile<log2_w>> nbrhd(tile_origin, current_tile);
-			// Defined relative to neighborhood origin
+			maps2::tile_nbrhd<log2_w, gradient_tile> nbrhd(tile_origin, current_tile);
+			// Observer position defined relative to neighborhood origin
 			gmtry2i::vector2i nbrhd_position = position - nbrhd.origin;
 			// Translation from aggregator to neighborhood
 			gmtry2i::vector2i gator_nbrhd_shift = nbrhd.origin - aggregator_bounds.min;
 			// Defined relative to neighborhood origin
-			gmtry2i::aligned_box2i nbrhd_boxes[3][3];
+			gmtry2i::aligned_box2i nbrhd_tile_boxes[3][3];
 			for (int nbrhd_x = 0; nbrhd_x < 3; nbrhd_x++) for (int nbrhd_y = 0; nbrhd_y < 3; nbrhd_y++) {
-				nbrhd_boxes[nbrhd_y][nbrhd_x] = { {nbrhd_x << log2_w, nbrhd_y << log2_w}, 1 << log2_w };
+				if (nbrhd.tiles[nbrhd_y][nbrhd_x]) 
+					nbrhd_tile_boxes[nbrhd_y][nbrhd_x] = { {nbrhd_x << log2_w, nbrhd_y << log2_w}, 1 << log2_w };
 			}
 			// Tracks whether each member of the neighborhood has been modified
 			bool nbrs_modified[3][3] = {};
+			// Saves the position of each observed occupancy relative to neighborhood origin
 			strcts::linked_arraylist<gmtry2i::vector2i> observed_points = 
 				strcts::linked_arraylist<gmtry2i::vector2i>();
 			
@@ -277,30 +267,28 @@ namespace ocpncy {
 					gmtry2i::vector2i mini_origin = (gmtry2i::vector2i(ax, ay) << LOG2_MINIW) + gator_nbrhd_shift;
 					for (int bit_idx = 0; bit_idx < MINI_AREA; bit_idx++) if ((observed_mini >> bit_idx) & 1) {
 						// Position of an occupancy state relative to the neighborhood
-						gmtry2i::vector2i nbrhd_oc_pos(mini_origin + get_bit_offset(bit_idx));
+						gmtry2i::vector2i nbrhd_oc_pos(mini_origin | get_bit_offset(bit_idx));
 						// Save the point in a list so we won't have to go through aggregator and find it again later
 						observed_points.add(nbrhd_oc_pos);
 						gmtry2i::line_segment2i nbrhd_oc_line(nbrhd_position, nbrhd_oc_pos), tile_oc_line;
-						for (int nbrhd_x = 0; nbrhd_x < 3; nbrhd_x++) for (int nbrhd_y = 0; nbrhd_y < 3; nbrhd_y++) {
-							if (gmtry2i::intersects(nbrhd_oc_line, nbrhd_boxes[nbrhd_y][nbrhd_x])) {
-								tile_oc_line = gmtry2i::intersection(nbrhd_oc_line, nbrhd_boxes[nbrhd_y][nbrhd_x]);
-								gmtry2i::vector2i oc_disp(tile_oc_line.b - tile_oc_line.a);
-								float length = std::sqrt(gmtry2i::squared(oc_disp));
-								int length_int = length;
-								float inv_length = 1.0F / length;
-								float norm_x = oc_disp.x * inv_length;
-								float norm_y = oc_disp.y * inv_length;
-								float x = tile_oc_line.a.x + 0.5, y = tile_oc_line.a.y + 0.5;
-								gradient_tile* intersected_tile = gradients[nbrhd_y][nbrhd_x];
+						for (int nbr_x = 0; nbr_x < 3; nbr_x++) for (int nbr_y = 0; nbr_y < 3; nbr_y++) {
+							if (gmtry2i::intersects(nbrhd_oc_line, nbrhd_tile_boxes[nbr_y][nbr_x])) {
+								gradient_tile* intersected_tile = nbrhd(nbr_x, nbr_y);
+								if (!intersected_tile) continue;
+								tile_oc_line = gmtry2i::intersection(nbrhd_oc_line, nbrhd_tile_boxes[nbr_y][nbr_x]);
+								gmtry2i::line_stepper2i stepper(tile_oc_line);
+								const int length_int = stepper.length;
 								for (int t = 0; t <= length_int; t++) {
 									unsigned char& intrsctd_char = intersected_tile->
-										certainties[static_cast<int>(x) - (x < 0) +
-										          ((static_cast<int>(y) - (y < 0)) << log2_w)];
-									if (intrsctd_char) intrsctd_char--;
-									x += norm_x; y += norm_y;
+										certainties[stepper.p.x | (stepper.p.y << log2_w)];
+									if (intrsctd_char && ~intrsctd_char) intrsctd_char--;
+									stepper.step();
 								}
+								unsigned char& intrsctd_char = intersected_tile->
+									certainties[tile_oc_line.b.x | (tile_oc_line.b.y << log2_w)];
+								if (intrsctd_char && ~intrsctd_char) intrsctd_char--;
 							}
-							nbrs_modified[nbrhd_y][nbrhd_x] = true;
+							nbrs_modified[nbr_y][nbr_x] = true;
 						}
 					}
 				}
@@ -311,37 +299,42 @@ namespace ocpncy {
 			int num_observed_points = observed_points.get_length();
 			for (int i = 0; i < num_observed_points; i++) {
 				gmtry2i::vector2i point = observed_points.next();
-				gradients[point.y >> log2_w][point.x >> log2_w]->
-					certainties[(point.x & mask) + ((point.y & mask) << log2_w)] = gradient_tile::MAX_CERTAINTY;
+				gradient_tile* occupied_tile = nbrhd(point.x >> log2_w, point.y >> log2_w);
+				if (occupied_tile) occupied_tile->
+					certainties[(point.x & mask) | ((point.y & mask) << log2_w)] |= gradient_tile::MAX_CERTAINTY;
 			}
 
-			// Step 3: Compile tiles or minis from the gradient_tile certainties and compare them with the map 
-			//         occupancies. Identify and report changed occupancy states, then copy them to the map.
-			
-			// THIS VERSION IS RELATIVELY UN-OPTIMIZED - MAY BE SLOW
-			for (int nbrhd_x = 0; nbrhd_x < 3; nbrhd_x++) for (int nbrhd_y = 0; nbrhd_y < 3; nbrhd_y++) {
-				if (nbrs_modified[nbrhd_y][nbrhd_x]) {
-					otile<log2_w> compiled_tile = *(gradients[nbrhd_y][nbrhd_x]);
-					req_otile<log2_w>* existing_tile = nbrhd.tiles[nbrhd_y][nbrhd_x];
-					otile<log2_w> diff_tile = (compiled_tile - existing_tile->req) ^ 
-					                          (existing_tile->tmp - existing_tile->req);
-					gmtry2i::vector2i tile_origin(nbrhd.origin + (gmtry2i::vector2i(nbrhd_x, nbrhd_y) << log2_w));
-					for (int m_idx = 0; m_idx < get_tile_area_minis(log2_w); m_idx++) if (diff_tile.minis[m_idx]) {
-						omini diff_mini = diff_tile.minis[m_idx];
-						gmtry2i::vector2i mini_origin(tile_origin + get_mini_offset(m_idx, log2_w));
-						for (int bit_idx = 0; bit_idx < MINI_AREA; bit_idx++) {
-							if ((diff_mini >> bit_idx) & 1)
-								changes_listener->write(&(existing_tile->tmp),
-									compress_coords2(mini_origin + get_bit_offset(bit_idx), log2_w));
+			gmtry2i::aligned_box2i nbrhd_gator_bounds(aggregator_bounds + gator_nbrhd_shift);
+
+			// Step 3: Compare occupancies from control_tiles buffer with the map occupancies. 
+			//         Identify and report changed occupancy states, then copy them to the map.
+			for (int nbr_x = 0; nbr_x < 3; nbr_x++) for (int nbr_y = 0; nbr_y < 3; nbr_y++) {
+				if (nbrs_modified[nbr_y][nbr_x] && 
+				    gmtry2i::intersects(nbrhd_tile_boxes[nbr_y][nbr_x], nbrhd_gator_bounds)) {
+					gradient_tile* old_tile = control_tiles[nbr_y][nbr_x];
+					gradient_tile* new_tile = nbrhd(nbr_x, nbr_y);
+					gmtry2i::aligned_box2i tile_gator_box = 
+						gmtry2i::intersection(nbrhd_tile_boxes[nbr_y][nbr_x], nbrhd_gator_bounds) - 
+						nbrhd_tile_boxes[nbr_y][nbr_x].min;
+					for (long y = tile_gator_box.min.y; y < tile_gator_box.max.y; y++) {
+						unsigned int row_start_idx = y << log2_w;
+						for (long x = tile_gator_box.min.x; x < tile_gator_box.max.x; x++) {
+							unsigned int oc_idx = x | row_start_idx;
+							unsigned char& map_occupancy = old_tile->certainties[oc_idx];
+							unsigned char new_occupancy = new_tile->certainties[oc_idx];
+							// only copies over 
+							if (static_cast<bool>(map_occupancy) != static_cast<bool>(new_occupancy)) {
+								map_occupancy = new_occupancy;
+								changes_listener->write(new_tile, oc_idx);
+							}
 						}
 					}
-					existing_tile->tmp = compiled_tile + existing_tile->req;
 				}
 			}
 			clear_aggregator();
 		}
 		~occupancy_observer() {
-			for (int i = 0; i < 9; i++) delete (*gradients)[i];
+			for (int i = 0; i < 9; i++) delete (*control_tiles)[i];
 		}
 	};
 }

@@ -221,23 +221,18 @@ namespace ascii_dsp {
 	}
 
 	ascii_image& operator << (ascii_image& img, const gmtry2i::line_segment2i& l) {
-		gmtry2i::vector2i disp = l.b - l.a;
-		float length = std::sqrt(gmtry2i::dot(disp, disp));
-		int length_int = length;
-		float inv_length = 1.0F / length;
-		float norm_x = disp.x * inv_length;
-		float norm_y = disp.y * inv_length;
-		gmtry2i::vector2i pt_buf[3] = { l.b, l.a, l.a };
-		float x = l.a.x + 0.5F, y = l.a.y + 0.5F;
-		for (int t = 0; t <= length_int; t++) {
-			pt_buf[2] = gmtry2i::vector2i(static_cast<long>(x) - (x < 0), static_cast<long>(y) - (y < 0));
+		gmtry2i::line_stepper2i stepper(l);
+		gmtry2i::vector2i pt_buf[3] = { l.b, l.b, l.a };
+		for (int t = 0; t <= stepper.length; t++) {
+			pt_buf[2] = stepper.p;
 			// Direction displayed is based on average of the two most recent displacements
 			//		This is to make the line slopes both continuous and smooth
 			img << gradient_point(pt_buf[2], pt_buf[2] - pt_buf[0]);
 			pt_buf[0] = pt_buf[1];
 			pt_buf[1] = pt_buf[2];
-			x += norm_x; y += norm_y;
+			stepper.step();
 		}
+		img << gradient_point(l.b, l.b - pt_buf[0]);
 		return img;
 	}
 
