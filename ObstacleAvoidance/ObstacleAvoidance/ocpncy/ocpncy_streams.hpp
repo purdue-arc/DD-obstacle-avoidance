@@ -250,8 +250,8 @@ namespace ocpncy {
 			// Defined relative to neighborhood origin
 			gmtry2i::aligned_box2i nbrhd_tile_boxes[3][3];
 			for (int nbrhd_x = 0; nbrhd_x < 3; nbrhd_x++) for (int nbrhd_y = 0; nbrhd_y < 3; nbrhd_y++) {
-				if (nbrhd.tiles[nbrhd_y][nbrhd_x]) 
-					nbrhd_tile_boxes[nbrhd_y][nbrhd_x] = { {nbrhd_x << log2_w, nbrhd_y << log2_w}, 1 << log2_w };
+				if (nbrhd.tiles[nbrhd_y][nbrhd_x]) nbrhd_tile_boxes[nbrhd_y][nbrhd_x] = 
+					gmtry2i::aligned_box2i(gmtry2i::vector2i(nbrhd_x, nbrhd_y) << log2_w, 1 << log2_w);
 			}
 			// Tracks whether each member of the neighborhood has been modified
 			bool nbrs_modified[3][3] = {};

@@ -562,6 +562,9 @@ namespace maps2 {
 		inline tile* operator ()(int nbr_x, int nbr_y) {
 			return tiles[nbr_y][nbr_x];
 		}
+		inline const tile* operator ()(int nbr_x, int nbr_y) const {
+			return tiles[nbr_y][nbr_x];
+		}
 	};
 
 	/*

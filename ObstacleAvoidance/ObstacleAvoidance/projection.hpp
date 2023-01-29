@@ -100,6 +100,11 @@ namespace prjctn {
 		//virtual measurable_object* clone() const = 0;
 	};
 
+	class collidable_object {
+	public:
+		virtual float get_distance(const gmtry3::ray3& r) const = 0;
+	};
+
 	class measurable_sphere : public measurable_object {
 		gmtry3::vector3 center;
 		float radius;
@@ -116,32 +121,38 @@ namespace prjctn {
 		}
 	};
 
-	class ray_tracer : public ray_collider {
+	class ray_marcher : public ray_collider {
 		const float MIN_DISTANCE = 0.01; // one one-hundredth
 		const float MAX_DISTANCE = 1000; // one million
-		strcts::linked_arraylist<const measurable_object*> objects;
+		strcts::linked_arraylist<const measurable_object*> measurables;
+		strcts::linked_arraylist<const collidable_object*> collidables;
 
-		float get_min_distance(const gmtry3::vector3& p) {
-			objects.reset();
-			int num_objects = objects.get_length();
+		float get_min_distance(const gmtry3::ray3& r) {
+			measurables.reset();
+			int num_objects = measurables.get_length();
 			float min_dst = MAX_DISTANCE;
 			for (int i = 0; i < num_objects; i++) {
-				min_dst = std::min(min_dst, objects.next()->get_distance(p));
+				min_dst = std::min(min_dst, measurables.next()->get_distance(r.p));
+			}
+			collidables.reset();
+			num_objects = collidables.get_length();
+			for (int i = 0; i < num_objects; i++) {
+				min_dst = std::min(min_dst, collidables.next()->get_distance(r));
 			}
 			return min_dst;
 		}
 	public:
-		ray_tracer() : objects() {};
+		ray_marcher() : measurables() {};
 		void add_object(const measurable_object* object) {
-			objects.add(object);
+			measurables.add(object);
 		}
 		gmtry3::vector3 collide(const gmtry3::ray3& r) {
 			gmtry3::vector3 p = r.p;
 			gmtry3::vector3 direction = gmtry3::normalize(r.d);
-			float step_size = get_min_distance(p);
+			float step_size = get_min_distance(r);
 			while (MIN_DISTANCE < step_size && step_size < MAX_DISTANCE) {
 				p += direction * step_size;
-				step_size = get_min_distance(p);
+				step_size = get_min_distance({p, direction});
 			}
 			return p;
 		}

@@ -527,6 +527,14 @@ namespace gmtry2i {
 		return contains(b, l.a) && contains(b, l.b);
 	}
 
+	inline line_segment2i operator +(const line_segment2i& l, const vector2i& v) {
+		return { l.a + v, l.b + v };
+	}
+
+	inline line_segment2i operator -(const line_segment2i& l, const vector2i& v) {
+		return { l.a - v, l.b - v };
+	}
+
 	bool intersects(const line_segment2i& l1, const line_segment2i& l2) {
 		vector2i disp1 = l1.b - l1.a; // from l1.a to l1.b
 		vector2i disp2 = l2.b - l2.a; // from l2.a to l2.b

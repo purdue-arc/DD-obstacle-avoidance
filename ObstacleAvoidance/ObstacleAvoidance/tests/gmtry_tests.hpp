@@ -251,7 +251,7 @@ namespace gmtry_tests {
 
 	// Projects a generated environment to the camera, then deprojects it back out into the map
 	int projection_test2() {
-		prjctn::ray_tracer tracer;
+		prjctn::ray_marcher tracer;
 		prjctn::measurable_sphere a({ 0, 10, 0 }, 3), b({ 5, 20, 5 }, 9);
 		tracer.add_object(&a);
 		tracer.add_object(&b);

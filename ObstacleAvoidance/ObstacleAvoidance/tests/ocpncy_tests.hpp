@@ -3,6 +3,7 @@
 #define DEBUG
 #include "ocpncy/ocpncy_streams.hpp"
 #include "ocpncy/ocpncy_display.hpp"
+#include "projection.hpp"
 
 #ifndef OUTPUT_FILEPATH 
 #	define OUTPUT_FILEPATH (std::string(""))
@@ -316,6 +317,48 @@ namespace oc_tests {
 
 		delete tiles_out;
 	}
+
+	template <unsigned int log2_w>
+	class traceable_onbrhd : public prjctn::collidable_object {
+		const float MAX_DISTANCE = 1000;
+
+		maps2::tile_nbrhd<log2_w, ocpncy::gradient_otile<log2_w>> nbrhd;
+		gmtry2i::aligned_box2i boxes[3][3];
+	public:
+		void set_tile(maps2::nbrng_tile<ocpncy::gradient_otile<log2_w>>* tile, const gmtry2i::vector2i& origin) {
+			nbrhd = maps2::tile_nbrhd<log2_w, ocpncy::gradient_otile<log2_w>>(origin, tile);
+			for (int nbrhd_x = 0; nbrhd_x < 3; nbrhd_x++) for (int nbrhd_y = 0; nbrhd_y < 3; nbrhd_y++) {
+				if (nbrhd(nbrhd_x, nbrhd_y)) boxes[nbrhd_y][nbrhd_x] = 
+					gmtry2i::aligned_box2i(nbrhd.origin + (gmtry2i::vector2i(nbrhd_x, nbrhd_y) << log2_w), 1 << log2_w);
+			}
+		}
+		traceable_onbrhd(maps2::nbrng_tile<ocpncy::gradient_otile<log2_w>>* tile, const gmtry2i::vector2i& origin) {
+			set_tile(tile, origin);
+		}
+		float get_distance(const gmtry3::ray3& r) const {
+			gmtry2i::line_segment2i l({ r.p.x, r.p.y }, {});
+			float disp_scale = MAX_DISTANCE / std::sqrt(r.d.x * r.d.x + r.d.y * r.d.y);
+			l.b = l.a + gmtry2i::vector2i(r.d.x * disp_scale, r.d.y * disp_scale);
+			const float step_size = 0.125F;
+
+			float min_dst = MAX_DISTANCE;
+			for (int nbrhd_x = 0; nbrhd_x < 3; nbrhd_x++) for (int nbrhd_y = 0; nbrhd_y < 3; nbrhd_y++) {
+				if (gmtry2i::intersects(l, boxes[nbrhd_y][nbrhd_x])) {
+					gmtry2i::line_stepper2i stepper(gmtry2i::intersection(l, boxes[nbrhd_y][nbrhd_x]) - 
+					                                boxes[nbrhd_y][nbrhd_x].min, step_size);
+					const ocpncy::gradient_otile<log2_w>* intrsctd_tile = nbrhd(nbrhd_x, nbrhd_y);
+					float dst_to_occupancy = MAX_DISTANCE;
+					for (int t = 0; t < stepper.waypoints; t++) {
+						if (ocpncy::get_occ(stepper.p.x, stepper.p.y, *intrsctd_tile)) break;
+						dst_to_occupancy += step_size;
+						stepper.step();
+					}
+					min_dst = std::min(min_dst, dst_to_occupancy);
+				}
+			}
+			return min_dst;
+		}
+	};
 
 	void prep_tests_0to7() {
 		std::string filename = OUTPUT_FILEPATH + "mymap";
