@@ -2,6 +2,7 @@
 
 #include "ascii_display.hpp"
 #include "projection.hpp"
+#include "benchmark.hpp"
 
 namespace gmtry_tests {
 	const float PI = 3.14159265F;
@@ -62,10 +63,15 @@ namespace gmtry_tests {
 			gmtry2i::aligned_box2i rect(random_rectangle(img_bounds));
 			gmtry2i::vector2i a(random_vector(img_bounds)), b(random_vector(img_bounds));
 			gmtry2i::line_segment2i ab(a, b), ab_int;
-			bool they_intersect = gmtry2i::intersects(ab, rect);
+			gmtry2::line_segment2 abf(ab), abf_int;
+			bool no_intersection = false;
+			abf_int = gmtry2i::intersection(abf, rect, &no_intersection);
+			bool they_intersect;
+			//they_intersect = gmtry2i::intersects(ab, rect);
+			they_intersect = !no_intersection;
 			if (they_intersect) {
-				ab_int = gmtry2i::intersection(ab, rect);
-				img << ab_int;
+				//ab_int = gmtry2i::intersection(ab, rect);
+				img << abf_int;
 			}
 			else img << ab;
 			img << ascii_dsp::named_point(a, 'a') << ascii_dsp::named_point(b, 'b');
@@ -152,15 +158,17 @@ namespace gmtry_tests {
 	}
 
 	// Tests line-point intersections
-	int geometry_test8() { // Shows line-point intersection has 99.44% accuracy
-		const int num_lines = 50, tests_per_line = 20;
+	int geometry_test8() { // Line-point intersection has maximum 99.44% accuracy
+		const int num_lines = 100, tests_per_line = 20;
 		int num_differences = 0;
 		double num_tests = 0, num_correct = 0;
 		gmtry2i::aligned_box2i img_bounds({ 0, 0 }, 16);
+		bnchmk::stopwatch timer;
 		for (int i = 0; i < num_lines; i++) {
 			//ascii_dsp::ascii_image img(img_bounds);
 			gmtry2i::vector2i a(random_vector(img_bounds)), b(random_vector(img_bounds));
 			gmtry2i::line_segment2i ab(a, b);
+			gmtry2::line_segment2 abf(ab);
 			//img << ab;
 
 			for (int j = 0; j < tests_per_line; j++) {
@@ -179,11 +187,16 @@ namespace gmtry_tests {
 				if (stepper.p == p) intersects = true;
 
 				num_tests++;
-				if (intersects == gmtry2i::intersects(ab, p)) num_correct++;
+				timer.start();
+				bool should_intersect = gmtry2i::intersects(abf, gmtry2i::boundsof(p)); // 99.4%, 4.19ms
+				//bool should_intersect = gmtry2i::intersects(ab, p); // 99.15%, 1.996ms
+				if (intersects == should_intersect) num_correct++;
 				//else img << ascii_dsp::named_point(p, intersects ? '@' : 'o');
+				timer.pause();
 			}
 			std::cout << "Tested " << i << "/" << num_lines << " lines" << std::endl;
-			std::cout << "Accuracy: " << 100 * (num_correct / num_tests) << "%" << std::endl;
+			std::cout << "Accuracy: " << 100 * (num_correct / (num_tests)) << "%" << std::endl;
+			std::cout << "Intersection latency: " << (timer.read_micro() / num_tests) << " micro sec" << std::endl;
 		}
 		return 0;
 	}

@@ -142,6 +142,7 @@
     <ClInclude Include="dstar.hpp" />
     <ClInclude Include="maps2\maps2_display.hpp" />
     <ClInclude Include="ocpncy\ocpncy_display.hpp" />
+    <ClInclude Include="tests\benchmark.hpp" />
     <ClInclude Include="util\data_structs.hpp" />
     <ClInclude Include="geometry.hpp" />
     <ClInclude Include="ascii_display.hpp" />

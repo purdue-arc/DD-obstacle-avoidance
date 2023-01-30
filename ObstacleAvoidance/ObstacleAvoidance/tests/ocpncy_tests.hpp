@@ -320,7 +320,7 @@ namespace oc_tests {
 
 	template <unsigned int log2_w>
 	class traceable_onbrhd : public prjctn::collidable_object {
-		const float MAX_DISTANCE = 1000;
+		const float MAX_DISTANCE = 100;
 
 		maps2::tile_nbrhd<log2_w, ocpncy::gradient_otile<log2_w>> nbrhd;
 		gmtry2i::aligned_box2i boxes[3][3];
@@ -336,16 +336,16 @@ namespace oc_tests {
 			set_tile(tile, origin);
 		}
 		float get_distance(const gmtry3::ray3& r) const {
-			gmtry2i::line_segment2i l({ r.p.x, r.p.y }, {});
-			float disp_scale = MAX_DISTANCE / std::sqrt(r.d.x * r.d.x + r.d.y * r.d.y);
-			l.b = l.a + gmtry2i::vector2i(r.d.x * disp_scale, r.d.y * disp_scale);
-			const float step_size = 0.125F;
+			gmtry2::line_segment2 l({ r.p.x, r.p.y }, {});
+			l.b = l.a + gmtry2::normalize(gmtry2::vector2(r.d.x, r.d.y)) * MAX_DISTANCE;
+			const float step_size = 0.125;
 
 			float min_dst = MAX_DISTANCE;
 			for (int nbrhd_x = 0; nbrhd_x < 3; nbrhd_x++) for (int nbrhd_y = 0; nbrhd_y < 3; nbrhd_y++) {
-				if (gmtry2i::intersects(l, boxes[nbrhd_y][nbrhd_x])) {
-					gmtry2i::line_stepper2i stepper(gmtry2i::intersection(l, boxes[nbrhd_y][nbrhd_x]) - 
-					                                boxes[nbrhd_y][nbrhd_x].min, step_size);
+				bool no_intersection = false;
+				gmtry2i::line_stepper2i stepper(gmtry2i::intersection(l, boxes[nbrhd_y][nbrhd_x], &no_intersection) -
+				                                boxes[nbrhd_y][nbrhd_x].min, step_size);
+				if (!no_intersection) {
 					const ocpncy::gradient_otile<log2_w>* intrsctd_tile = nbrhd(nbrhd_x, nbrhd_y);
 					float dst_to_occupancy = MAX_DISTANCE;
 					for (int t = 0; t < stepper.waypoints; t++) {
@@ -359,6 +359,10 @@ namespace oc_tests {
 			return min_dst;
 		}
 	};
+
+	int occupancy_test8() {
+
+	}
 
 	void prep_tests_0to7() {
 		std::string filename = OUTPUT_FILEPATH + "mymap";

@@ -289,6 +289,134 @@ namespace gmtry3 {
 	};
 }
 
+namespace gmtry2 {
+	const float EPSILON = 0.00001; // one hundred-thousandth
+
+	struct vector2 {
+		float x, y;
+		vector2() = default;
+		vector2(float i, float j) {
+			x = i;
+			y = j;
+		}
+		float& operator [](int i) {
+			return (&x)[i];
+		}
+		const float& operator [](int i) const {
+			return (&x)[i];
+		}
+		void operator +=(const vector2& v) {
+			x += v.x;
+			y += v.y;
+		}
+		void operator -=(const vector2& v) {
+			x -= v.x;
+			y -= v.y;
+		}
+	};
+
+	inline vector2 operator +(const vector2& a, const vector2& b) {
+		return vector2(a.x + b.x, a.y + b.y);
+	}
+
+	inline vector2 operator -(const vector2& a, const vector2& b) {
+		return vector2(a.x - b.x, a.y - b.y);
+	}
+
+	inline vector2 operator -(const vector2& v) {
+		return vector2(-v.x, -v.y);
+	}
+
+	inline vector2 operator *(const vector2& v, float s) {
+		return vector2(v.x * s, v.y * s);
+	}
+
+	inline vector2 operator /(const vector2& v, float s) {
+		return v * (1.0F / s);
+	}
+
+	inline float magnitude(const vector2& v) {
+		return std::sqrt(v.x * v.x + v.y * v.y);
+	}
+
+	inline vector2 normalize(const vector2& v) {
+		return v / magnitude(v);
+	}
+
+	inline float dot(const vector2& a, const vector2& b) {
+		return a.x * b.x + a.y * b.y;
+	}
+
+	inline float wedge(const vector2& a, const vector2& b) {
+		return a.x * b.y - a.y * b.x;
+	}
+
+	inline float squared(const vector2& v) {
+		return dot(v, v);
+	}
+
+	struct line_segment2 {
+		vector2 a, b;
+		line_segment2() = default;
+		line_segment2(const vector2& pointA, const vector2& pointB) {
+			a = pointA;
+			b = pointB;
+		}
+	};
+
+	bool intersects(const line_segment2& l1, const line_segment2& l2) {
+		vector2 disp1 = l1.b - l1.a; // from l1.a to l1.b
+		vector2 disp2 = l2.b - l2.a; // from l2.a to l2.b
+		vector2 adisp = l1.a - l2.a; // from l2.a to l1.a
+		float wedge1 = wedge(disp2, adisp);
+		float wedge2 = wedge(disp1, adisp);
+		float wedge3 = wedge(disp2, disp1);
+		// test for parallelity
+		if (abs(wedge3) < gmtry2::EPSILON) return false;
+		// see intersection(line_segment2, line_segment2) for first half of following derivation
+		// if t >= 0 and abs(t) <= 1, then l1 and l2 intersect
+		//		[ t >= 0 ] = XOR(wedge(disp2, adisp) < 0, wedge(disp2, disp1) < 0)
+		//		[ abs(t) <= 1 ] = [ abs(wedge(disp2, adisp)) / abs(wedge(disp2, disp1)) <= 1 ]
+		//						= [ abs(wedge(disp2, adisp)) <= abs(wedge(disp2, disp1)) ]
+		return ((wedge1 < 0) != (wedge3 < 0)) && ((wedge2 < 0) != (wedge3 < 0)) &&
+		       (abs(wedge1) <= abs(wedge3))   && (abs(wedge2) <= abs(wedge3));
+	}
+
+	// result invalid if l1 and l2 do not intersect
+	vector2 intersection(const line_segment2& l1, const line_segment2& l2) {
+		vector2 disp1 = l1.b - l1.a; // from l1.a to l1.b
+		vector2 disp2 = l2.b - l2.a; // from l2.a to l2.b
+		vector2 adisp = l1.a - l2.a; // from l2.a to l1.a
+		// wedge(disp2, adisp + t*disp1) = 0
+		// = wedge(disp2, adisp) + t*wedge(disp2, disp1)
+		// t = - wedge(disp2, adisp) / wedge(disp2, disp1)
+		return l1.a - disp1 * (wedge(disp2, adisp) / wedge(disp2, disp1));
+	}
+
+	struct line_stepper2 {
+		vector2 step_p, p;
+		unsigned int waypoints;
+		line_stepper2(const line_segment2& l, float step_size) {
+			vector2 disp = l.b - l.a;
+			float lengthf = std::sqrt(squared(disp));
+			waypoints = (lengthf / step_size) + 1;
+			step_p = disp * (step_size / lengthf);
+			p = l.a;
+		}
+		inline void step() {
+			p += step_p;
+		}
+	};
+
+	inline line_segment2 operator +(const line_segment2& l, const vector2& v) {
+		return { l.a + v, l.b + v };
+	}
+
+	inline line_segment2 operator -(const line_segment2& l, const vector2& v) {
+		return { l.a - v, l.b - v };
+	}
+}
+
 // 2D integer geometry
 namespace gmtry2i {
 	inline long floor(float f) {
@@ -308,19 +436,30 @@ namespace gmtry2i {
 			x = i;
 			y = j;
 		}
+		vector2i(const gmtry2::vector2& p) {
+			x = floor(p.x);
+			y = floor(p.y);
+		}
 		inline long& operator [](int i) {
 			return (&x)[i];
 		}
 		inline const long& operator [](int i) const {
 			return (&x)[i];
 		}
-		void operator +=(const vector2i& v) {
+		vector2i& operator +=(const vector2i& v) {
 			x += v.x;
 			y += v.y;
+			return *this;
 		}
-		void operator -=(const vector2i& v) {
+		vector2i& operator -=(const vector2i& v) {
 			x -= v.x;
 			y -= v.y;
+			return *this;
+		}
+		vector2i& operator =(const gmtry2::vector2& p) {
+			x = floor(p.x);
+			y = floor(p.y);
+			return *this;
 		}
 	};
 
@@ -399,6 +538,14 @@ namespace gmtry2i {
 
 	std::string to_string(const vector2i& v) {
 		return std::to_string(v.x) + std::string(", ") + std::to_string(v.y);
+	}
+
+	gmtry2::vector2 to_vector2(const vector2i& v) {
+		return gmtry2::vector2(v.x, v.y);
+	}
+
+	gmtry2::vector2 to_point2(const vector2i& p) {
+		return { p.x + 0.5F, p.y + 0.5F };
 	}
 
 	class point2_ostream {
@@ -506,6 +653,59 @@ namespace gmtry2i {
 		else return aligned_box2i();
 	}
 
+	inline bool intersects(const gmtry2::line_segment2 l, const aligned_box2i& box) {
+		// test if box contains either endpoint
+		if (contains(box, l.a) || contains(box, l.b)) return true;
+		gmtry2::vector2 disp = l.b - l.a;
+		const gmtry2::vector2 epsilon_disp(gmtry2::EPSILON, gmtry2::EPSILON);
+		// Inclusive extrema of box
+		gmtry2::vector2 box_pts[2] = { to_vector2(box.min) + epsilon_disp, to_vector2(box.max) - epsilon_disp };
+		for (int dim = 0; dim < 2; dim++) if (abs(disp[dim]) > gmtry2::EPSILON)
+			for (int extrema = 0; extrema < 2; extrema++) {
+				// a[dim] + t*disp[dim] = box[extrema][dim]
+				// t = (box[extrema][dim] - a[dim]) / disp[dim]
+				// if 0 <= t <= 1 then they intersect
+				float value1 = box_pts[extrema][dim] - l.a[dim];
+				float value2 = disp[dim];
+				// if t is not negative AND t is less than 1
+				if (((value1 < 0) == (value2 < 0)) && (abs(value1) <= abs(value2))) {
+					int other_dim = 1 & ~dim;
+					float other_intersection = l.a[other_dim] + disp[other_dim] * (value1 / value2);
+					if (box.min[other_dim] <= other_intersection && other_intersection < box.max[other_dim])
+						return true;
+				}
+			}
+		return false;
+	}
+
+	gmtry2::line_segment2 intersection(const gmtry2::line_segment2 l, const aligned_box2i& box, 
+	                                   bool* no_intersection) {
+		// new points will either be intersections with box edges or existing endpoints contained in the box
+		gmtry2::vector2 new_pts[2];
+		int pt_idx = 0;
+		if (contains(box, l.a)) new_pts[pt_idx++] = l.a;
+		if (contains(box, l.b)) new_pts[pt_idx++] = l.b;
+		if (pt_idx > 1) return { new_pts[0], new_pts[1] };
+		gmtry2::vector2 disp = l.b - l.a;
+		const gmtry2::vector2 epsilon_disp(gmtry2::EPSILON, gmtry2::EPSILON);
+		// Inclusive extrema of box
+		gmtry2::vector2 box_pts[2] = { to_vector2(box.min) + epsilon_disp, to_vector2(box.max) - epsilon_disp };
+		for (int dim = 0; dim < 2; dim++) if (abs(disp[dim]) > gmtry2::EPSILON) {
+			float value2 = disp[dim];
+			for (int extrema = 0; extrema < 2; extrema++) {
+				// explanation for the following is in intersects(line_segment2i, aligned_box2i)
+				float value1 = box_pts[extrema][dim] - l.a[dim];
+				if (((value1 < 0) == (value2 < 0)) && (abs(value1) <= abs(value2))) {
+					gmtry2::vector2 intersection = l.a + disp * (value1 / value2);
+					if (contains(box, intersection)) new_pts[pt_idx++] = intersection;
+					if (pt_idx > 1) return { new_pts[0], new_pts[1] };
+				}
+			}
+		}
+		if (no_intersection) *no_intersection = true;
+		return {};
+	}
+
 	std::string to_string(const aligned_box2i& b) {
 		return to_string(b.min) + std::string("; ") + to_string(b.max);
 	}
@@ -516,6 +716,13 @@ namespace gmtry2i {
 		line_segment2i(const vector2i& point_A, const vector2i& point_B) {
 			a = point_A;
 			b = point_B;
+		}
+		line_segment2i(const gmtry2::line_segment2& l) {
+			a = l.a;
+			b = l.b;
+		}
+		operator gmtry2::line_segment2() const {
+			return { to_point2(a), to_point2(b) };
 		}
 	};
 
@@ -581,7 +788,7 @@ namespace gmtry2i {
 				if (((value1 < 0) == (value2 < 0)) && (abs(value1) <= abs(value2))) {
 					int other_dim = 1 & ~dim;
 					long other_intersection = l.a[other_dim] + floor(0.5F + 
-					                          disp[other_dim] * (static_cast<float>(value1) / value2));
+					                          disp[other_dim] * (value1 / value2));
 					if (box.min[other_dim] <= other_intersection && other_intersection < box.max[other_dim])
 						return true;
 				}

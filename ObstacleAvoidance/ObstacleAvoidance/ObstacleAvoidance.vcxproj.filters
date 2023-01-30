@@ -94,6 +94,9 @@
     <ClInclude Include="projection.hpp">
       <Filter>Source Files\util</Filter>
     </ClInclude>
+    <ClInclude Include="tests\benchmark.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Image Include="resources\photo.jpg">

@@ -223,9 +223,9 @@ namespace ascii_dsp {
 		return img << named_rect(box, 0, '@');
 	}
 
-	ascii_image& operator << (ascii_image& img, const gmtry2i::line_segment2i& l) {
-		gmtry2i::line_stepper2i stepper(l, 1.0F);
-		gmtry2i::vector2i pt_buf[3] = { l.b, l.b, l.a };
+	ascii_image& operator << (ascii_image& img, const gmtry2::line_segment2& l) {
+		gmtry2::line_stepper2 stepper(l, 1.0F);
+		gmtry2::vector2 pt_buf[3] = { l.b, l.b, l.a };
 		for (int t = 0; t < stepper.waypoints; t++) {
 			pt_buf[2] = stepper.p;
 			// Direction displayed is based on average of the two most recent displacements
