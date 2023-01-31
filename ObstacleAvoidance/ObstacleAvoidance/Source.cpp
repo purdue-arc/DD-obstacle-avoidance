@@ -33,10 +33,12 @@ int main()try {
 	*/
 
 	gmtry_tests::projection_test2();
-
+	gmtry_tests::geometry_test8();
+	test_AStar("solved_maze.pbm", false, "input.pbm", true, "input.pbm", 10, 10, .9);
+	test_AStar("solved_maze.pbm", false, "input.pbm", true, "input.pbm", 10, 10, .9);
 	return 0;
-}
 catch (const std::exception& e) {
 	std::cerr << e.what() << std::endl;
+	std::cerr << "RealSense error calling " << e.get_failed_function() << "(" << e.get_failed_args() << "):\n    " << e.what() << std::endl;
 	return EXIT_FAILURE;
 }
