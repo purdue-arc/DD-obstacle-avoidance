@@ -1,9 +1,7 @@
 // header file
 #include "header.hh"
-
-// other files
-#include "utils.cpp"
 #include "occupancy_tests.hpp"
+
 
 //No idea what the output represents
 inline rs2_quaternion quaternion_exp(rs2_vector v)
@@ -41,7 +39,7 @@ rs2_pose predict_pose(rs2_pose& pose, float dt_s)
 	P.rotation = quaternion_multiply(quaternion_exp(W), pose.rotation);
 	return P;
 }
-
+/*
 int realsense_test0() {
 	std::string serial;
 	if (!device_with_streams({ RS2_STREAM_POSE }, serial))
@@ -92,9 +90,10 @@ int realsense_test0() {
 
 	return 0;
 }
+*/
 
 // Main
-int main()try {
+int main() try {
 	// return realsense_test0();
 	/*
 	occupancy_test0();
@@ -103,10 +102,13 @@ int main()try {
 
 	return template_inheritance_test();
 	return geometry_test0();
-	*/
+	
 	occupancy_test3();
 	occupancy_test5();
-	return occupancy_test7();
+	return occupancy_test7();*/
+
+	test_AStar("solved_maze.pbm", false, NULL, false, NULL, 100, 100);
+	return 0;
 }
 catch (const rs2::error& e)
 {
