@@ -1,6 +1,17 @@
-// header file
+// Includes
 #include "header.hh"
-#include "occupancy_tests.hpp"
+
+// Other files
+// #include "tests/ocpncy_tests.hpp"
+// #include "tests/rs_tests.hpp"
+// #include "tests/misc_tests.hpp"
+// #include "tests/gmtry_tests.hpp"
+// #include "occupancy_tests.hpp"
+
+
+// Defines
+// #define OUTPUT_FILEPATH (std::string("resources/output/"))
+// #define RESOURCES_FILEPATH (std::string("resources/"))
 
 
 //No idea what the output represents
@@ -39,8 +50,9 @@ rs2_pose predict_pose(rs2_pose& pose, float dt_s)
 	P.rotation = quaternion_multiply(quaternion_exp(W), pose.rotation);
 	return P;
 }
-/*
-int realsense_test0() {
+
+
+/* int realsense_test0() {
 	std::string serial;
 	if (!device_with_streams({ RS2_STREAM_POSE }, serial))
 		return EXIT_SUCCESS;
@@ -89,8 +101,8 @@ int realsense_test0() {
 	waitKey(0);
 
 	return 0;
-}
-*/
+} */
+
 
 // Main
 int main() try {
@@ -110,13 +122,7 @@ int main() try {
 	test_AStar("solved_maze.pbm", false, NULL, false, NULL, 100, 100);
 	return 0;
 }
-catch (const rs2::error& e)
-{
+catch (const rs2::error& e) {
 	std::cerr << "RealSense error calling " << e.get_failed_function() << "(" << e.get_failed_args() << "):\n    " << e.what() << std::endl;
-	return EXIT_FAILURE;
-}
-catch (const std::exception& e)
-{
-	std::cerr << e.what() << std::endl;
 	return EXIT_FAILURE;
 }
