@@ -2,6 +2,7 @@
 
 #include "geometry.hpp"
 
+// Handles simple geometric projection/deprojection between a virtual world and depth matrices
 namespace prjctn {
 	/*
 	* Holds information about a camera, which can be used to project virtual geometry into the camera
@@ -40,6 +41,7 @@ namespace prjctn {
 		virtual gmtry3::vector3 collide(const gmtry3::ray3& ray) = 0;
 	};
 
+	// Generates a depth matrix by sending a ray out through each pixel and colliding it with the virtual world
 	void project(float* depths, cam_info config, ray_collider* collider) {
 		const float img_scale = config.tan_fov / (MAX(config.width, config.height));
 		const float pxl_shiftx = -0.5F * config.width + 0.5F;
@@ -51,7 +53,7 @@ namespace prjctn {
 		}
 	}
 
-	// 2D deprojection
+	// Deprojects each depth from a depth matrix into a 2D point
 	void deproject(const float* depths, cam_info config, gmtry2i::point2_ostream* points_ostream) {
 		gmtry3::vector3 cam_space_point;
 		gmtry2i::vector2i projected_point;
@@ -75,7 +77,7 @@ namespace prjctn {
 		}
 	}
 
-	// 3D deprojection
+	// Deprojects each depth from a depth matrix into a 3D point
 	void deproject(const float* depths, cam_info config, gmtry3::point3_ostream* points_ostream) {
 		gmtry3::vector3 cam_space_point;
 		float pt_scale;
@@ -92,7 +94,7 @@ namespace prjctn {
 	}
 
 	////////////////////////////////////////////////////////////////////////////////////////////////////
-	//    IMPLEMENTATIONS                                                                             //
+	//    PROJECTION IMPLEMENTATIONS                                                                  //
 	////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	class measurable_object {

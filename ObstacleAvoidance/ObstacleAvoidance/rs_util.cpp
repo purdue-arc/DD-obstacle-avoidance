@@ -1,28 +1,11 @@
+#pragma once
+
 // header file
 #include "header.hh"
 
 
-// Compare function determines which node is a better choice to expand upon
-bool nodeCompare(const node_t* n1, const node_t* n2) {
-    if ((n1->heuristic + n1->cost) > (n2->heuristic + n2->cost)) {
-        return true;
-    }
-    return false;
-}
-
-// Checks if file exists
-inline bool file_exists(const char *name) {
-    if (FILE* file = fopen(name, "r")) {
-        fclose(file);
-        return true;
-    }
-    else {
-        return false;
-    }
-}
-
 // checks if given stream is supported
-/*bool device_with_streams(std::vector <rs2_stream> stream_requests, std::string& out_serial) {
+bool device_with_streams(std::vector <rs2_stream> stream_requests, std::string& out_serial) {
     context current_context;
     auto devices = current_context.query_devices();
     vector <rs2_stream> unavailable_streams = stream_requests;
@@ -55,4 +38,4 @@ inline bool file_exists(const char *name) {
 Mat frame_to_mat(frame frame) {
     Mat color_image(Size(WIDTH, HEIGHT), CV_8UC3, (void*)frame.get_data(), Mat::AUTO_STEP);
     return color_image;
-}*/
+}

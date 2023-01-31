@@ -30,10 +30,10 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="source.cpp">
+    <ClCompile Include="Source.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="util.cpp">
+    <ClCompile Include="rs_util.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="a_star.cpp">
@@ -42,9 +42,7 @@
     <ClCompile Include="random_maze_generator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="path_planning_testing.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
+    <ClCompile Include="path_planning_testing.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="realsense2.dll">
@@ -97,17 +95,17 @@
     <ClInclude Include="ocpncy\ocpncy_display.hpp">
       <Filter>Source Files\ocpncy_maps</Filter>
     </ClInclude>
-    <ClInclude Include="ascii_display.hpp">
+    <ClInclude Include="util\ascii_display.hpp">
       <Filter>Source Files\util</Filter>
     </ClInclude>
-    <ClInclude Include="geometry.hpp">
+    <ClInclude Include="util\geometry.hpp">
       <Filter>Source Files\util</Filter>
     </ClInclude>
-    <ClInclude Include="projection.hpp">
+    <ClInclude Include="util\projection.hpp">
       <Filter>Source Files\util</Filter>
     </ClInclude>
     <ClInclude Include="tests\benchmark.hpp">
-      <Filter>Header Files</Filter>
+      <Filter>Source Files\util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

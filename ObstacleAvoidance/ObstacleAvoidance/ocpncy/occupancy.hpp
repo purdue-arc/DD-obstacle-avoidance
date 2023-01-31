@@ -1,13 +1,24 @@
 #pragma once
 
-#include "geometry.hpp"
+#include "util/geometry.hpp"
 
 #include <stdint.h>
 
+/*
+* Describes different types of occupancy tiles and operations/functions for manipulating and accessing them.
+* An occupancy tile is a square of occupancy states, with width w = 2 ^ log2(w), where log2(w) is a natural number.
+* An occupancy state is a value that tells whether a small square region is occupied, and may also store the certainty
+* with which it is believed to be occupied.
+*/
 namespace ocpncy {
+	// MINI: 8x8 tile of binary occupancy states; used to build bigger binary tiles
+	// log2(mini width)
 	const unsigned int LOG2_MINIW = 3;
+	// width of an mini
 	const unsigned int MINI_WIDTH = 1 << LOG2_MINIW;
+	// area of an mini
 	const unsigned int MINI_AREA = 1 << (2 * LOG2_MINIW);
+	// mask to apply to the index of a state to return a coordinate of the state relative to the mini
 	const unsigned int MINI_COORD_MASK = MINI_WIDTH - 1;
 
 	// WxW square of occupancy states (W = width of a mini = 2 ^ LOG2_MINIW)
@@ -37,12 +48,12 @@ namespace ocpncy {
 	}
 
 	template <typename T>
-	concept observable_otile = requires (unsigned int x, unsigned int y, T tile, bool b) {
-		b = get_occ(x, y, T);
+	concept observable_otile = requires (unsigned int x, unsigned int y, const T& tile, bool b) {
+		b = get_occ(x, y, tile);
 	};
 
 	/*
-	* A square tile of occupancy states (represented as individual bits) with a width of 2 ^ n 
+	* Tile of binary occupancy states (represented as individual bits) with a width of 2 ^ n 
 		(this is so the tile can be evenly cut in half all the way down to the bit level, 
 		which makes certain opertions faster)
 	* log2_w: base-2 logarithm of tile width; tile width = w = 2 ^ log2_w = 1 << log2_w
@@ -146,7 +157,11 @@ namespace ocpncy {
 		otile<log2_w> req;
 	};
 
-	// Tile with gradient occupancies ranging in certainty. May represent a normal otile or a separated_otile
+	/*
+	* Tile with gradient occupancies ranging in certainty.
+	* States that cannot be unoccupied have a certainty of 255;
+	* Normal modifiable states have certainty less than or equal to gradient_otile::MAX_CERTAINTY.
+	*/
 	template <unsigned int log2_w>
 	struct gradient_otile {
 		// Maximum certainty for a temporary occupancy; equal to some positive 2^n - 1
@@ -191,7 +206,7 @@ namespace ocpncy {
 		return t.certainties[x | (y << log2_w)];
 	}
 
-	// 3D bit-tile formed by layers of 2D bit-tiles
+	// 3D tile of binary occupancy states formed by layers of 2D binary occupancy tiles
 	template <unsigned int log2_w, unsigned int num_layers>
 	struct otile3 {
 		otile<log2_w> layers[num_layers];

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "geometry.hpp"
+#include "util/geometry.hpp"
 
 #include <iostream>
 
@@ -26,6 +26,11 @@
 *		be added or supplemented. Information cannot be forgotten from a map.
 */
 namespace maps2 {
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////
+	//    TILES & TILE ALIGNMENT                                                                      //
+	////////////////////////////////////////////////////////////////////////////////////////////////////
+
 	// Tiles that can be inclusively combined, removed from each other, or totally overwritten
 	template <typename T>
 	concept spatial_tile = requires (T a, T b) {
@@ -76,6 +81,10 @@ namespace maps2 {
 		return gmtry2i::aligned_box2i(align_down(b.min, any_tile_origin, log2_w), 
 									  align_up(b.max, any_tile_origin, log2_w));
 	}
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////
+	//    REGIONS AND TILE STREAMS                                                                    //
+	////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	// Tile-aligned region bounded by an aligned_box2i
 	class bounded_region {
@@ -189,6 +198,10 @@ namespace maps2 {
 	// Stream for reading and writing tiles to/from a map
 	template <typename tile>
 	class map_iostream : public map_istream<tile>, public map_ostream<tile> {};
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////
+	//    SPACIAL TREES                                                                               //
+	////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	// tree used to represent a square region of space whose width is 2^n for some positive integer n
 	template <typename T>
@@ -324,7 +337,7 @@ namespace maps2 {
 	/*
 	* Walks through the bottom layer (depth = 0) of a tree, returning each tile found along the way
 	* Returns 0 when all tiles have been read; can be reset to start from the first tile again
-	* Makes no assumptions about how the branches of an item/tree are accessed 
+	* Makes no assumptions about how the branches of an item/tree are formatted and accessed 
 	*	(default implementation, which may be overridden, assumes items are standard mixed_trees)
 	*/
 	template <unsigned int log2_w, typename tile, gmtry2i::intersectable2i limiter_type = gmtry2i::aligned_box2i>
@@ -501,6 +514,10 @@ namespace maps2 {
 		}
 		return next_item;
 	}
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////
+	//    NEIGHBORING TILES                                                                           //
+	////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	// Tile that can be traversed to its adjacent and diagonal neighbors
 	template <typename base_tile>

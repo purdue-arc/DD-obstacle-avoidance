@@ -1,6 +1,27 @@
+#pragma once
+
 // Includes
 #include "header.hh";
 
+
+// Compare function determines which node is a better choice to expand upon
+bool nodeCompare(const node_t* n1, const node_t* n2) {
+	if ((n1->heuristic + n1->cost) > (n2->heuristic + n2->cost)) {
+		return true;
+	}
+	return false;
+}
+
+// Checks if file exists
+inline bool file_exists(const char* name) {
+	if (FILE* file = fopen(name, "r")) {
+		fclose(file);
+		return true;
+	}
+	else {
+		return false;
+	}
+}
 
 // Defining AStar Class
 // Allocates memory for nodes and initializes them

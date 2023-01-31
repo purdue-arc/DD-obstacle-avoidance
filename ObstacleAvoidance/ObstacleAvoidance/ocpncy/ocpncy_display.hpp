@@ -3,6 +3,7 @@
 #include "occupancy.hpp"
 #include "maps2/maps2_display.hpp"
 
+// Displays occupancy tiles and streams
 namespace ocpncy {
 	// Prints a tile
 	template <unsigned int log2_w>

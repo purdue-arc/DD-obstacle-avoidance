@@ -2,6 +2,7 @@
 
 #include <chrono>
 
+// For testing performance functions and stuff
 namespace bnchmk {
 	class stopwatch {
 		std::chrono::steady_clock clock;

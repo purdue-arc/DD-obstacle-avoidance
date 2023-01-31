@@ -8,6 +8,7 @@
 #include <exception>
 #include <stdint.h>
 
+// Provides basic buffer and file-stream implementations of map_iostream
 namespace maps2 {
 	/*
 	* Basic map to which tiles may be written and from which they may be read

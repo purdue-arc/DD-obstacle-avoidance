@@ -3,7 +3,7 @@
 //#define DEBUG
 #include "ocpncy/ocpncy_streams.hpp"
 #include "ocpncy/ocpncy_display.hpp"
-#include "projection.hpp"
+#include "util/projection.hpp"
 
 #ifndef OUTPUT_FILEPATH 
 #	define OUTPUT_FILEPATH (std::string(""))
@@ -11,8 +11,6 @@
 #ifndef RESOURCES_FILEPATH
 #	define RESOURCES_FILEPATH (std::string(""))
 #endif
-
-#include <iostream>
 
 namespace oc_tests {
 	ocpncy::otile<3> smileytile, frownytile;

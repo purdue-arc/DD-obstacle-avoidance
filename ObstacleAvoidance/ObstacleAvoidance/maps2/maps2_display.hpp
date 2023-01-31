@@ -1,8 +1,9 @@
 #pragma once
 
 #include "tilemaps.hpp"
-#include "ascii_display.hpp"
+#include "util/ascii_display.hpp"
 
+// Displays generic tiles and tile streams
 namespace maps2 {
 	ascii_dsp::ascii_image make_tile_image(unsigned int log2_tile_width, const gmtry2i::vector2i& any_tile_origin,
 	                                       const gmtry2i::aligned_box2i& viewport, unsigned int max_line_length) {

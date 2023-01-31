@@ -2,6 +2,7 @@
 
 #include <iostream>
 
+// tests to see whats going on with c++ when im confused
 namespace misc_tests {
 	template <int i>
 	class A {

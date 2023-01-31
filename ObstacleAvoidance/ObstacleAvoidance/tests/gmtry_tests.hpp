@@ -1,9 +1,10 @@
 #pragma once
 
-#include "ascii_display.hpp"
-#include "projection.hpp"
+#include "util/ascii_display.hpp"
+#include "util/projection.hpp"
 #include "benchmark.hpp"
 
+// Tests to evaulate the consistency of geometric operators/functions
 namespace gmtry_tests {
 	const float PI = 3.14159265F;
 
