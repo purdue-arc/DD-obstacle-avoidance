@@ -5,7 +5,8 @@
 // Function to read in maze
 bool** read_maze_file(FILE *in_file) {
 	int ret_val = fscanf(in_file, "P1\n");
-	if (ret_val != 1) {
+	printf("%d\n", ret_val);
+	if (ret_val < 0) {
 		fprintf(stderr, "Had issues with reading file due to formatting issues.\n");
 		return NULL;
 	}
@@ -35,7 +36,7 @@ bool** read_maze_file(FILE *in_file) {
 		}
 
 		for (int col = 0; col < ncols; col++) {
-			ret_val = fscanf(in_file, "%b\n", &maze[row][col]);
+			ret_val = fscanf(in_file, "%d\n", &maze[row][col]);
 			if (ret_val != 1) {
 				fprintf(stderr, "Had issues with reading file due to formatting issues.\n");
 				for (int row2 = 0; row2 <= row; row++) {
@@ -53,17 +54,26 @@ bool** read_maze_file(FILE *in_file) {
 // Writes the maze solution into a pbm file
 void write_maze_sol(FILE* out_file, bool** maze, vector<tuple<int, int>> maze_sol, int nrows, int ncols) {
 	fprintf(out_file, "P3\n%d %d\n255\n", nrows, ncols);
-	
-	int filled;
+	int filled; bool part_of_sol;
 	for (int row = 0; row < nrows; row++) {
 		for (int col = 0; col < ncols; col++) {
-			for (tuple<int, int> step: maze_sol) {
-				if ((get<0>(step) == row) && (get<1>(step) == col)) {
-					fprintf(out_file, "255 255 255\n");
-					continue;
+			filled = 255 * maze[row][col];
+
+			if (filled == 0) {
+				part_of_sol = false;
+				for (tuple<int, int> step : maze_sol) {
+					printf("element\n");
+					if ((get<0>(step) == row) && (get<1>(step) == col)) {
+						fprintf(out_file, "255 0 0\n");
+						part_of_sol = true;
+						break;
+					}
 				}
-				
-				filled = 255 * maze[row][col];
+				if (!part_of_sol) {
+					fprintf(out_file, "%d %d %d\n", filled, filled, filled);
+				}
+			}
+			else {
 				fprintf(out_file, "%d %d %d\n", filled, filled, filled);
 			}
 		}
@@ -71,7 +81,7 @@ void write_maze_sol(FILE* out_file, bool** maze, vector<tuple<int, int>> maze_so
 }
 
 // Tests the AStar algorithm
-void test_AStar(const char *out_file_name, bool input_file_exists, const char* input_file_name, bool create_input_file, const char *new_input_file_name, int nrows, int ncols) {
+void test_AStar(const char *out_file_name, bool input_file_exists, const char* input_file_name, bool create_input_file, const char *new_input_file_name, int nrows, int ncols, double density) {
 	// Output file
 	FILE* out_file = fopen(out_file_name, "w");
 	if (out_file == NULL) {
@@ -90,10 +100,10 @@ void test_AStar(const char *out_file_name, bool input_file_exists, const char* i
 		in_file = NULL;
 	}
 	else if (create_input_file) {
-		maze = create_maze_file(new_input_file_name, nrows, ncols);
+		maze = create_maze_file(new_input_file_name, nrows, ncols, density);
 	}
 	else {
-		maze = create_maze(nrows, ncols);
+		maze = create_maze(nrows, ncols, density);
 	}
 
 	if (maze == NULL) {
@@ -102,7 +112,7 @@ void test_AStar(const char *out_file_name, bool input_file_exists, const char* i
 	
 	// Setting up for the test
 	time_t start, end;
-	AStar test = AStar(maze, sizeof(maze), sizeof(maze[0]));
+	AStar test = AStar(maze, nrows, ncols);
 	
 	// Running the test
 	time(&start);
@@ -110,8 +120,14 @@ void test_AStar(const char *out_file_name, bool input_file_exists, const char* i
 	time(&end);
 
 	// Writing out the results
+	test.print_node_map(true, false, false);
 	printf("Time taken by the program: %.5d seconds\n", (double) end - start);
-	write_maze_sol(out_file, maze, path, sizeof(maze), sizeof(maze[0]));
+	if (path.size() != 0) {
+		write_maze_sol(out_file, maze, path, nrows, ncols);
+	}
+	else {
+		printf("No paths exist to get to the goal location.\n");
+	}
 
 	// Cleaning up resources
 	fclose(out_file); out_file = NULL;

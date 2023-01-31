@@ -32,7 +32,6 @@ using namespace cv;
 // Constants
 #define WIDTH (640)
 #define HEIGHT (480)
-#define ARR_SIZE (6)
 #define COST (2)
 
 
@@ -59,11 +58,11 @@ bool nodeCompare(const node_t* n1, const node_t* n2);
 inline bool file_exists(const char* name);
 
 // random_maze_generator.cpp
-bool **create_maze_file(const char* file_name, int nrows, int ncols);
-bool** create_maze(int nrows, int ncols);
+bool **create_maze_file(const char* file_name, int nrows, int ncols, double density);
+bool** create_maze(int nrows, int ncols, double density);
  
 // path_planning_testing.cpp
-void test_AStar(const char* out_file_name, bool input_file_exists, const char* input_file_name, bool create_input_file, const char* new_input_file_name, int nrows, int ncols);
+void test_AStar(const char* out_file_name, bool input_file_exists, const char* input_file_name, bool create_input_file, const char* new_input_file_name, int nrows, int ncols, double density);
 
 
 // For syntax purposes
@@ -88,7 +87,7 @@ protected:
 	node_t** initialize_nodes();
 	void free_nodes();
 	float get_heuristic(int x_i, int y_i, int x_f, int y_f);
-	bool outOfBounds(node_t* node);
+	bool outOfBounds(int row, int col);
 	vector<node*> get_neighbors(int row, int col);
 	void initializePriorityQueue();
 	// make the below inline for higher efficiency

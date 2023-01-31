@@ -119,7 +119,7 @@ int main() try {
 	occupancy_test5();
 	return occupancy_test7();*/
 
-	test_AStar("solved_maze.pbm", false, NULL, false, NULL, 100, 100);
+	test_AStar("solved_maze.pbm", false, "input.pbm", true, "input.pbm", 10, 10, .9);
 	return 0;
 }
 catch (const rs2::error& e) {

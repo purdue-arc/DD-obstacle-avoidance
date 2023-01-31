@@ -10,20 +10,21 @@ void init_random_bit() {
 }
 
 // Gets a random bit
-inline char random_bit() {
-  const int r = (char) rand() % MAX_MAP_BIT_VAL;
+inline int random_bit(double density) {
+  const int r = rand() / (int) (((double) RAND_MAX) * density);
+  printf("%d\n", r);
   return r;
 }
 
 // Functions
-bool **create_maze_file(const char* file_name, int nrows, int ncols) {
+bool **create_maze_file(const char* file_name, int nrows, int ncols, double density) {
     FILE* out_file = fopen(file_name, "w");
     if (out_file == NULL) {
         fprintf(stderr, "Problem creating/opening output file to write map into.\n");
         return NULL;
     }
 
-    bool** maze = create_maze(nrows, ncols);
+    bool** maze = create_maze(nrows, ncols, density);
 
     // Creates a .pbm file
     fprintf(out_file, "P1\n%d %d\n", nrows, ncols);
@@ -40,7 +41,7 @@ bool **create_maze_file(const char* file_name, int nrows, int ncols) {
 }
 
 
-bool **create_maze(int nrows, int ncols) {
+bool **create_maze(int nrows, int ncols, double density) {
     int i, j;
     init_random_bit();
 
@@ -65,7 +66,7 @@ bool **create_maze(int nrows, int ncols) {
         }
 
         for (int col = 0; col < ncols; col++) {
-            maze[row][col] = random_bit();
+            maze[row][col] = random_bit(density);
         }
     }
 

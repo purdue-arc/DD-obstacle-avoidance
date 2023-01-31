@@ -7,7 +7,7 @@
 node_t** AStar::initialize_nodes() {
 	node_map = (node_t**)malloc(rows * sizeof(node_t*));
 	for (int row = 0; row < rows; row++) {
-		node_map[row] = (node_t*)malloc(cols * sizeof(node_t));
+		node_map[row] = (node_t*) malloc(cols * sizeof(node_t));
 		for (int col = 0; col < cols; col++) {
 			// storing x,y location
 			node_map[row][col].x = row;
@@ -17,9 +17,11 @@ node_t** AStar::initialize_nodes() {
 				* Floating points support infinity and math involving infinity
 				* acccording to IEEE 754.
 				*/
-			node_map[row][col].cost = numeric_limits<float>::max();
+			node_map[row][col].cost = numeric_limits<int>::max();
 			node_map[row][col].heuristic = numeric_limits<float>::max();
 		}
+
+		node_map[0][0].cost = 0;
 	}
 	return node_map;
 }
@@ -40,10 +42,10 @@ float AStar::get_heuristic(int x_i, int y_i, int x_f, int y_f) {
 }
 
 // Checks whether node is out of bounds
-bool AStar::outOfBounds(node_t* node) {
-	if ((node->x < 0) || (node->y < 0) ||
-		(node->x >= ARR_SIZE) || (node->y >= ARR_SIZE) ||
-		(get_occupancy(node) == 1)) {
+bool AStar::outOfBounds(int row, int col) {
+	if ((row < 0) || (col < 0) ||
+		(row >= rows) || (col >= cols) ||
+		(occ_matrix[row][col] == true)) {
 		return true;
 	}
 	return false;
@@ -51,40 +53,40 @@ bool AStar::outOfBounds(node_t* node) {
 
 // Returns vector of neighbors for a given node
 vector<node*> AStar::get_neighbors(int row, int col) {
-	vector<node*> neigbors;
+	vector<node*> neighbors;
 
 	// counter-clockwise starting at 12
-	bool non_diag_valid[4] = {!outOfBounds(&node_map[row-1][col]),!outOfBounds(&node_map[row][col-1]),!outOfBounds(&node_map[row+1][col]),!outOfBounds(&node_map[row][col+1])};
+	bool non_diag_valid[4] = {!outOfBounds(row-1, col),!outOfBounds(row, col - 1),!outOfBounds(row+1, col),!outOfBounds(row, col+1)};
 
 	// adding non-diag neighbors
 	if (non_diag_valid[0]) {
-		neigbors.push_back(&node_map[row - 1][col]);
+		neighbors.push_back(&node_map[row - 1][col]);
 	}
 	if (non_diag_valid[1]) {
-		neigbors.push_back(&node_map[row][col - 1]);
+		neighbors.push_back(&node_map[row][col - 1]);
 	}
 	if (non_diag_valid[2]) {
-		neigbors.push_back(&node_map[row + 1][col]);
+		neighbors.push_back(&node_map[row + 1][col]);
 	}
 	if (non_diag_valid[3]) {
-		neigbors.push_back(&node_map[row][col + 1]);
+		neighbors.push_back(&node_map[row][col + 1]);
 	}
 
 	// adding diag neighbors
 	if (non_diag_valid[0] && non_diag_valid[1]) {
-		neigbors.push_back(&node_map[row - 1][col - 1]);
+		neighbors.push_back(&node_map[row - 1][col - 1]);
 	}
 	if (non_diag_valid[1] && non_diag_valid[2]) {
-		neigbors.push_back(&node_map[row + 1][col - 1]);
+		neighbors.push_back(&node_map[row + 1][col - 1]);
 	}
 	if (non_diag_valid[2] && non_diag_valid[3]) {
-		neigbors.push_back(&node_map[row - 1][col + 1]);
+		neighbors.push_back(&node_map[row + 1][col + 1]);
 	}
 	if (non_diag_valid[3] && non_diag_valid[0]) {
-		neigbors.push_back(&node_map[row + 1][col + 1]);
+		neighbors.push_back(&node_map[row - 1][col + 1]);
 	}
 
-	return neigbors;
+	return neighbors;
 }
 
 // When called, adds all elements to a priority queue
@@ -134,12 +136,14 @@ node_t* AStar::pop_min() {
 bool AStar::compute() {
 	bool reached_dest = false;
 
-	node_map[start_x][start_y].cost = 0.0;
+	node_map[start_x][start_y].cost = 0;
 	node_map[start_x][start_y].heuristic = get_heuristic(start_x, start_y, goal_x, goal_y);
 
-	initializePriorityQueue();
+	//initializePriorityQueue();
 
-	node_t* of_interest = pop_min();
+	pq.push(&node_map[0][0]);
+
+	node_t* of_interest = &node_map[0][0];
 	while (!pq.empty()) {
 		int parent_x = of_interest->x, parent_y = of_interest->y;
 
@@ -151,11 +155,11 @@ bool AStar::compute() {
 
 		// Expanding neighbors
 		vector<node_t*> neighbors = get_neighbors(parent_x, parent_y);
-		for (node_t* neighbor : neighbors) {
-			neighbor->heuristic = get_heuristic(neighbor->x, neighbor->y, goal_x, goal_y);
-			if ((of_interest->cost + COST) < neighbor->cost) {
-				neighbor->cost = of_interest->cost + COST;
-				pq.push(neighbor);
+		for (int index = 0; index < neighbors.size(); index++) {
+			neighbors[index]->heuristic = get_heuristic(neighbors[index]->x, neighbors[index]->y, goal_x, goal_y);
+			if ((of_interest->cost + COST) <= neighbors[index]->cost) {
+				neighbors[index]->cost = of_interest->cost + COST;
+				pq.push(neighbors[index]);
 			}
 		}
 
@@ -168,7 +172,14 @@ bool AStar::compute() {
 // constructors
 AStar::AStar(bool** occ_matrix, int rows, int cols) {
 	// By default, setting bottom left as start and top right corner as goal
-	AStar(occ_matrix, rows, cols, 0, 0, rows - 1, cols - 1);
+	this->occ_matrix = occ_matrix;
+	start_x = 0;
+	start_y = 0;
+	goal_x = rows - 1;
+	goal_y = cols - 1;
+	this->rows = rows;
+	this->cols = cols;
+	node_map = initialize_nodes();
 }
 
 AStar::AStar(bool **occ_matrix, int rows, int cols, int start_x, int start_y, int goal_x, int goal_y) {
@@ -245,8 +256,9 @@ void AStar::print_node_map(bool occupancy, bool cost, bool heuristic) {
 		printf("Occupancy Matrix:\n");
 		for (int row = 0; row < rows; row++) {
 			for (int col = 0; col < cols; col++) {
-				printf("%d, ", get_occupancy(&node_map[row][col]));
+				printf("%d, ", occ_matrix[row][col]);
 			}
+			printf("\n");
 		}
 		printf("\n");
 	}
@@ -256,6 +268,7 @@ void AStar::print_node_map(bool occupancy, bool cost, bool heuristic) {
 			for (int col = 0; col < cols; col++) {
 				printf("%d, ", get_cost(&node_map[row][col]));
 			}
+			printf("\n");
 		}
 		printf("\n");
 	}
@@ -265,7 +278,7 @@ void AStar::print_node_map(bool occupancy, bool cost, bool heuristic) {
 			for (int col = 0; col < cols; col++) {
 				printf("%d, ", node_map[row][col].heuristic);
 			}
-				
+			printf("\n");
 		}
 		printf("\n");
 	}
