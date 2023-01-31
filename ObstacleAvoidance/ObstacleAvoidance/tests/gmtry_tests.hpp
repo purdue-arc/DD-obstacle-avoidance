@@ -22,8 +22,8 @@ namespace gmtry_tests {
 		ascii_dsp::ascii_image img(gmtry2i::aligned_box2i(-gmtry2i::vector2i(1, 1) << 5, 1 << 6), -1);
 		gmtry2i::aligned_box2i box1({ 5, 10 }, 5);
 		gmtry2i::aligned_box2i box2({ 15, 0 }, 5);
-		img << ascii_dsp::named_rect(box1, 'a')
-			<< ascii_dsp::named_rect(box2, 'b')
+		img << ascii_dsp::named_rect(box1,        'a')
+			<< ascii_dsp::named_rect(box2,        'b')
 			<< ascii_dsp::named_rect(box1 - box2, 'c');
 		std::cout << img;
 		return 0;
@@ -79,7 +79,7 @@ namespace gmtry_tests {
 				img.write("a'", ab_int.a);
 				img.write("b'", ab_int.b);
 			}
-			img << ascii_dsp::named_rect(rect, 'x', 0);
+			img << ascii_dsp::decorated_rect(rect, 0, 0, 'x');
 			results[they_intersect][result_idcs[they_intersect]++] = &img;
 		}
 		for (int i = 0; i < 2; i++) {
@@ -145,11 +145,12 @@ namespace gmtry_tests {
 			ascii_dsp::ascii_image img(img_bounds);
 			gmtry2i::vector2i a(random_vector(img_bounds)), b(random_vector(img_bounds));
 			gmtry2i::line_segment2i ab(a, b);
-			img << ab;
+			gmtry2::line_segment2 abf(ab);
+			img << abf;
 			bool intersects = false;
 			while (!intersects) {
 				gmtry2i::vector2i p(random_vector(img_bounds));
-				intersects = gmtry2i::intersects(ab, p);
+				intersects = gmtry2i::intersects(abf, gmtry2i::boundsof(p));
 				img << ascii_dsp::named_point(p, intersects ? '@' : 'o');
 			}
 			std::cout << (img << ascii_dsp::named_point(a, 'a') << ascii_dsp::named_point(b, 'b')) << std::endl;
@@ -211,8 +212,6 @@ namespace gmtry_tests {
 			cam_origin = new_cam_origin;
 		}
 		void write(const gmtry2i::vector2i& p) {
-			//std::cout << "point detected" << std::endl;
-			//std::cout << gmtry2i::to_string(p) << std::endl;
 			traces_img << gmtry2i::line_segment2i(cam_origin, p);
 			img(p) = '@';
 		}
@@ -264,19 +263,22 @@ namespace gmtry_tests {
 
 	// Projects a generated environment to the camera, then deprojects it back out into the map
 	int projection_test2() {
-		prjctn::ray_marcher tracer;
-		prjctn::measurable_sphere a({ 0, 10, 0 }, 3), b({ 5, 20, 5 }, 9);
-		tracer.add_object(&a);
-		tracer.add_object(&b);
-		prjctn::cam_info config(PI / 2, 48, 32, { gmtry3::make_rotation(2, PI / 8), gmtry3::vector3(6, 2, -0.5) });
+		prjctn::ray_marcher marcher;
+		prjctn::sphere a({ { 0, 10, 0 }, 3 }), b({ { 5, 20, 5 }, 9 });
+		marcher.add_object(&a);
+		marcher.add_object(&b);
+		prjctn::circle_cylinder c1({ {-20, 20}, 4 });
+		//marcher.add_object(&c1);
+		prjctn::rect_cylinder c2({ {-22, 16}, {-16, 26} });
+		marcher.add_object(&c2);
+		prjctn::cam_info config(PI / 2, 48, 32, { gmtry3::make_rotation(2, PI / 8) * gmtry3::make_rotation(1, -PI / 6), 
+		                                          gmtry3::vector3(6, 2, -0.5) });
 		float* depths = new float[config.width * config.height];
-		prjctn::project(depths, config, &tracer);
+		prjctn::project(depths, config, &marcher);
 
 		ascii_dsp::ascii_image balls_img({ {}, gmtry2i::vector2i(config.width, config.height)});
-		float min_depth = 0, max_depth = 30;
-		float depth_scale = 1.0F / (max_depth - min_depth);
 		for (int x = 0; x < config.width; x++) for (int y = 0; y < config.height; y++)
-			balls_img << ascii_dsp::shaded_point({ x, y }, 1 - depth_scale * (depths[x + y * config.width] - min_depth));
+			balls_img << ascii_dsp::faded_point({ x, y }, depths[x + y * config.width], 1.0F / 20);
 		balls_img.set_caption("First-person rendering of environment");
 		std::cout << balls_img << std::endl;
 

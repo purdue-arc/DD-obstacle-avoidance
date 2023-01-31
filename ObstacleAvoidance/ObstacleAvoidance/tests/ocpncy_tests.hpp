@@ -1,6 +1,6 @@
 #pragma once 
 
-#define DEBUG
+//#define DEBUG
 #include "ocpncy/ocpncy_streams.hpp"
 #include "ocpncy/ocpncy_display.hpp"
 #include "projection.hpp"
@@ -108,7 +108,7 @@ namespace oc_tests {
 		ocpncy::mat_tile_stream<4, bool> iterator(forgy, forgydims[0], forgydims[1], forgyorigin, gmtry2i::vector2i(42, 35));
 		ascii_dsp::ascii_image img = maps2::make_tile_image(4, gmtry2i::vector2i(42, 35), 
 		                                                    gmtry2i::aligned_box2i(forgyorigin, 1 << (4 + 2)), -1);
-		std::cout << (img << ascii_dsp::named_rect(iterator.get_bounds(), 'x', 0) << &iterator);
+		std::cout << (img << ascii_dsp::decorated_rect(iterator.get_bounds(), 0, 0, 'x') << &iterator);
 		//
 
 		/* Prints just the matrix (no tiles)
@@ -303,13 +303,21 @@ namespace oc_tests {
 	}
 
 	template <unsigned int log2_w>
+	void print_map_file() {
+		maps2::map_fstream<log2_w, ocpncy::otile<log2_w>> map_file(get_map_file_name(log2_w), {});
+		maps2::tile_istream<ocpncy::otile<log2_w>>* tiles_out = map_file.read();
+		std::cout << tiles_out;
+		delete tiles_out;
+	}
+
+	template <unsigned int log2_w>
 	void print_map_file_tiles() {
-		maps2::map_fstream<log2_w, ocpncy::otile<log2_w>> map_file(get_map_file_name(log2_w), gmtry2i::vector2i());
+		maps2::map_fstream<log2_w, ocpncy::otile<log2_w>> map_file(get_map_file_name(log2_w), {});
 		maps2::tile_istream<ocpncy::otile<log2_w>>* tiles_out = map_file.read();
 		int num_tiles_read = 0;
 		const ocpncy::otile<log2_w>* tile;
 		while (tile = tiles_out->next()) {
-			//ocpncy::PrintTile(*tile);
+			std::cout << *tile;
 			std::cout << "Tile origin: " << gmtry2i::to_string(tiles_out->last_origin()) << std::endl;
 			num_tiles_read++;
 		}
@@ -318,10 +326,25 @@ namespace oc_tests {
 		delete tiles_out;
 	}
 
-	template <unsigned int log2_w>
-	class traceable_onbrhd : public prjctn::collidable_object {
-		const float MAX_DISTANCE = 100;
+	// copy of class from gmtry_tests.hpp
+	class image_projector2 : public gmtry2i::point2_ostream {
+		ascii_dsp::ascii_image& img, & traces_img;
+		gmtry2i::vector2i cam_origin;
+	public:
+		image_projector2(ascii_dsp::ascii_image& new_img, ascii_dsp::ascii_image& new_traces_img,
+			const gmtry2i::vector2i& new_cam_origin) :
+			img(new_img), traces_img(new_traces_img) {
+			cam_origin = new_cam_origin;
+		}
+		void write(const gmtry2i::vector2i& p) {
+			traces_img << gmtry2i::line_segment2i(cam_origin, p);
+			img(p) = '@';
+		}
+	};
 
+	// occupancy tile neighborhood with which lines may collide
+	template <unsigned int log2_w>
+	class collidable_oc_nbrhd : public prjctn::collidable_object {
 		maps2::tile_nbrhd<log2_w, ocpncy::gradient_otile<log2_w>> nbrhd;
 		gmtry2i::aligned_box2i boxes[3][3];
 	public:
@@ -332,28 +355,35 @@ namespace oc_tests {
 					gmtry2i::aligned_box2i(nbrhd.origin + (gmtry2i::vector2i(nbrhd_x, nbrhd_y) << log2_w), 1 << log2_w);
 			}
 		}
-		traceable_onbrhd(maps2::nbrng_tile<ocpncy::gradient_otile<log2_w>>* tile, const gmtry2i::vector2i& origin) {
+		collidable_oc_nbrhd(maps2::nbrng_tile<ocpncy::gradient_otile<log2_w>>* tile, const gmtry2i::vector2i& origin) {
 			set_tile(tile, origin);
 		}
-		float get_distance(const gmtry3::ray3& r) const {
-			gmtry2::line_segment2 l({ r.p.x, r.p.y }, {});
-			l.b = l.a + gmtry2::normalize(gmtry2::vector2(r.d.x, r.d.y)) * MAX_DISTANCE;
-			const float step_size = 0.125;
+		float get_distance(const gmtry3::ray3& r, float max_distance) const {
+			gmtry2::line_segment2 l(r.p, r.p + gmtry2::normalize(r.d) * max_distance);
+			const float step_size = 0.5F;
 
-			float min_dst = MAX_DISTANCE;
+			float min_dst = max_distance;
 			for (int nbrhd_x = 0; nbrhd_x < 3; nbrhd_x++) for (int nbrhd_y = 0; nbrhd_y < 3; nbrhd_y++) {
-				bool no_intersection = false;
-				gmtry2i::line_stepper2i stepper(gmtry2i::intersection(l, boxes[nbrhd_y][nbrhd_x], &no_intersection) -
-				                                boxes[nbrhd_y][nbrhd_x].min, step_size);
-				if (!no_intersection) {
-					const ocpncy::gradient_otile<log2_w>* intrsctd_tile = nbrhd(nbrhd_x, nbrhd_y);
-					float dst_to_occupancy = MAX_DISTANCE;
-					for (int t = 0; t < stepper.waypoints; t++) {
-						if (ocpncy::get_occ(stepper.p.x, stepper.p.y, *intrsctd_tile)) break;
-						dst_to_occupancy += step_size;
-						stepper.step();
+				if (nbrhd(nbrhd_x, nbrhd_y)) {
+					bool no_intersection = false;
+					gmtry2::line_segment2 intrsctd_line = 
+						gmtry2i::intersection(l, boxes[nbrhd_y][nbrhd_x], &no_intersection) - 
+						gmtry2i::to_vector2(boxes[nbrhd_y][nbrhd_x].min);
+					if (!no_intersection) {
+						const ocpncy::gradient_otile<log2_w>* intrsctd_tile = nbrhd(nbrhd_x, nbrhd_y);
+						gmtry2::line_stepper2 stepper(intrsctd_line, step_size);
+						gmtry2i::vector2i point;
+						float dst_to_occupancy = max_distance;
+						for (int t = 0; t < stepper.waypoints; t++) {
+							point = stepper.p;
+							if (ocpncy::get_occ(point.x, point.y, *intrsctd_tile)) break;
+							dst_to_occupancy += step_size;
+							stepper.step();
+						}
+						if (dst_to_occupancy != max_distance) std::cout << dst_to_occupancy << std::endl;
+
+						min_dst = std::min(min_dst, dst_to_occupancy);
 					}
-					min_dst = std::min(min_dst, dst_to_occupancy);
 				}
 			}
 			return min_dst;
@@ -361,7 +391,36 @@ namespace oc_tests {
 	};
 
 	int occupancy_test8() {
+		prjctn::ray_marcher marcher;
+		prjctn::sphere a({ { 0, 10, 0 }, 3 }), b({ { 5, 20, 5 }, 9 });
+		//marcher.add_object(&a); marcher.add_object(&b);
+		maps2::nbrng_tile<ocpncy::gradient_otile<4>> nbrng_cattile(cattile);
+		collidable_oc_nbrhd<4> nbrhd(&nbrng_cattile, {-10, 10});
+		marcher.add_object(&nbrhd);
+		prjctn::cam_info config(PI / 2, 48, 32, { gmtry3::make_rotation(2, PI / 8) * gmtry3::make_rotation(1, -PI / 6),
+												  gmtry3::vector3(6, 2, -0.5) });
+		float* depths = new float[config.width * config.height];
+		prjctn::project(depths, config, &marcher);
 
+		ascii_dsp::ascii_image balls_img({ {}, gmtry2i::vector2i(config.width, config.height) });
+		for (int x = 0; x < config.width; x++) for (int y = 0; y < config.height; y++)
+			balls_img << ascii_dsp::steep_faded_point({ x, y }, depths[x + y * config.width], 1.0F / 25);
+		balls_img.set_caption("First-person rendering of environment");
+		std::cout << balls_img << std::endl;
+
+		gmtry2i::vector2i cam_origin2(config.cam_to_world.t.x, config.cam_to_world.t.y);
+		ascii_dsp::ascii_image img({ {-24, -24}, {24, 24} }), traces_img({ {-24, -24}, {24, 24} });
+		image_projector2 projector(img, traces_img, cam_origin2);
+		prjctn::deproject(depths, config, &projector);
+		img(cam_origin2) = 'C';
+		traces_img.overwrite(img);
+		traces_img.set_caption("Top-down view of perceived environment");
+		std::cout << traces_img << std::endl;
+
+		std::cout << ocpncy::otile<4>(nbrng_cattile.tile) << std::endl;
+
+		delete[] depths;
+		return 0;
 	}
 
 	void prep_tests_0to7() {
@@ -380,7 +439,7 @@ namespace oc_tests {
 
 	int run_all_tests() {
 		prep_tests_0to7();
-		prep_real_map_tests<8>();
+		prep_real_map_tests<6>();
 
 		oc_tests::occupancy_test0();
 		oc_tests::occupancy_test3();
@@ -388,9 +447,9 @@ namespace oc_tests {
 		oc_tests::occupancy_test5();
 		oc_tests::occupancy_test7();
 
-		oc_tests::generate_map_file<8>(gmtry2i::vector2i(), gmtry2i::vector2i());
-		oc_tests::print_map_file_item<8>({ 0, 0 }, 3);
-		//oc_tests::print_map_file_tiles<8>();
+		oc_tests::generate_map_file<6>(gmtry2i::vector2i(), gmtry2i::vector2i());
+		//oc_tests::print_map_file_item<6>({ 0, 0 }, 3);
+		oc_tests::print_map_file<6>();
 
 		return 0;
 	}

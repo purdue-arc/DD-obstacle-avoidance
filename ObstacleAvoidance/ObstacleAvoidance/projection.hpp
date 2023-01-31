@@ -34,6 +34,7 @@ namespace prjctn {
 		}
 	};
 
+	// Collides a ray with a virtual world and returns the point of collision
 	class ray_collider {
 	public:
 		virtual gmtry3::vector3 collide(const gmtry3::ray3& ray) = 0;
@@ -96,34 +97,20 @@ namespace prjctn {
 
 	class measurable_object {
 	public:
+		// Returns the minimum distance between the given point and any point on the object
 		virtual float get_distance(const gmtry3::vector3& p) const = 0;
-		//virtual measurable_object* clone() const = 0;
 	};
 
 	class collidable_object {
 	public:
-		virtual float get_distance(const gmtry3::ray3& r) const = 0;
+		// Returns the distance traveled by the ray before colliding with the object (or max_distance for no collision)
+		virtual float get_distance(const gmtry3::ray3& r, float max_distance) const = 0;
 	};
 
-	class measurable_sphere : public measurable_object {
-		gmtry3::vector3 center;
-		float radius;
-	public:
-		measurable_sphere(const gmtry3::vector3& sphere_center, float sphere_radius) {
-			center = sphere_center;
-			radius = sphere_radius;
-		}
-		float get_distance(const gmtry3::vector3& p) const {
-			return gmtry3::magnitude(center - p) - radius;
-		}
-		measurable_object* clone() const {
-			return new measurable_sphere(center, radius);
-		}
-	};
-
+	// Marches a point from the start of a ray out until it collides with something
 	class ray_marcher : public ray_collider {
 		const float MIN_DISTANCE = 0.01; // one one-hundredth
-		const float MAX_DISTANCE = 1000; // one million
+		const float MAX_DISTANCE = 1000; // one million; must be greater than 1
 		strcts::linked_arraylist<const measurable_object*> measurables;
 		strcts::linked_arraylist<const collidable_object*> collidables;
 
@@ -137,24 +124,68 @@ namespace prjctn {
 			collidables.reset();
 			num_objects = collidables.get_length();
 			for (int i = 0; i < num_objects; i++) {
-				min_dst = std::min(min_dst, collidables.next()->get_distance(r));
+				min_dst = std::min(min_dst, collidables.next()->get_distance(r, MAX_DISTANCE));
 			}
-			return min_dst;
+			return std::max(0.0F, min_dst);
 		}
 	public:
 		ray_marcher() : measurables() {};
 		void add_object(const measurable_object* object) {
 			measurables.add(object);
 		}
+		void add_object(const collidable_object* object) {
+			collidables.add(object);
+		}
 		gmtry3::vector3 collide(const gmtry3::ray3& r) {
 			gmtry3::vector3 p = r.p;
 			gmtry3::vector3 direction = gmtry3::normalize(r.d);
-			float step_size = get_min_distance(r);
+			float step_size = get_min_distance({ p, direction });
 			while (MIN_DISTANCE < step_size && step_size < MAX_DISTANCE) {
 				p += direction * step_size;
 				step_size = get_min_distance({p, direction});
 			}
+			if (step_size == MAX_DISTANCE) return p + direction * MAX_DISTANCE;
 			return p;
+		}
+	};
+
+	class sphere : public measurable_object {
+		gmtry3::ball3 ball;
+	public:
+		sphere(const gmtry3::ball3& new_sphere) {
+			ball = new_sphere;
+		}
+		float get_distance(const gmtry3::vector3& p) const {
+			return gmtry3::magnitude(ball.c - p) - ball.r;
+		}
+	};
+
+	struct circle_cylinder : public measurable_object {
+		gmtry2::ball2 circle;
+	public:
+		circle_cylinder(const gmtry2::ball2& new_circle) {
+			circle = new_circle;
+		}
+		float get_distance(const gmtry3::vector3& p) const {
+			return gmtry2::magnitude(circle.c - p) - circle.r;
+		}
+	};
+
+	struct rect_cylinder : public collidable_object {
+		gmtry2i::aligned_box2i rect;
+	public:
+		rect_cylinder(const gmtry2i::aligned_box2i& new_rect) {
+			rect = new_rect;
+		}
+		float get_distance(const gmtry3::ray3& r, float max_distance) const {
+			bool no_intersection = false;
+			gmtry2::vector2 direction = gmtry2::normalize(gmtry2::vector2(r.d.x, r.d.y));
+			gmtry2::line_segment2 rayline(r.p, r.p + direction * max_distance);
+			gmtry2::line_segment2 collision = gmtry2i::intersection(rayline, rect, &no_intersection);
+			if (!no_intersection) 
+				return std::min(gmtry2::dot(collision.a - rayline.a, direction), 
+				                gmtry2::dot(collision.b - rayline.a, direction));
+			else return max_distance;
 		}
 	};
 }

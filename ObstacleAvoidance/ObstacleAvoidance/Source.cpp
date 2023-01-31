@@ -17,6 +17,7 @@ int main()try {
 
 	oc_tests::run_all_tests();
 	oc_tests::print_map_file_item<8>({ 0, 0 }, 3);
+	oc_tests::occupancy_test8();
 
 	misc_tests::template_inheritance_test();
 	misc_tests::inheritance_test2();
@@ -29,10 +30,9 @@ int main()try {
 	gmtry_tests::geometry_test7();
 	gmtry_tests::projection_test0();
 	gmtry_tests::projection_test1();
-	gmtry_tests::projection_test2();
 	*/
 
-	gmtry_tests::geometry_test8();
+	gmtry_tests::projection_test2();
 
 	return 0;
 }

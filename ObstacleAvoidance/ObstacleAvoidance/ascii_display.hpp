@@ -184,32 +184,44 @@ namespace ascii_dsp {
 		return decorated_point(point, shade);
 	}
 
-	struct circle {
+	// fade_factor and init_fade_rate range between 0 and infinity
+	decorated_point faded_point(const gmtry2i::vector2i& point, float fade_factor, float init_fade_rate) {
+		return shaded_point(point, 1 / (1 + fade_factor * init_fade_rate));
+	}
 
-	};
+	// fade_factor and init_fade_rate range between 0 and infinity
+	decorated_point steep_faded_point(const gmtry2i::vector2i& point, float fade_factor, float init_fade_rate) {
+		float sqrt_denominator = fade_factor * init_fade_rate + 2.0F;
+		return shaded_point(point, 4 / (sqrt_denominator * sqrt_denominator));
+	}
 
-	struct named_rect {
+	struct decorated_rect {
 		gmtry2i::aligned_box2i box;
-		char name;
-		char fill;
-		named_rect(const gmtry2i::aligned_box2i& new_box, char new_name) {
+		char fill, name;
+		bool is_outlined;
+		decorated_rect(const gmtry2i::aligned_box2i& new_box, char new_fill, bool has_outline, char new_name) {
 			box = new_box;
-			name = new_name;
-			fill = '@';
-		}
-		named_rect(const gmtry2i::aligned_box2i& new_box, char new_name, char new_fill) {
-			box = new_box;
-			name = new_name;
 			fill = new_fill;
+			is_outlined = has_outline;
+			name = new_name;
 		}
 	};
 
-	ascii_image& operator << (ascii_image& img, const named_rect& box) {
-		char fill = box.fill;
-		if (fill)
+	ascii_image& operator << (ascii_image& img, const decorated_rect& box) {
+		if (box.fill)
 			for (int x = box.box.min.x; x < box.box.max.x; x++)
 				for (int y = box.box.min.y; y < box.box.max.y; y++)
 					img({ x, y }) = box.fill;
+		if (box.is_outlined) {
+			for (int y = box.box.min.y; y < box.box.max.y; y++) {
+				img({ box.box.min.x, y }) = '|';
+				img({ box.box.max.x, y }) = '|';
+			}
+			for (int x = box.box.min.x; x < box.box.max.x; x++) {
+				img({ x, box.box.min.y }) = '-';
+				img({ x, box.box.max.y }) = '-';
+			}
+		}
 		char name = box.name;
 		if (name) {
 			if ('A' <= name && name <= 'Z') name = (name + 'a') - 'A';
@@ -219,13 +231,17 @@ namespace ascii_dsp {
 		return img;
 	}
 
+	decorated_rect named_rect(const gmtry2i::aligned_box2i& box, char name) {
+		return decorated_rect(box, '@', false, name);
+	}
+
 	ascii_image& operator << (ascii_image& img, const gmtry2i::aligned_box2i& box) {
-		return img << named_rect(box, 0, '@');
+		return img << decorated_rect(box, '@', false, 0);
 	}
 
 	ascii_image& operator << (ascii_image& img, const gmtry2::line_segment2& l) {
 		gmtry2::line_stepper2 stepper(l, 1.0F);
-		gmtry2::vector2 pt_buf[3] = { l.b, l.b, l.a };
+		gmtry2i::vector2i pt_buf[3] = { l.b, l.b, l.a };
 		for (int t = 0; t < stepper.waypoints; t++) {
 			pt_buf[2] = stepper.p;
 			// Direction displayed is based on average of the two most recent displacements
@@ -236,6 +252,15 @@ namespace ascii_dsp {
 			stepper.step();
 		}
 		img << gradient_point(l.b, l.b - pt_buf[0]);
+		return img;
+	}
+
+	ascii_image& operator <<(ascii_image& img, const gmtry2::ball2& b) {
+		gmtry2i::aligned_box2i bounds(gmtry2i::boundsof(b));
+		for (int y = bounds.min.y; y < bounds.max.y; y++)
+			for (int x = bounds.min.x; x < bounds.max.x; x++)
+				if (gmtry2::intersects(gmtry2i::to_point2({ x, y }), b))
+					img({ x, y }) = '@';
 		return img;
 	}
 

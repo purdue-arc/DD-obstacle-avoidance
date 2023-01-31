@@ -6,6 +6,8 @@
 #define MIN(a, b) ((a < b) ? a : b)
 #define MAX(a, b) ((a > b) ? a : b)
 
+const float PI = 3.14159265F;
+
 // 3D floating-point geometry
 namespace gmtry3 {
 	const int basis_bivectors[3][2] = { {1, 2}, {2, 0}, {0, 1} };
@@ -275,6 +277,7 @@ namespace gmtry3 {
 
 	struct triangle3 {
 		vector3 a, b, c;
+		triangle3() = default;
 		triangle3(const vector3& p, const vector3& q, const vector3& r) {
 			a = p;
 			b = q;
@@ -287,6 +290,32 @@ namespace gmtry3 {
 			return (&a)[i];
 		}
 	};
+
+	struct ball3 {
+		vector3 c;
+		float r;
+		ball3() = default;
+		ball3(const vector3& center, float radius) {
+			c = center;
+			r = radius;
+		}
+	};
+
+	inline ball3 operator *(const ball3& c, float s) {
+		return { c.c, c.r * s };
+	}
+
+	inline ball3 operator /(const ball3& c, float s) {
+		return { c.c, c.r / s };
+	}
+
+	inline ball3 operator +(const ball3& c, const vector3& v) {
+		return { c.c + v, c.r };
+	}
+
+	inline ball3 operator -(const ball3& c, const vector3& v) {
+		return { c.c - v, c.r };
+	}
 }
 
 namespace gmtry2 {
@@ -298,6 +327,10 @@ namespace gmtry2 {
 		vector2(float i, float j) {
 			x = i;
 			y = j;
+		}
+		vector2(const gmtry3::vector3& v) {
+			x = v.x;
+			y = v.y;
 		}
 		float& operator [](int i) {
 			return (&x)[i];
@@ -312,6 +345,11 @@ namespace gmtry2 {
 		void operator -=(const vector2& v) {
 			x -= v.x;
 			y -= v.y;
+		}
+		vector2& operator =(const gmtry3::vector3& v) {
+			x = v.x;
+			y = v.y;
+			return *this;
 		}
 	};
 
@@ -393,6 +431,14 @@ namespace gmtry2 {
 		return l1.a - disp1 * (wedge(disp2, adisp) / wedge(disp2, disp1));
 	}
 
+	inline line_segment2 operator +(const line_segment2& l, const vector2& v) {
+		return { l.a + v, l.b + v };
+	}
+
+	inline line_segment2 operator -(const line_segment2& l, const vector2& v) {
+		return { l.a - v, l.b - v };
+	}
+
 	struct line_stepper2 {
 		vector2 step_p, p;
 		unsigned int waypoints;
@@ -408,12 +454,38 @@ namespace gmtry2 {
 		}
 	};
 
-	inline line_segment2 operator +(const line_segment2& l, const vector2& v) {
-		return { l.a + v, l.b + v };
+	struct ball2 {
+		vector2 c;
+		float r;
+		ball2() = default;
+		ball2(const vector2& center, float radius) {
+			c = center;
+			r = radius;
+		}
+		ball2& operator =(const gmtry3::ball3& sphere) {
+			c = sphere.c;
+			r = sphere.r;
+		}
+	};
+
+	inline ball2 operator *(const ball2& b, float s) {
+		return { b.c, b.r * s };
 	}
 
-	inline line_segment2 operator -(const line_segment2& l, const vector2& v) {
-		return { l.a - v, l.b - v };
+	inline ball2 operator /(const ball2& b, float s) {
+		return { b.c, b.r / s };
+	}
+
+	inline ball2 operator +(const ball2& b, const vector2& v) {
+		return { b.c + v, b.r };
+	}
+
+	inline ball2 operator -(const ball2& b, const vector2& v) {
+		return { b.c - v, b.r };
+	}
+
+	inline bool intersects(const vector2& p, const ball2& b) {
+		return squared(p - b.c) <= b.r * b.r;
 	}
 }
 
@@ -598,6 +670,11 @@ namespace gmtry2i {
 	inline aligned_box2i boundsof(const aligned_box2i& b, const vector2i& p) {
 		return aligned_box2i({ MIN(b.min.x, p.x),     MIN(b.min.y, p.y) }, 
 							 { MAX(b.max.x, p.x + 1), MAX(b.max.y, p.y + 1) });
+	}
+
+	inline aligned_box2i boundsof(const gmtry2::ball2& b) {
+		gmtry2::vector2 corner_disp(b.r, b.r);
+		return { b.c - corner_disp, b.c + corner_disp };
 	}
 
 	inline bool contains(const aligned_box2i& b, const vector2i& p) {
