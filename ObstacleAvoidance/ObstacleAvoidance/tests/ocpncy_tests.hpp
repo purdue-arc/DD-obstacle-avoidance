@@ -3,7 +3,7 @@
 //#define DEBUG
 #include "ocpncy/ocpncy_streams.hpp"
 #include "ocpncy/ocpncy_display.hpp"
-#include "util/projection.hpp"
+#include "util/prjctn_display.hpp"
 
 #ifndef OUTPUT_FILEPATH 
 #	define OUTPUT_FILEPATH (std::string(""))
@@ -324,22 +324,6 @@ namespace oc_tests {
 		delete tiles_out;
 	}
 
-	// copy of class from gmtry_tests.hpp
-	class image_projector2 : public gmtry2i::point2_ostream {
-		ascii_dsp::ascii_image& img, & traces_img;
-		gmtry2i::vector2i cam_origin;
-	public:
-		image_projector2(ascii_dsp::ascii_image& new_img, ascii_dsp::ascii_image& new_traces_img,
-			const gmtry2i::vector2i& new_cam_origin) :
-			img(new_img), traces_img(new_traces_img) {
-			cam_origin = new_cam_origin;
-		}
-		void write(const gmtry2i::vector2i& p) {
-			traces_img << gmtry2i::line_segment2i(cam_origin, p);
-			img(p) = '@';
-		}
-	};
-
 	// occupancy tile neighborhood with which lines may collide
 	template <unsigned int log2_w>
 	class collidable_oc_nbrhd : public prjctn::collidable_object {
@@ -369,18 +353,20 @@ namespace oc_tests {
 						gmtry2i::to_vector2(boxes[nbrhd_y][nbrhd_x].min);
 					if (!no_intersection) {
 						const ocpncy::gradient_otile<log2_w>* intrsctd_tile = nbrhd(nbrhd_x, nbrhd_y);
-						gmtry2::line_stepper2 stepper(intrsctd_line, step_size);
-						gmtry2i::vector2i point;
-						float dst_to_occupancy = max_distance;
+						gmtry2i::line_stepper2i stepper(intrsctd_line, step_size);
+						float dst_to_occupancy = 0;
+						bool collided = false;
 						for (int t = 0; t < stepper.waypoints; t++) {
-							point = stepper.p;
-							if (ocpncy::get_occ(point.x, point.y, *intrsctd_tile)) break;
+							if (ocpncy::get_occ(stepper.p.x, stepper.p.y, *intrsctd_tile)) {
+								collided = true;
+								break;
+							}
 							dst_to_occupancy += step_size;
 							stepper.step();
 						}
-						if (dst_to_occupancy != max_distance) std::cout << dst_to_occupancy << std::endl;
+						if (dst_to_occupancy > max_distance) std::cout << dst_to_occupancy << std::endl;
 
-						min_dst = std::min(min_dst, dst_to_occupancy);
+						if (collided) min_dst = std::min(min_dst, dst_to_occupancy);
 					}
 				}
 			}
@@ -388,36 +374,24 @@ namespace oc_tests {
 		}
 	};
 
-	int occupancy_test8() {
+	// Produces an explorable virtual world with the cattile and dogtile
+	int occupancy_test8() { // PASSED
+		render_cat();
+		render_dog();
+		std::cout << cattile << std::endl;
 		prjctn::ray_marcher marcher;
-		prjctn::sphere a({ { 0, 10, 0 }, 3 }), b({ { 5, 20, 5 }, 9 });
+		//prjctn::sphere a({ { 0, 10, 0 }, 3 }), b({ { 5, 20, 5 }, 9 });
 		//marcher.add_object(&a); marcher.add_object(&b);
 		maps2::nbrng_tile<ocpncy::gradient_otile<4>> nbrng_cattile(cattile);
+		maps2::nbrng_tile<ocpncy::gradient_otile<4>> nbrng_dogtile(dogtile);
+		nbrng_cattile.nbrs[3] = &nbrng_dogtile;
 		collidable_oc_nbrhd<4> nbrhd(&nbrng_cattile, {-10, 10});
 		marcher.add_object(&nbrhd);
-		prjctn::cam_info config(PI / 2, 48, 32, { gmtry3::make_rotation(2, PI / 8) * gmtry3::make_rotation(1, -PI / 6),
-												  gmtry3::vector3(6, 2, -0.5) });
-		float* depths = new float[config.width * config.height];
-		prjctn::project(depths, config, &marcher);
-
-		ascii_dsp::ascii_image balls_img({ {}, gmtry2i::vector2i(config.width, config.height) });
-		for (int x = 0; x < config.width; x++) for (int y = 0; y < config.height; y++)
-			balls_img << ascii_dsp::steep_faded_point({ x, y }, depths[x + y * config.width], 1.0F / 25);
-		balls_img.set_caption("First-person rendering of environment");
-		std::cout << balls_img << std::endl;
-
-		gmtry2i::vector2i cam_origin2(config.cam_to_world.t.x, config.cam_to_world.t.y);
-		ascii_dsp::ascii_image img({ {-24, -24}, {24, 24} }), traces_img({ {-24, -24}, {24, 24} });
-		image_projector2 projector(img, traces_img, cam_origin2);
-		prjctn::deproject(depths, config, &projector);
-		img(cam_origin2) = 'C';
-		traces_img.overwrite(img);
-		traces_img.set_caption("Top-down view of perceived environment");
-		std::cout << traces_img << std::endl;
-
-		std::cout << ocpncy::otile<4>(nbrng_cattile.tile) << std::endl;
-
-		delete[] depths;
+		prjctn::cam_info config(PI / 2, 48, 32, gmtry3::transform3());
+		prjctn::point_drawer2 projector;
+		prjctn::world_explorer explora(config, &marcher, &projector, std::cout);
+		explora.set_map_view_dims(48, 48);
+		explora.execute_commands(std::cin);
 		return 0;
 	}
 

@@ -26,6 +26,9 @@ namespace prjctn {
 			cam_to_world = pose;
 			world_to_cam = pose.T();
 		}
+		gmtry3::transform3 get_pose() {
+			return cam_to_world;
+		}
 		cam_info() = default;
 		cam_info(float fov, unsigned int res_width, unsigned int res_height, const gmtry3::transform3& pose) {
 			tan_fov = std::tan(fov * 0.5F) * 2.0F;

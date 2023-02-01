@@ -530,6 +530,10 @@ namespace maps2 {
 		* 0 1 2
 		*/
 		nbrng_tile<base_tile>* nbrs[8];
+		nbrng_tile() = default;
+		nbrng_tile(const base_tile& t) : nbrs {} {
+			tile = t;
+		}
 	};
 
 	inline gmtry2i::vector2i get_nbrhd_origin(const gmtry2i::vector2i& center_origin, unsigned int log2_w) {

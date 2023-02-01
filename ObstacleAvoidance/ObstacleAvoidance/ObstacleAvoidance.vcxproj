@@ -150,6 +150,7 @@
     <ClInclude Include="maps2\maps2_display.hpp" />
     <ClInclude Include="ocpncy\ocpncy_display.hpp" />
     <ClInclude Include="tests\benchmark.hpp" />
+    <ClInclude Include="util\prjctn_display.hpp" />
     <ClInclude Include="util\data_structs.hpp" />
     <ClInclude Include="util\geometry.hpp" />
     <ClInclude Include="util\ascii_display.hpp" />

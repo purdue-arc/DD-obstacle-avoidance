@@ -931,13 +931,24 @@ namespace gmtry2i {
 		vector2i p;
 		line_stepper2i(const line_segment2i& l, float step_size) {
 			vector2i disp = l.b - l.a;
-			float lengthf = std::sqrt(squared(disp));
-			waypoints = (lengthf / step_size) + 1;
-			float step_scale = step_size / lengthf;
+			float length = std::sqrt(squared(disp));
+			waypoints = (length / step_size) + 1;
+			float step_scale = step_size / length;
 			step_x = disp.x * step_scale;
 			step_y = disp.y * step_scale;
 			x = static_cast<float>(l.a.x) + 0.5F;
 			y = static_cast<float>(l.a.y) + 0.5F;
+			p = l.a;
+		}
+		line_stepper2i(const gmtry2::line_segment2& l, float step_size) {
+			gmtry2::vector2 disp = l.b - l.a;
+			float length = std::sqrt(squared(disp));
+			waypoints = (length / step_size) + 1;
+			float step_scale = step_size / length;
+			step_x = disp.x * step_scale;
+			step_y = disp.y * step_scale;
+			x = l.a.x;
+			y = l.a.y;
 			p = l.a;
 		}
 		inline void step() {
