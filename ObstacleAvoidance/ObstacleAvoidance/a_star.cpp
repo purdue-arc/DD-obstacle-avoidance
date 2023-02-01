@@ -123,29 +123,6 @@ void AStar::initializePriorityQueue() {
 	make_heap(node_ptrs.begin(), node_ptrs.end(), nodeCompare);
 }
 
-// Sets occupancy of given node inside cost through bit manipulation
-void AStar::set_occupancy(node_t* node, bool occupied) {
-	if (occupied) {
-		node->cost |= 1;
-	}
-	else {
-		node->cost &= (~1);
-	}
-}
-
-// Returns occupancy of the given node from cost var through bit manipulation
-bool AStar::get_occupancy(node_t *node) {
-	return (node->cost & 1);
-}
-
-/*
-	* Returns actual cost value from given node through bit manipulation.
-	* Only used for print statements
-	*/
-int AStar::get_cost(node_t *node) {
-	return (node->cost & (~1));
-}
-
 // ADT method to simplify popping min element
 node_t* AStar::pop_min() {
 	node_t* of_interest = (node_t*) pq.top();

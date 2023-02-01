@@ -73,6 +73,17 @@ struct nodeComp {
 };
 
 
+// node.cpp: Declaring the class
+class CNode {
+public:
+	// Functions
+	inline static void set_occupancy(node_t* node, bool occupied);
+	inline static bool get_occupancy(node_t* node);
+	inline static int get_cost(node_t* node);
+	inline static void set_cost(node_t* node, int cost);
+	inline static void set_cost_and_occupancy(node_t* node, int cost, bool occupied);
+};
+
 // a_star.cpp: Declaring the class
 class AStar {
 private:
@@ -90,10 +101,6 @@ protected:
 	bool outOfBounds(int row, int col);
 	vector<node*> get_neighbors(int row, int col);
 	void initializePriorityQueue();
-	// make the below inline for higher efficiency
-	void set_occupancy(node_t* node, bool occupied);
-	bool get_occupancy(node_t* node);
-	int get_cost(node_t* node);
 	node_t* pop_min();
 	bool compute();
 
