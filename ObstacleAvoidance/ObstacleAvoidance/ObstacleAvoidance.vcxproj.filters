@@ -36,13 +36,9 @@
     <ClCompile Include="rs_util.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="a_star.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="random_maze_generator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="path_planning_testing.cpp" />
     <ClCompile Include="node.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -111,7 +107,7 @@
       <Filter>Source Files\util</Filter>
     </ClInclude>
     <ClInclude Include="util\prjctn_display.hpp">
-      <Filter>Header Files</Filter>
+      <Filter>Source Files\util</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

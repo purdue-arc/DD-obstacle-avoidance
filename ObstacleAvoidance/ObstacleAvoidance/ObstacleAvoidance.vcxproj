@@ -134,9 +134,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="a_star.cpp" />
     <ClCompile Include="node.cpp" />
-    <ClCompile Include="path_planning_testing.cpp" />
     <ClCompile Include="random_maze_generator.cpp" />
     <ClCompile Include="Source.cpp" />
     <ClCompile Include="rs_util.cpp" />

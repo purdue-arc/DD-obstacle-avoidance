@@ -74,7 +74,6 @@ namespace prjctn {
 		}
 		void execute_command(std::string command) try {
 			if (!running) return;
-			std::cout << "Command start:" << command << "Command end" << std::endl;
 
 			// Move forward/backward
 			if (command == std::string("w")) config.set_pose(config.get_pose() + config.get_pose().R(1));
