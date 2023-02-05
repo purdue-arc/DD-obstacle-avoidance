@@ -211,18 +211,16 @@ namespace gmtry_tests {
 		gmtry2i::vector2i cam_origin2(cam_origin.x, cam_origin.y);
 		gmtry3::matrix3 cam_orientation = gmtry3::make_rotation(2, PI / 4);		// Yaw left 45deg
 		//								* gmtry3::make_rotation(0, -PI / 3);	// Pitch down 60deg
-		ascii_dsp::ascii_image img({ {}, {64, 64}});
-		prjctn::point_drawer2 projector;
-		projector.prep(img, cam_origin2);
+		prjctn::observed_point_drawer2 drawer(64, 64);
+		drawer.set_perspective(config.get_pose());
 		// Draw camera's local axes
 		//img << gmtry2i::line_segment2i(cam_origin2, cam_origin2 + 
 		//	   gmtry2i::vector2i(cam_orientation(0).x * 8, cam_orientation(0).y * 8))
 		//	<< gmtry2i::line_segment2i(cam_origin2, cam_origin2 + 
 		//	   gmtry2i::vector2i(cam_orientation(1).x * 8, cam_orientation(1).y * 8));
 		config.cam_to_world = gmtry3::transform3(cam_orientation, cam_origin);
-		prjctn::deproject(depths, config, &projector);
-		projector.draw();
-		std::cout << img;
+		prjctn::deproject(depths, config, &drawer);
+		drawer.execute("drw", std::cout);
 
 		delete[] depths;
 		return 0;
@@ -237,12 +235,10 @@ namespace gmtry_tests {
 			//								* gmtry3::make_rotation(0, PI / 2)	// Pitch up
 			* gmtry3::make_rotation(1, -PI / 6);// Roll down to the left
 		ascii_dsp::ascii_image img(gmtry2i::aligned_box2i(gmtry2i::vector2i(), 64));
-		prjctn::point_drawer2 projector;
-		projector.prep(img, cam_origin2);
-		config.cam_to_world = gmtry3::transform3(cam_orientation, cam_origin);
-		prjctn::deproject(depths, config, &projector);
-		projector.draw();
-		std::cout << img;
+		prjctn::observed_point_drawer2 drawer(64, 64);
+		config.set_pose(gmtry3::transform3(cam_orientation, cam_origin));
+		prjctn::deproject(depths, config, &drawer);
+		drawer.execute("drw", std::cout);
 
 		delete[] depths;
 		return 0;
@@ -260,9 +256,11 @@ namespace gmtry_tests {
 		marcher.add_object(&c2);
 		prjctn::cam_info config(PI / 2, 48, 32, { gmtry3::make_rotation(2, PI / 8) * gmtry3::make_rotation(1, -PI / 6), 
 		                                          gmtry3::vector3(6, 2, -0.5) });
-		prjctn::point_drawer2 projector;
-		prjctn::world_explorer explora(config, &marcher, &projector, std::cout);
-		explora.execute_commands(std::cin);
+		prjctn::observed_point_drawer2 drawer(48, 32);
+		prjctn::world_explorer explora(config, &marcher, &drawer);
+		explora.add_listener(&drawer);
+		ascii_dsp::ascii_console console(&explora, std::cout);
+		console.execute_commands(std::cin);
 		return 0;
 	}
 }

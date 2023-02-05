@@ -270,12 +270,14 @@ namespace ocpncy {
 						gmtry2i::vector2i nbrhd_oc_pos(mini_origin | get_bit_offset(bit_idx));
 						// Save the point in a list so we won't have to go through aggregator and find it again later
 						observed_points.add(nbrhd_oc_pos);
-						gmtry2i::line_segment2i nbrhd_oc_line(nbrhd_position, nbrhd_oc_pos), tile_oc_line;
+						gmtry2i::line_segment2i nbrhd_oc_line(nbrhd_position, nbrhd_oc_pos);
 						for (int nbr_x = 0; nbr_x < 3; nbr_x++) for (int nbr_y = 0; nbr_y < 3; nbr_y++) {
-							if (gmtry2i::intersects(nbrhd_oc_line, nbrhd_tile_boxes[nbr_y][nbr_x])) {
+							bool no_intersection = false;
+							gmtry2::line_segment2 tile_oc_line = 
+								gmtry2i::intersection(nbrhd_oc_line, nbrhd_tile_boxes[nbr_y][nbr_x], &no_intersection);
+							if (!no_intersection) {
 								gradient_tile* intersected_tile = nbrhd(nbr_x, nbr_y);
 								if (!intersected_tile) continue;
-								tile_oc_line = gmtry2i::intersection(nbrhd_oc_line, nbrhd_tile_boxes[nbr_y][nbr_x]);
 								gmtry2i::line_stepper2i stepper(tile_oc_line, 1.0F);
 								const int num_steps = stepper.waypoints;
 								for (int t = 0; t < num_steps; t++) {
@@ -284,8 +286,9 @@ namespace ocpncy {
 									if (intrsctd_char && ~intrsctd_char) intrsctd_char--;
 									stepper.step();
 								}
+								gmtry2i::vector2i endpoint = tile_oc_line.b;
 								unsigned char& intrsctd_char = intersected_tile->
-									certainties[tile_oc_line.b.x | (tile_oc_line.b.y << log2_w)];
+									certainties[endpoint.x | (endpoint.y << log2_w)];
 								if (intrsctd_char && ~intrsctd_char) intrsctd_char--;
 							}
 							nbrs_modified[nbr_y][nbr_x] = true;
@@ -325,7 +328,7 @@ namespace ocpncy {
 							// only copies over 
 							if (static_cast<bool>(map_occupancy) != static_cast<bool>(new_occupancy)) {
 								map_occupancy = new_occupancy;
-								changes_listener->write(new_tile, oc_idx);
+								if (changes_listener) changes_listener->write(new_tile, oc_idx);
 							}
 						}
 					}

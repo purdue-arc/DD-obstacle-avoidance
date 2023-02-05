@@ -341,33 +341,48 @@ namespace oc_tests {
 			set_tile(tile, origin);
 		}
 		float get_distance(const gmtry3::ray3& r, float max_distance) const {
-			gmtry2::line_segment2 l(r.p, r.p + gmtry2::normalize(r.d) * max_distance);
-			const float step_size = 0.5F;
+			gmtry2::vector2 direction = gmtry2::normalize(r.d);
+			gmtry2::line_segment2 l(r.p, r.p + direction * max_distance);
+			const float step_size = 0.125;
 
 			float min_dst = max_distance;
+			//for (int nbrhd_x = 0; nbrhd_x < 1; nbrhd_x++) for (int nbrhd_y = 1; nbrhd_y < 2; nbrhd_y++) {
 			for (int nbrhd_x = 0; nbrhd_x < 3; nbrhd_x++) for (int nbrhd_y = 0; nbrhd_y < 3; nbrhd_y++) {
-				if (nbrhd(nbrhd_x, nbrhd_y)) {
-					bool no_intersection = false;
-					gmtry2::line_segment2 intrsctd_line = 
-						gmtry2i::intersection(l, boxes[nbrhd_y][nbrhd_x], &no_intersection) - 
-						gmtry2i::to_vector2(boxes[nbrhd_y][nbrhd_x].min);
-					if (!no_intersection) {
-						const ocpncy::gradient_otile<log2_w>* intrsctd_tile = nbrhd(nbrhd_x, nbrhd_y);
-						gmtry2i::line_stepper2i stepper(intrsctd_line, step_size);
-						float dst_to_occupancy = 0;
-						bool collided = false;
-						for (int t = 0; t < stepper.waypoints; t++) {
-							if (ocpncy::get_occ(stepper.p.x, stepper.p.y, *intrsctd_tile)) {
-								collided = true;
-								break;
-							}
-							dst_to_occupancy += step_size;
-							stepper.step();
-						}
-						if (dst_to_occupancy > max_distance) std::cout << dst_to_occupancy << std::endl;
-
-						if (collided) min_dst = std::min(min_dst, dst_to_occupancy);
+				const ocpncy::gradient_otile<log2_w>* intrsctd_tile = nbrhd(nbrhd_x, nbrhd_y);
+				if (intrsctd_tile == 0) continue;
+				bool no_intersection = false;
+				gmtry2::line_segment2 intrsctd_line =
+					gmtry2i::intersection(l, boxes[nbrhd_y][nbrhd_x], &no_intersection);
+				if (!no_intersection) {
+					if (!gmtry2i::contains(boxes[nbrhd_y][nbrhd_x], intrsctd_line))
+						std::cout << "Bad line intersection!" << std::endl;
+					gmtry2::vector2 nbr_origin = gmtry2i::to_vector2(boxes[nbrhd_y][nbrhd_x].min);
+					// Convert to tile-space
+					intrsctd_line = intrsctd_line - nbr_origin;
+					// Make sure intrsctd_line points are ordered in ascending distance
+					if (gmtry2::dot(intrsctd_line.a, direction) > gmtry2::dot(intrsctd_line.b, direction)) {
+						gmtry2::vector2 old_a = intrsctd_line.a;
+						intrsctd_line.a = intrsctd_line.b;
+						intrsctd_line.b = old_a;
 					}
+					gmtry2i::line_stepper2i stepper(intrsctd_line, step_size);
+					bool collided = false;
+					for (int t = 0; t < stepper.waypoints; t++) {
+						if (ocpncy::get_occ(stepper.p.x, stepper.p.y, *intrsctd_tile)) {
+							collided = true;
+							break;
+						}
+						stepper.step();
+					}
+					float dst_to_occupancy = gmtry2::dot(gmtry2i::to_point2(stepper.p) + nbr_origin - l.a, 
+					                                     direction);
+					
+					if (!gmtry2i::contains(gmtry2i::aligned_box2i({}, 1 << log2_w), stepper.p) && collided)
+						std::cout << "Bad stepper intersection" << std::endl;
+
+					if ((stepper.p.y + boxes[nbrhd_y][nbrhd_x].min.y >= 25) && collided)
+						std::cout << "Bad stepper intersection 2" << std::endl;
+					if (collided) min_dst = std::min(min_dst, dst_to_occupancy);
 				}
 			}
 			return min_dst;
@@ -387,11 +402,13 @@ namespace oc_tests {
 		nbrng_cattile.nbrs[3] = &nbrng_dogtile;
 		collidable_oc_nbrhd<4> nbrhd(&nbrng_cattile, {-10, 10});
 		marcher.add_object(&nbrhd);
-		prjctn::cam_info config(PI / 2, 48, 32, gmtry3::transform3());
-		prjctn::point_drawer2 projector;
-		prjctn::world_explorer explora(config, &marcher, &projector, std::cout);
-		explora.set_map_view_dims(48, 48);
-		explora.execute_commands(std::cin);
+		prjctn::cam_info config(PI / 2, 48, 32, gmtry3::transform3(gmtry3::make_rotation(2, 11 * PI / 12), 
+		                                                           {-20.5606F, 32.0225F, -1.9503F}));
+		prjctn::observed_point_drawer2 drawer(48, 32);
+		prjctn::world_explorer explora(config, &marcher, &drawer);
+		explora.add_listener(&drawer);
+		ascii_dsp::ascii_console console(&explora, std::cout);
+		console.execute_commands(std::cin);
 		return 0;
 	}
 

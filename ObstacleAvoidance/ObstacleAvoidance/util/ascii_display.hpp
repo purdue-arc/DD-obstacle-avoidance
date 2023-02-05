@@ -1,10 +1,11 @@
 #pragma once
 
 #include "geometry.hpp"
+#include "data_structs.hpp"
 
+#include <iostream>
 #include <string>
 #include <type_traits>
-#include <iostream>
 
 namespace ascii_dsp {
 	const unsigned int DEFAULT_MAX_LINE_LENGTH = 1536;
@@ -128,6 +129,84 @@ namespace ascii_dsp {
 		~ascii_image() {
 			for (int y = height - 1; y >= 0; y--) delete[] lines[y];
 			delete[] lines;
+		}
+	};
+
+	struct console_command {
+		std::string name, args;
+		console_command(const std::string& command_line) {
+			const char* command_str = command_line.c_str();
+			int name_len = 0;
+			while (command_str[name_len] != ' ' && command_str[name_len] != '\0')
+				name_len++;
+			name = command_line.substr(0, name_len);
+			if (name_len < command_line.length())
+				args = command_line.substr(name_len + 1);
+			else args = std::string();
+		}
+	};
+
+	class command_listener {
+	public:
+		virtual std::string get_name() = 0;
+		void execute(const std::string&, std::ostream&);
+	private:
+		strcts::linked_arraylist<command_listener*, 16> listeners;
+		void pass_down(const console_command& command, std::ostream& os) {
+			listeners.reset();
+			int num_listeners = listeners.get_length();
+			for (int i = 0; i < num_listeners; i++) {
+				command_listener* next_listener = listeners.next();
+				if (next_listener->get_name() == command.name) {
+					next_listener->execute(command.args, os);
+					return;
+				}
+			}
+		}
+	protected:
+		virtual void print_manual(std::ostream& os) = 0;
+		virtual bool attempt_execute(const std::string& command_args, std::ostream& os) = 0;
+	public:
+		void add_listener(command_listener* listener) {
+			listeners.add(listener);
+		}
+	};
+	void command_listener::execute(const std::string& command_args, std::ostream& os) {
+		if (command_args == "man") {
+			print_manual(os);
+			int num_listeners = listeners.get_length();
+			if (num_listeners) {
+				os << "Sub-listeners: " << std::endl;
+				listeners.reset();
+				for (int i = 0; i < num_listeners; i++)
+					os << ". . " << listeners.next()->get_name() << std::endl;
+			}
+		}
+		else if (attempt_execute(command_args, os)) return;
+		else pass_down(console_command(command_args), os);
+	}
+
+	class ascii_console {
+		static const int MAX_COMMAND_LENGTH = 100;
+		command_listener* listener;
+		std::ostream& os;
+	public:
+		ascii_console(command_listener* new_listener, std::ostream& output) : os(output) {
+			listener = new_listener;
+		}
+		void execute_commands(std::istream& is) {
+			char command_buf[MAX_COMMAND_LENGTH] = {};
+			bool running = true;
+			while (running) try {
+				is.getline(command_buf, MAX_COMMAND_LENGTH);
+				std::string command_str = std::string(command_buf);
+				if (command_str == std::string("exit")) 
+					running = false;
+				listener->execute(std::string(command_buf), os);
+			}
+			catch (const std::exception& e) {
+				os << e.what() << std::endl;
+			}
 		}
 	};
 

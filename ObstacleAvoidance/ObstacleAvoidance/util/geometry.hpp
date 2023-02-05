@@ -393,6 +393,10 @@ namespace gmtry2 {
 		return dot(v, v);
 	}
 
+	std::string to_string(const vector2& v) {
+		return std::to_string(v.x) + std::string(", ") + std::to_string(v.y);
+	}
+
 	struct line_segment2 {
 		vector2 a, b;
 		line_segment2() = default;
@@ -942,7 +946,7 @@ namespace gmtry2i {
 		}
 		line_stepper2i(const gmtry2::line_segment2& l, float step_size) {
 			gmtry2::vector2 disp = l.b - l.a;
-			float length = std::sqrt(squared(disp));
+			float length = std::sqrt(gmtry2::squared(disp));
 			waypoints = (length / step_size) + 1;
 			float step_scale = step_size / length;
 			step_x = disp.x * step_scale;
