@@ -81,7 +81,7 @@ namespace oc_tests {
 			ocpncy::set_occ(x, circley, dogtile, true);
 			ocpncy::set_occ(x, circley - 1, dogtile, true);
 		}
-		std::cout << dogtile;
+		//std::cout << dogtile;
 		return 0;
 	}
 
@@ -343,7 +343,7 @@ namespace oc_tests {
 		float get_distance(const gmtry3::ray3& r, float max_distance) const {
 			gmtry2::vector2 direction = gmtry2::normalize(r.d);
 			gmtry2::line_segment2 l(r.p, r.p + direction * max_distance);
-			const float step_size = 0.125;
+			const float step_size = 0.5;
 
 			float min_dst = max_distance;
 			//for (int nbrhd_x = 0; nbrhd_x < 1; nbrhd_x++) for (int nbrhd_y = 1; nbrhd_y < 2; nbrhd_y++) {
@@ -351,13 +351,14 @@ namespace oc_tests {
 				const ocpncy::gradient_otile<log2_w>* intrsctd_tile = nbrhd(nbrhd_x, nbrhd_y);
 				if (intrsctd_tile == 0) continue;
 				bool no_intersection = false;
+				// Intersection of line with tile in neighborhood; initially defined in world space
 				gmtry2::line_segment2 intrsctd_line =
 					gmtry2i::intersection(l, boxes[nbrhd_y][nbrhd_x], &no_intersection);
 				if (!no_intersection) {
-					if (!gmtry2i::contains(boxes[nbrhd_y][nbrhd_x], intrsctd_line))
-						std::cout << "Bad line intersection!" << std::endl;
+					//std::cout << "Length of intersected line segment: " << 
+					//	gmtry2::magnitude(intrsctd_line.b - intrsctd_line.a)  << std::endl;
 					gmtry2::vector2 nbr_origin = gmtry2i::to_vector2(boxes[nbrhd_y][nbrhd_x].min);
-					// Convert to tile-space
+					// Convert to tile space
 					intrsctd_line = intrsctd_line - nbr_origin;
 					// Make sure intrsctd_line points are ordered in ascending distance
 					if (gmtry2::dot(intrsctd_line.a, direction) > gmtry2::dot(intrsctd_line.b, direction)) {
@@ -367,21 +368,21 @@ namespace oc_tests {
 					}
 					gmtry2i::line_stepper2i stepper(intrsctd_line, step_size);
 					bool collided = false;
+					float dst_to_occupancy;
 					for (int t = 0; t < stepper.waypoints; t++) {
 						if (ocpncy::get_occ(stepper.p.x, stepper.p.y, *intrsctd_tile)) {
-							collided = true;
-							break;
+							bool no_collision = false;
+							// Defined in world space
+							gmtry2::line_segment2 state_intrsctd_line =
+								gmtry2i::intersection(intrsctd_line, boundsof(stepper.p), &no_collision) + nbr_origin;
+							if (collided = !no_collision) {
+								dst_to_occupancy = std::min(gmtry2::dot(state_intrsctd_line.a - l.a, direction),
+								                            gmtry2::dot(state_intrsctd_line.b - l.a, direction));
+								break;
+							}
 						}
 						stepper.step();
 					}
-					float dst_to_occupancy = gmtry2::dot(gmtry2i::to_point2(stepper.p) + nbr_origin - l.a, 
-					                                     direction);
-					
-					if (!gmtry2i::contains(gmtry2i::aligned_box2i({}, 1 << log2_w), stepper.p) && collided)
-						std::cout << "Bad stepper intersection" << std::endl;
-
-					if ((stepper.p.y + boxes[nbrhd_y][nbrhd_x].min.y >= 25) && collided)
-						std::cout << "Bad stepper intersection 2" << std::endl;
 					if (collided) min_dst = std::min(min_dst, dst_to_occupancy);
 				}
 			}
@@ -393,7 +394,7 @@ namespace oc_tests {
 	int occupancy_test8() { // PASSED
 		render_cat();
 		render_dog();
-		std::cout << cattile << std::endl;
+		//std::cout << cattile << std::endl;
 		prjctn::ray_marcher marcher;
 		//prjctn::sphere a({ { 0, 10, 0 }, 3 }), b({ { 5, 20, 5 }, 9 });
 		//marcher.add_object(&a); marcher.add_object(&b);

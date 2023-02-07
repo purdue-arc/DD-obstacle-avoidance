@@ -17,13 +17,13 @@ int main() try {
 	OCCUPANCY TESTS
 	oc_tests::run_all_tests();
 	oc_tests::print_map_file_item<8>({ 0, 0 }, 3);
+	oc_tests::occupancy_test8();
 	
 	GEOMETRY TESTS
 	gmtry_tests::geometry_test0();
 	gmtry_tests::geometry_test1();
 	gmtry_tests::geometry_test2();
 	gmtry_tests::geometry_test3();
-	gmtry_tests::geometry_test5();
 	gmtry_tests::geometry_test7();
 	gmtry_tests::geometry_test8();
 	gmtry_tests::projection_test0();
@@ -34,7 +34,7 @@ int main() try {
 	test_AStar("solved_maze.pbm", false, "input.pbm", true, "input.pbm", 10, 10, .9);
 	*/
 
-	oc_tests::occupancy_test8();
+	gmtry_tests::geometry_test5();
 
 	return 0;
 }

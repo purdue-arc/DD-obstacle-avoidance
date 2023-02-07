@@ -80,7 +80,7 @@ namespace ocpncy {
 
 	// delete? THIS CLASS MIGHT BE DELETED
 	template <unsigned int radius_minis>
-	class occupancy_aggregator : public gmtry2i::point2_ostream, public maps2::tile_istream<omini> {
+	class occupancy_aggregator : public gmtry2i::point_ostream2i, public maps2::tile_istream<omini> {
 	protected:
 		omini minis[1 + 2 * radius_minis][1 + 2 * radius_minis] = {};
 		gmtry2i::vector2i origin;
@@ -137,7 +137,7 @@ namespace ocpncy {
 	* NOT IMPLEMENTED YET
 	*/
 	template <unsigned int log2_w, unsigned int observation_radius>
-	class occupancy_observer : public gmtry2i::point2_ostream {
+	class occupancy_observer : public gmtry2i::point_ostream2i {
 		static const unsigned int radius_minis = std::min((observation_radius >> LOG2_MINIW), 
 		                                                  get_tile_width_minis(log2_w));
 		static const unsigned int aggregator_width_minis = 1 + 2 * radius_minis;
@@ -153,7 +153,7 @@ namespace ocpncy {
 		* through the tile_requestee. If the tile exists, it will be added to the map by the requestee. Otherwise,
 		* and exception will be thrown.
 		*/
-		gmtry2i::point2_ostream* tile_requestee;
+		gmtry2i::point_ostream2i* tile_requestee;
 		// For reporting changed-state occupancies
 		occmap_monitor<log2_w>* changes_listener;
 		// Aggregates occupancies from one wave of observed points (aggregator is completely contained in neighborhood)
@@ -191,7 +191,7 @@ namespace ocpncy {
 			changes_listener = new_listener;
 		}
 		// Requestee is expected to load requested tiles into the map at the requested positions
-		void set_requestee(gmtry2i::point2_ostream* new_requestee) {
+		void set_requestee(gmtry2i::point_ostream2i* new_requestee) {
 			tile_requestee = new_requestee;
 		}
 		// Throws exception if path to the destination crosses tiles that aren't provided by the tile_requestee

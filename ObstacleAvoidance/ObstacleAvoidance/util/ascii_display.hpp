@@ -318,6 +318,22 @@ namespace ascii_dsp {
 		return img << decorated_rect(box, '@', false, 0);
 	}
 
+	class line_drawer : public gmtry2i::point_ostream2i {
+		ascii_image& img;
+		gmtry2i::vector2i pt_buf[3];
+	public:
+		line_drawer(ascii_image& new_img, gmtry2i::vector2i pre_point) : img(new_img) {
+			pt_buf[0] = pre_point;
+			pt_buf[1] = pre_point;
+		}
+		inline void write(const gmtry2i::vector2i& p) {
+			pt_buf[2] = p;
+			img << gradient_point(pt_buf[2], pt_buf[2] - pt_buf[0]);
+			pt_buf[0] = pt_buf[1];
+			pt_buf[1] = pt_buf[2];
+		}
+	};
+
 	ascii_image& operator << (ascii_image& img, const gmtry2::line_segment2& l) {
 		gmtry2::line_stepper2 stepper(l, 1.0F);
 		gmtry2i::vector2i pt_buf[3] = { l.b, l.b, l.a };
@@ -331,7 +347,13 @@ namespace ascii_dsp {
 			stepper.step();
 		}
 		img << gradient_point(l.b, l.b - pt_buf[0]);
+		/* Alternate line drawing method - fills every pixel intersected but looks uggo mode
+		
+		line_drawer ld(img, l.b);
+		gmtry2i::rasterize(l, &ld);
 		return img;
+		
+		*/
 	}
 
 	ascii_image& operator <<(ascii_image& img, const gmtry2::ball2& b) {

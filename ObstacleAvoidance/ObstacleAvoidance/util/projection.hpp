@@ -46,7 +46,7 @@ namespace prjctn {
 
 	// Generates a depth matrix by sending a ray out through each pixel and colliding it with the virtual world
 	void project(float* depths, cam_info config, ray_collider* collider) {
-		const float img_scale = config.tan_fov / (MAX(config.width, config.height));
+		const float img_scale = config.tan_fov / std::max(config.width, config.height);
 		const float pxl_shiftx = -0.5F * config.width + 0.5F;
 		const float pxl_shifty = -0.5F * config.height + 0.5F;
 		for (int pxl_x = 0; pxl_x < config.width; pxl_x++) for (int pxl_y = 0; pxl_y < config.height; pxl_y++) {
@@ -57,12 +57,12 @@ namespace prjctn {
 	}
 
 	// Deprojects each depth from a depth matrix into a 2D point
-	void deproject(const float* depths, cam_info config, gmtry2i::point2_ostream* points_ostream) {
+	void deproject(const float* depths, cam_info config, gmtry2i::point_ostream2i* points_ostream) {
 		gmtry3::vector3 cam_space_point;
 		gmtry2i::vector2i projected_point;
 		float pt_scale;
 		// half width and half height
-		const float img_scale = config.tan_fov / (MAX(config.width, config.height));
+		const float img_scale = config.tan_fov / std::max(config.width, config.height);
 		const float pxl_shiftx = -0.5F * config.width + 0.5F;
 		const float pxl_shifty = -0.5F * config.height + 0.5F;
 		for (int pxl_x = 0; pxl_x < config.width; pxl_x++) for (int pxl_y = 0; pxl_y < config.height; pxl_y++) {
@@ -81,12 +81,12 @@ namespace prjctn {
 	}
 
 	// Deprojects each depth from a depth matrix into a 3D point
-	void deproject(const float* depths, cam_info config, gmtry3::point3_ostream* points_ostream) {
+	void deproject(const float* depths, cam_info config, gmtry3::point_ostream3* points_ostream) {
 		gmtry3::vector3 cam_space_point;
 		float pt_scale;
 		int hwidth = config.width / 2;
 		int hheight = config.height / 2;
-		float img_scale = config.tan_fov / MAX(hwidth, hheight);
+		float img_scale = config.tan_fov / std::max(hwidth, hheight);
 		for (int x = 0; x < config.width; x++) for (int y = 0; y < config.height; y++) {
 			cam_space_point.y = depths[x + y * config.width];
 			pt_scale = img_scale * cam_space_point.y;
@@ -114,8 +114,8 @@ namespace prjctn {
 
 	// Marches a point from the start of a ray out until it collides with something
 	class ray_marcher : public ray_collider {
-		const float MIN_DISTANCE = 0.01; // one one-hundredth
-		const float MAX_DISTANCE = 1000; // one million; must be greater than 1
+		const float MIN_DISTANCE = 0x1p-8; // 1 / 256
+		const float MAX_DISTANCE = 0x1p10; // 1024
 		strcts::linked_arraylist<const measurable_object*> measurables;
 		strcts::linked_arraylist<const collidable_object*> collidables;
 
@@ -150,7 +150,7 @@ namespace prjctn {
 				step_size = get_min_distance({p, direction});
 			}
 			if (step_size == MAX_DISTANCE) return p + direction * MAX_DISTANCE;
-			return p;
+			return p + direction * 0x1p-6F;
 		}
 	};
 

@@ -4,7 +4,7 @@
 #include "projection.hpp"
 
 namespace prjctn {
-	class point_observer2 : public gmtry2i::point2_ostream {
+	class point_observer2 : public gmtry2i::point_ostream2i {
 	public:
 		virtual void set_perspective(const gmtry3::transform3& pose) = 0;
 	};
