@@ -351,9 +351,9 @@ namespace ascii_dsp {
 		
 		line_drawer ld(img, l.b);
 		gmtry2i::rasterize(l, &ld);
-		return img;
 		
 		*/
+		return img;
 	}
 
 	ascii_image& operator <<(ascii_image& img, const gmtry2::ball2& b) {

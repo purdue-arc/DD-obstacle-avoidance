@@ -1,8 +1,8 @@
 #pragma once
 
 #include "occupancy.hpp"
-#include "maps2/maps2_streams.hpp"
-#include "util/data_structs.hpp"
+#include "../maps2/maps2_streams.hpp"
+#include "../util/data_structs.hpp"
 
 namespace ocpncy {
 	// Produces tiles from a matrix of occupancy values (a state is occupied if it's occupancy value is not 0)

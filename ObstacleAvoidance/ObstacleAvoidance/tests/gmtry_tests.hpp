@@ -1,7 +1,7 @@
 #pragma once
 
 #include "benchmark.hpp"
-#include "util/prjctn_display.hpp"
+#include "../util/prjctn_display.hpp"
 
 #include <iostream>
 

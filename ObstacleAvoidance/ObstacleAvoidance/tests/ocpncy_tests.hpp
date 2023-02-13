@@ -1,9 +1,9 @@
 #pragma once 
 
 //#define DEBUG
-#include "ocpncy/ocpncy_streams.hpp"
-#include "ocpncy/ocpncy_display.hpp"
-#include "util/prjctn_display.hpp"
+#include "../ocpncy/ocpncy_streams.hpp"
+#include "../ocpncy/ocpncy_display.hpp"
+#include "../util/prjctn_display.hpp"
 
 #ifndef OUTPUT_FILEPATH 
 #	define OUTPUT_FILEPATH (std::string(""))
@@ -354,6 +354,7 @@ namespace oc_tests {
 				// Intersection of line with tile in neighborhood; initially defined in world space
 				gmtry2::line_segment2 intrsctd_line =
 					gmtry2i::intersection(l, boxes[nbrhd_y][nbrhd_x], &no_intersection);
+				std::cout << gmtry2::to_string(intrsctd_line) << std::endl;
 				if (!no_intersection) {
 					//std::cout << "Length of intersected line segment: " << 
 					//	gmtry2::magnitude(intrsctd_line.b - intrsctd_line.a)  << std::endl;
@@ -403,7 +404,7 @@ namespace oc_tests {
 		nbrng_cattile.nbrs[3] = &nbrng_dogtile;
 		collidable_oc_nbrhd<4> nbrhd(&nbrng_cattile, {-10, 10});
 		marcher.add_object(&nbrhd);
-		prjctn::cam_info config(PI / 2, 48, 32, gmtry3::transform3(gmtry3::make_rotation(2, 11 * PI / 12), 
+		prjctn::cam_info config(PI / 2, 1, 1, gmtry3::transform3(gmtry3::make_rotation(2, 11 * PI / 12), 
 		                                                           {-20.5606F, 32.0225F, -1.9503F}));
 		prjctn::observed_point_drawer2 drawer(48, 32);
 		prjctn::world_explorer explora(config, &marcher, &drawer);

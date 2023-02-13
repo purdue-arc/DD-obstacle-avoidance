@@ -440,6 +440,10 @@ namespace gmtry2 {
 		return { l.a - v, l.b - v };
 	}
 
+	std::string to_string(const line_segment2& l) {
+		return to_string(l.a) + std::string("; ") + to_string(l.b);
+	}
+
 	struct line_stepper2 {
 		vector2 step_p, p;
 		unsigned int waypoints;
@@ -466,6 +470,7 @@ namespace gmtry2 {
 		ball2& operator =(const gmtry3::ball3& sphere) {
 			c = sphere.c;
 			r = sphere.r;
+			return *this;
 		}
 	};
 
@@ -780,6 +785,7 @@ namespace gmtry2i {
 				float value1 = box_pts[extrema][dim] - l.a[dim];
 				if (((value1 < 0) == (value2 < 0)) && (abs(value1) <= abs(value2)) && (value1 != 0)) {
 					int other_dim = 1 & ~dim;
+					// position along direction parallel to box edge of intersection with box_pts area
 					float other_intersection = l.a[other_dim] + disp[other_dim] * (value1 / value2);
 					if (box.min[other_dim] <= other_intersection && other_intersection < box.max[other_dim]) {
 						gmtry2::vector2 intersection;

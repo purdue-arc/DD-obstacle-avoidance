@@ -1,7 +1,7 @@
 #pragma once
 
 #include "tilemaps.hpp"
-#include "util/ascii_display.hpp"
+#include "../util/ascii_display.hpp"
 
 // Displays generic tiles and tile streams
 namespace maps2 {
