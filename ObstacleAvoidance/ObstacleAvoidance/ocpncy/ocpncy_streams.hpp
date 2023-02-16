@@ -144,6 +144,16 @@ namespace ocpncy {
 
 		typedef gradient_otile<log2_w> gradient_tile;
 
+		class forgetter : public gmtry2i::point_ostream2i {
+			gradient_tile& tile;
+		public:
+			forgetter(gradient_tile& target_tile) : tile(target_tile) {}
+			inline void write(const gmtry2i::vector2i& p) {
+				unsigned char& intrsctd_char = tile.certainties[p.x + (p.y << log2_w)];
+				if (intrsctd_char && ~intrsctd_char) intrsctd_char--;
+			}
+		};
+
 		gmtry2i::vector2i position, tile_origin;
 		maps2::nbrng_tile<gradient_tile>* current_tile;
 		// Tiles used as the control group; compared with map tiles after map is updated to find changed states
@@ -256,8 +266,7 @@ namespace ocpncy {
 			// Tracks whether each member of the neighborhood has been modified
 			bool nbrs_modified[3][3] = {};
 			// Saves the position of each observed occupancy relative to neighborhood origin
-			strcts::linked_arraylist<gmtry2i::vector2i> observed_points = 
-				strcts::linked_arraylist<gmtry2i::vector2i>();
+			strcts::linked_arraylist<gmtry2i::vector2i, 128> observed_points;
 			
 			// Step 1: Lower certainties of missed occupancies
 			for (int ay = 0; ay < aggregator_width_minis; ay++) for (int ax = 0; ax < aggregator_width_minis; ax++) {
@@ -278,25 +287,14 @@ namespace ocpncy {
 							if (!no_intersection) {
 								gradient_tile* intersected_tile = nbrhd(nbr_x, nbr_y);
 								if (!intersected_tile) continue;
-								gmtry2i::line_stepper2i stepper(tile_oc_line, 1.0F);
-								const int num_steps = stepper.waypoints;
-								for (int t = 0; t < num_steps; t++) {
-									unsigned char& intrsctd_char = intersected_tile->
-										certainties[stepper.p.x | (stepper.p.y << log2_w)];
-									if (intrsctd_char && ~intrsctd_char) intrsctd_char--;
-									stepper.step();
-								}
-								gmtry2i::vector2i endpoint = tile_oc_line.b;
-								unsigned char& intrsctd_char = intersected_tile->
-									certainties[endpoint.x | (endpoint.y << log2_w)];
-								if (intrsctd_char && ~intrsctd_char) intrsctd_char--;
+								forgetter forgor(*intersected_tile);
+								gmtry2i::rasterize(tile_oc_line, &forgor);
 							}
 							nbrs_modified[nbr_y][nbr_x] = true;
 						}
 					}
 				}
 			}
-			const int mask = get_tile_coord_mask(log2_w);
 
 			// Step 2: Raise certainties of spotted occupancies
 			int num_observed_points = observed_points.get_length();
@@ -304,7 +302,8 @@ namespace ocpncy {
 				gmtry2i::vector2i point = observed_points.next();
 				gradient_tile* occupied_tile = nbrhd(point.x >> log2_w, point.y >> log2_w);
 				if (occupied_tile) occupied_tile->
-					certainties[(point.x & mask) | ((point.y & mask) << log2_w)] |= gradient_tile::MAX_CERTAINTY;
+					certainties[(point.x & get_tile_coord_mask(log2_w)) | 
+					           ((point.y & get_tile_coord_mask(log2_w)) << log2_w)] |= gradient_tile::MAX_CERTAINTY;
 			}
 
 			gmtry2i::aligned_box2i nbrhd_gator_bounds(aggregator_bounds + gator_nbrhd_shift);

@@ -745,15 +745,12 @@ namespace gmtry2i {
 		// test if box contains either endpoint
 		if (contains(box, l.a) || contains(box, l.b)) return true;
 		gmtry2::vector2 disp = l.b - l.a;
-		const gmtry2::vector2 epsilon_disp(gmtry2::EPSILON, gmtry2::EPSILON);
-		// Inclusive extrema of box
-		gmtry2::vector2 box_pts[2] = { to_vector2(box.min) + epsilon_disp, to_vector2(box.max) - epsilon_disp };
 		for (int dim = 0; dim < 2; dim++) if (abs(disp[dim]) > gmtry2::EPSILON)
 			for (int extrema = 0; extrema < 2; extrema++) {
 				// a[dim] + t*disp[dim] = box[extrema][dim]
 				// t = (box[extrema][dim] - a[dim]) / disp[dim]
 				// if 0 <= t <= 1 then they intersect
-				float value1 = box_pts[extrema][dim] - l.a[dim];
+				float value1 = box[extrema][dim] - l.a[dim];
 				float value2 = disp[dim];
 				// if t is not negative AND t is less than 1
 				if (((value1 < 0) == (value2 < 0)) && (abs(value1) <= abs(value2))) {
@@ -775,21 +772,18 @@ namespace gmtry2i {
 		if (contains(box, l.b)) new_pts[pt_idx++] = l.b;
 		if (pt_idx > 1) return { new_pts[0], new_pts[1] };
 		gmtry2::vector2 disp = l.b - l.a;
-		const gmtry2::vector2 epsilon_disp(gmtry2::EPSILON, gmtry2::EPSILON);
-		// Inclusive extrema of box
-		gmtry2::vector2 box_pts[2] = { to_vector2(box.min), to_vector2(box.max) - epsilon_disp };
 		for (int dim = 0; dim < 2; dim++) if (abs(disp[dim]) > gmtry2::EPSILON) {
 			float value2 = disp[dim];
 			for (int extrema = 0; extrema < 2; extrema++) {
 				// explanation for the following is in intersects(line_segment2i, aligned_box2i)
-				float value1 = box_pts[extrema][dim] - l.a[dim];
+				float value1 = box[extrema][dim] - l.a[dim];
 				if (((value1 < 0) == (value2 < 0)) && (abs(value1) <= abs(value2)) && (value1 != 0)) {
 					int other_dim = 1 & ~dim;
 					// position along direction parallel to box edge of intersection with box_pts area
 					float other_intersection = l.a[other_dim] + disp[other_dim] * (value1 / value2);
 					if (box.min[other_dim] <= other_intersection && other_intersection < box.max[other_dim]) {
 						gmtry2::vector2 intersection;
-						intersection[dim] = box_pts[extrema][dim];
+						intersection[dim] = extrema ? (box[extrema][dim] - gmtry2::EPSILON) : (box[extrema][dim]);
 						intersection[other_dim] = other_intersection;
 						new_pts[pt_idx++] = intersection;
 					}
