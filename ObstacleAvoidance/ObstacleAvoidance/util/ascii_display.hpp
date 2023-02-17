@@ -110,6 +110,11 @@ namespace ascii_dsp {
 		}
 		ascii_image(const gmtry2i::aligned_box2i& viewport) : ascii_image(viewport, DEFAULT_MAX_LINE_LENGTH) {}
 		ascii_image& operator =(const ascii_image& img) {
+			if (lines) {
+				for (int y = height - 1; y >= 0; y--) delete[] lines[y];
+				delete[] lines;
+				lines = 0;
+			}
 			log2_pw = img.log2_pw;
 			width = img.width;
 			height = img.height;

@@ -67,7 +67,7 @@ namespace gmtry_tests {
 			gmtry2i::line_segment2i ab(a, b), ab_int;
 			gmtry2::line_segment2 abf(ab), abf_int;
 			bool no_intersection = false;
-			abf_int = gmtry2i::intersection(abf, rect, &no_intersection);
+			abf_int = gmtry2i::intersection(abf, rect, no_intersection);
 			bool they_intersect;
 			//they_intersect = gmtry2i::intersects(ab, rect);
 			they_intersect = !no_intersection;
@@ -219,7 +219,7 @@ namespace gmtry_tests {
 		//	<< gmtry2i::line_segment2i(cam_origin2, cam_origin2 + 
 		//	   gmtry2i::vector2i(cam_orientation(1).x * 8, cam_orientation(1).y * 8));
 		config.cam_to_world = gmtry3::transform3(cam_orientation, cam_origin);
-		prjctn::deproject(depths, config, &drawer);
+		prjctn::deproject(depths, config, drawer);
 		drawer.execute("drw", std::cout);
 
 		delete[] depths;
@@ -237,7 +237,7 @@ namespace gmtry_tests {
 		ascii_dsp::ascii_image img(gmtry2i::aligned_box2i(gmtry2i::vector2i(), 64));
 		prjctn::observed_point_drawer2 drawer(64, 64);
 		config.set_pose(gmtry3::transform3(cam_orientation, cam_origin));
-		prjctn::deproject(depths, config, &drawer);
+		prjctn::deproject(depths, config, drawer);
 		drawer.execute("drw", std::cout);
 
 		delete[] depths;

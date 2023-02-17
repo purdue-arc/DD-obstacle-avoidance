@@ -150,7 +150,7 @@ namespace prjctn {
 				os << img << std::endl;
 				if (observer) {
 					observer->set_perspective(init_pose);
-					deproject(depths, config, observer);
+					deproject<gmtry2i::point_ostream2i&>(depths, config, *observer);
 				}
 			}
 			// Turn brightness up/down

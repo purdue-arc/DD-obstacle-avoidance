@@ -106,7 +106,7 @@ namespace oc_tests {
 		ocpncy::mat_tile_stream<4, bool> iterator(forgy, forgydims[0], forgydims[1], forgyorigin, gmtry2i::vector2i(42, 35));
 		ascii_dsp::ascii_image img = maps2::make_tile_image(4, gmtry2i::vector2i(42, 35), 
 		                                                    gmtry2i::aligned_box2i(forgyorigin, 1 << (4 + 2)), -1);
-		std::cout << (img << ascii_dsp::decorated_rect(iterator.get_bounds(), 0, 0, 'x') << &iterator);
+		//std::cout << (img << ascii_dsp::decorated_rect(iterator.get_bounds(), 0, 0, 'x') << &iterator);
 		//
 
 		/* Prints just the matrix (no tiles)
@@ -155,8 +155,8 @@ namespace oc_tests {
 	typedef maps2::map_fstream<4, ocpncy::otile<4>> bmap_fstream4;
 	typedef maps2::map_buffer<4, ocpncy::otile<4>> bmap_buffer4;
 	typedef maps2::spatial_item<4, void> bmap_item4;
-	typedef maps2::lim_tile_istream<ocpncy::otile<4>> btile_lim_stream4;
-	typedef maps2::tile_istream<ocpncy::otile<4>> btile_stream4;
+	typedef std::unique_ptr < maps2::lim_tile_istream<ocpncy::otile<4>>> btile_lim_stream4;
+	typedef std::unique_ptr<maps2::tile_istream<ocpncy::otile<4>>> btile_stream4;
 
 	// Writes cattile to the mymap4 file at (-70, 30), reads the tile back, and prints it
 	int occupancy_test3() { // PASSED!
@@ -186,12 +186,11 @@ namespace oc_tests {
 		bmap_fstream4 mapstream(OUTPUT_FILEPATH + "mymap4", gmtry2i::vector2i());
 		bmap_buffer4 map(mapstream.get_bounds().min);
 
-		btile_stream4* file_tile_stream = mapstream.read();
+		btile_stream4 file_tile_stream = mapstream.read();
 		//file_tile_stream->set_bounds(gmtry2i::aligned_box2i(gmtry2i::vector2i(-20, 0), 1 << (4 + 2)));
 		map.set_wmode(maps2::TILE_ADD_MODE);
-		map.write(file_tile_stream);
+		map.write(file_tile_stream.get());
 		std::cout << &map;
-		delete file_tile_stream;
 		return 0;
 	}
 
@@ -207,22 +206,20 @@ namespace oc_tests {
 		map.write(dogtileorigin, &dogtile);
 		dogtileorigin = maps2::align_down(dogtileorigin, map.get_bounds().min, 4);
 		std::cout << "New Dogtile Origin: " << gmtry2i::to_string(dogtileorigin) << std::endl;
-		btile_lim_stream4* iterator = map.read(gmtry2i::aligned_box2i(dogtileorigin + gmtry2i::vector2i(15, 15),
+		btile_lim_stream4 iterator = map.read(gmtry2i::aligned_box2i(dogtileorigin + gmtry2i::vector2i(15, 15),
 			dogtileorigin + gmtry2i::vector2i(1 << 4, 1 << 4)));
 		std::cout << "New Map Iterator Bounds: " << gmtry2i::to_string(iterator->get_bounds()) << std::endl;
 
 		std::cout << "Tile to Write: " << std::endl << dogtile;
-		mapstream.write(iterator);
+		mapstream.write(iterator.get());
 		std::cout << "Dogtile written to file successfully!" << std::endl;
-		delete iterator;
 
 		bmap_buffer4 map2(mapstream.get_bounds().min);
-		btile_lim_stream4* file_tile_stream = mapstream.read(gmtry2i::aligned_box2i(dogtileorigin, 1 << (4 + 2)));
+		btile_lim_stream4 file_tile_stream = mapstream.read(gmtry2i::aligned_box2i(dogtileorigin, 1 << (4 + 2)));
 		map2.set_wmode(maps2::TILE_ADD_MODE);
-		map2.write(file_tile_stream);
+		map2.write(file_tile_stream.get());
 		std::cout << "Dogtile written to file successfully!" << std::endl;
 		std::cout << &map2;
-		delete file_tile_stream;
 
 		std::cout << &mapstream;
 
@@ -245,9 +242,8 @@ namespace oc_tests {
 		ocpncy::mat_tile_stream<4, bool> iterator(forgy, forgydims[0], forgydims[1], forgyorigin, mapstream.get_bounds().min);
 		mapstream.write(&iterator);
 
-		btile_lim_stream4* file_tile_stream = mapstream.read(gmtry2i::aligned_box2i(forgyorigin, 1 << (6)));
+		btile_lim_stream4 file_tile_stream = mapstream.read(gmtry2i::aligned_box2i(forgyorigin, 1 << (6)));
 		std::cout << file_tile_stream;
-		delete file_tile_stream;
 
 		return 0;
 	}
@@ -271,6 +267,11 @@ namespace oc_tests {
 	}
 
 	template <unsigned int log2_w>
+	using tile_istream_ptr = std::unique_ptr<maps2::tile_istream<ocpncy::otile<log2_w>>>;
+	template <unsigned int log2_w>
+	using lim_tile_istream_ptr = std::unique_ptr<maps2::lim_tile_istream<ocpncy::otile<log2_w>>>;
+
+	template <unsigned int log2_w>
 	void generate_map_file(const gmtry2i::vector2i& map_origin, const gmtry2i::vector2i& any_tile_origin) {
 		std::uint32_t og_width, og_height;
 		unsigned char* og_pixels = get_map_image(&og_width, &og_height);
@@ -292,26 +293,23 @@ namespace oc_tests {
 	template <unsigned int log2_w>
 	void print_map_file_item(const gmtry2i::vector2i& item_to_print_origin, unsigned int item_to_print_depth) {
 		maps2::map_fstream<log2_w, ocpncy::otile<log2_w>> map_file(get_map_file_name(log2_w), gmtry2i::vector2i());
-		maps2::lim_tile_istream<ocpncy::otile<log2_w>>* tiles_out = 
+		lim_tile_istream_ptr<log2_w> tiles_out =
 			map_file.read(gmtry2i::aligned_box2i(item_to_print_origin, 1 << (log2_w + item_to_print_depth)));
 		std::cout << "Bounds of region to print: " << gmtry2i::to_string(tiles_out->get_bounds()) << std::endl;
 		std::cout << tiles_out;
-
-		delete tiles_out;
 	}
 
 	template <unsigned int log2_w>
 	void print_map_file() {
 		maps2::map_fstream<log2_w, ocpncy::otile<log2_w>> map_file(get_map_file_name(log2_w), {});
-		maps2::tile_istream<ocpncy::otile<log2_w>>* tiles_out = map_file.read();
+		tile_istream_ptr<log2_w> tiles_out = map_file.read();
 		std::cout << tiles_out;
-		delete tiles_out;
 	}
 
 	template <unsigned int log2_w>
 	void print_map_file_tiles() {
 		maps2::map_fstream<log2_w, ocpncy::otile<log2_w>> map_file(get_map_file_name(log2_w), {});
-		maps2::tile_istream<ocpncy::otile<log2_w>>* tiles_out = map_file.read();
+		tile_istream_ptr<log2_w> tiles_out = map_file.read();
 		int num_tiles_read = 0;
 		const ocpncy::otile<log2_w>* tile;
 		while (tile = tiles_out->next()) {
@@ -353,7 +351,7 @@ namespace oc_tests {
 				bool no_intersection = false;
 				// Intersection of line with tile in neighborhood; initially defined in world space
 				gmtry2::line_segment2 intrsctd_line =
-					gmtry2i::intersection(l, boxes[nbrhd_y][nbrhd_x], &no_intersection);
+					gmtry2i::intersection(l, boxes[nbrhd_y][nbrhd_x], no_intersection);
 				//std::cout << gmtry2::to_string(intrsctd_line) << std::endl;
 				if (!no_intersection) {
 					//std::cout << "Length of intersected line segment: " << 
@@ -375,7 +373,7 @@ namespace oc_tests {
 							bool no_collision = false;
 							// Defined in world space
 							gmtry2::line_segment2 state_intrsctd_line =
-								gmtry2i::intersection(intrsctd_line, boundsof(stepper.p), &no_collision) + nbr_origin;
+								gmtry2i::intersection(intrsctd_line, boundsof(stepper.p), no_collision) + nbr_origin;
 							if (collided = !no_collision) {
 								dst_to_occupancy = std::min(gmtry2::dot(state_intrsctd_line.a - l.a, direction),
 								                            gmtry2::dot(state_intrsctd_line.b - l.a, direction));
@@ -388,6 +386,29 @@ namespace oc_tests {
 				}
 			}
 			return min_dst;
+		}
+	};
+
+	template <unsigned int log2_w>
+	class monitored_observed_occupancy_drawer : public ascii_dsp::command_listener, 
+		                                        public prjctn::point_observer2, 
+	                                            public ocpncy::occmap_monitor<log2_w> {
+	protected:
+		void print_manual(std::ostream& os) {
+
+		}
+		bool attempt_execute(const std::string& command_args, std::ostream& os) {
+
+		}
+	public:
+		void write(const gmtry2i::vector2i& p) {
+
+		}
+		void set_perspective(const gmtry3::transform3& pose) {
+
+		}
+		std::string get_name() {
+			return "mood";
 		}
 	};
 

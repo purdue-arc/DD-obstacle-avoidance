@@ -15,7 +15,7 @@ int main() try {
 	rs_tests::realsense_test0();
 
 	OCCUPANCY TESTS
-	oc_tests::run_all_tests();
+	oc_tests::occupancy_test8();
 	oc_tests::print_map_file_item<8>({ 0, 0 }, 3);
 	
 	GEOMETRY TESTS
@@ -34,7 +34,7 @@ int main() try {
 	test_AStar("solved_maze.pbm", false, "input.pbm", true, "input.pbm", 10, 10, .9);
 	*/
 
-	oc_tests::occupancy_test8();
+	oc_tests::run_all_tests();
 
 	return 0;
 }

@@ -103,11 +103,11 @@
     <ClInclude Include="util\projection.hpp">
       <Filter>Source Files\util</Filter>
     </ClInclude>
-    <ClInclude Include="tests\benchmark.hpp">
-      <Filter>Source Files\util</Filter>
-    </ClInclude>
     <ClInclude Include="util\prjctn_display.hpp">
       <Filter>Source Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="tests\benchmark.hpp">
+      <Filter>Source Files\tests</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

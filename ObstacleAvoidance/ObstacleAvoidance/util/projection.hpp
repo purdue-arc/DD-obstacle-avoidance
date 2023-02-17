@@ -57,7 +57,8 @@ namespace prjctn {
 	}
 
 	// Deprojects each depth from a depth matrix into a 2D point
-	void deproject(const float* depths, cam_info config, gmtry2i::point_ostream2i* points_ostream) {
+	template <gmtry2i::writes_vector2i T>
+	void deproject(const float* depths, cam_info config, T points_ostream) {
 		gmtry3::vector3 cam_space_point;
 		gmtry2i::vector2i projected_point;
 		float pt_scale;
@@ -65,7 +66,7 @@ namespace prjctn {
 		const float img_scale = config.tan_fov / std::max(config.width, config.height);
 		const float pxl_shiftx = -0.5F * config.width + 0.5F;
 		const float pxl_shifty = -0.5F * config.height + 0.5F;
-		for (int pxl_x = 0; pxl_x < config.width; pxl_x++) for (int pxl_y = 0; pxl_y < config.height; pxl_y++) {
+		for (int pxl_y = 0; pxl_y < config.height; pxl_y++) for (int pxl_x = 0; pxl_x < config.width; pxl_x++) {
 			cam_space_point.y = depths[pxl_x + pxl_y * config.width];
 			pt_scale = img_scale * cam_space_point.y;
 			cam_space_point.x = (pxl_x + pxl_shiftx) * pt_scale;
@@ -76,23 +77,24 @@ namespace prjctn {
 			projected_point.y = config.cam_to_world.R.n[0][1] * cam_space_point.x +
 								config.cam_to_world.R.n[1][1] * cam_space_point.y +
 								config.cam_to_world.R.n[2][1] * cam_space_point.z + config.cam_to_world.t.y;
-			points_ostream->write(projected_point);
+			points_ostream.write(projected_point);
 		}
 	}
 
 	// Deprojects each depth from a depth matrix into a 3D point
-	void deproject(const float* depths, cam_info config, gmtry3::point_ostream3* points_ostream) {
+	template <gmtry3::writes_vector3 T>
+	void deproject(const float* depths, cam_info config, T points_ostream) {
 		gmtry3::vector3 cam_space_point;
 		float pt_scale;
 		int hwidth = config.width / 2;
 		int hheight = config.height / 2;
 		float img_scale = config.tan_fov / std::max(hwidth, hheight);
-		for (int x = 0; x < config.width; x++) for (int y = 0; y < config.height; y++) {
+		for (int y = 0; y < config.height; y++) for (int x = 0; x < config.width; x++) {
 			cam_space_point.y = depths[x + y * config.width];
 			pt_scale = img_scale * cam_space_point.y;
 			cam_space_point.x = (x - hwidth) * pt_scale;
 			cam_space_point.z = (y - hheight) * pt_scale;
-			points_ostream->write(config.cam_to_world * cam_space_point);
+			points_ostream.write(config.cam_to_world * cam_space_point);
 		}
 	}
 
@@ -186,7 +188,7 @@ namespace prjctn {
 			bool no_intersection = false;
 			gmtry2::vector2 direction = gmtry2::normalize(gmtry2::vector2(r.d.x, r.d.y));
 			gmtry2::line_segment2 rayline(r.p, r.p + direction * max_distance);
-			gmtry2::line_segment2 collision = gmtry2i::intersection(rayline, rect, &no_intersection);
+			gmtry2::line_segment2 collision = gmtry2i::intersection(rayline, rect, no_intersection);
 			if (!no_intersection) 
 				return std::min(gmtry2::dot(collision.a - rayline.a, direction), 
 				                gmtry2::dot(collision.b - rayline.a, direction));
