@@ -235,7 +235,7 @@ namespace maps2 {
 
 	template <typename T>
 	void delete_homogeneous_tree(homogeneous_tree<T>* tree, unsigned int depth) {
-		if (depth > 0 && tree) {
+		if (depth >= 0 && tree) {
 			for (int i = 0; i < 4; i++)
 				delete_homogeneous_tree(tree->branch[i], depth - 1);
 			delete tree;

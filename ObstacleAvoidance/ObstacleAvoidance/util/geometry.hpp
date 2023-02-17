@@ -773,16 +773,14 @@ namespace gmtry2i {
 	}
 
 	inline aligned_box2i intersection(const aligned_box2i& b1, const aligned_box2i& b2) {
-		aligned_box2i b3(vector2i(std::min(b1.min.x, b2.min.x), std::min(b1.min.y, b2.min.y)),
-						 vector2i(std::max(b1.max.x, b2.max.x), std::max(b1.max.y, b2.max.y)));
-		if ((b3.min.x < b3.max.x) && (b3.min.y < b3.max.y)) return b3;
-		else return aligned_box2i();
+		return { { std::max(b1.min.x, b2.min.x), std::max(b1.min.y, b2.min.y) },
+				 { std::min(b1.max.x, b2.max.x), std::min(b1.max.y, b2.max.y) } };
 	}
 
-	// if no intersection exists
+	// if no intersection exists, sets no_intersection to true
 	inline aligned_box2i intersection(const aligned_box2i& b1, const aligned_box2i& b2, bool& no_intersection) {
-		aligned_box2i b3(vector2i(std::min(b1.min.x, b2.min.x), std::min(b1.min.y, b2.min.y)),
-			vector2i(std::max(b1.max.x, b2.max.x), std::max(b1.max.y, b2.max.y)));
+		aligned_box2i b3({ std::max(b1.min.x, b2.min.x), std::max(b1.min.y, b2.min.y) },
+						 { std::min(b1.max.x, b2.max.x), std::min(b1.max.y, b2.max.y) });
 		if ((b3.min.x < b3.max.x) && (b3.min.y < b3.max.y)) return b3;
 		no_intersection = true;
 		return aligned_box2i();

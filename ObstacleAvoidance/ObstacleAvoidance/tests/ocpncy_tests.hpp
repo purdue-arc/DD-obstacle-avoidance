@@ -106,7 +106,7 @@ namespace oc_tests {
 		ocpncy::mat_tile_stream<4, bool> iterator(forgy, forgydims[0], forgydims[1], forgyorigin, gmtry2i::vector2i(42, 35));
 		ascii_dsp::ascii_image img = maps2::make_tile_image(4, gmtry2i::vector2i(42, 35), 
 		                                                    gmtry2i::aligned_box2i(forgyorigin, 1 << (4 + 2)), -1);
-		//std::cout << (img << ascii_dsp::decorated_rect(iterator.get_bounds(), 0, 0, 'x') << &iterator);
+		std::cout << (img << ascii_dsp::decorated_rect(iterator.get_bounds(), 0, 0, 'x') << &iterator);
 		//
 
 		/* Prints just the matrix (no tiles)

@@ -28,8 +28,6 @@ namespace ocpncy {
 			mat_bounds = gmtry2i::aligned_box2i(gmtry2i::vector2i(), gmtry2i::vector2i(width, height));
 			bounds = mat_bounds;
 			tilewise_origin = maps2::align_down(mat_origin, any_tile_origin, log2_w) - mat_origin;
-			std::cout << "Tilewise origin: " << gmtry2i::to_string(tilewise_origin) << std::endl;
-			// = align_down<log2_w>(bounds.min, any_tile_origin - mat_origin);
 			reset();
 		}
 		const otile<log2_w>* next() {
@@ -37,8 +35,6 @@ namespace ocpncy {
 			otile<log2_w> tile = otile<log2_w>();
 			gmtry2i::aligned_box2i readbox = 
 				gmtry2i::intersection(bounds, gmtry2i::aligned_box2i(tile_origin, 1 << log2_w));
-			std::cout << "Tile origin: " << gmtry2i::to_string(tile_origin) << std::endl;
-			std::cout << "Readbox: " << gmtry2i::to_string(readbox) << std::endl;
 			for (int x = readbox.min.x; x < readbox.max.x; x++)
 				for (int y = readbox.min.y; y < readbox.max.y; y++)
 					if (mat[x + y * mat_bounds.max.x])
