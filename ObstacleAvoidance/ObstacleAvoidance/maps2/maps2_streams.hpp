@@ -25,13 +25,13 @@ namespace maps2 {
 		tile_write_mode write_mode;
 
 	protected:
-		mixed_item<log2_w> get_top_item() {
-			return mixed_item<log2_w>(root, info);
-		}
 		void stretch(const gmtry2i::vector2i& direction) override {
 			mixed_item<log2_w> parent_item = mixed_item<log2_w>(root, info).create_parent_item(direction);
 			info = parent_item.info;
 			root = static_cast<mixed_tree*>(parent_item.ptr);
+		}
+		mixed_item<log2_w> get_top_item() {
+			return mixed_item<log2_w>(root, info);
 		}
 		inline void write_tile(const mixed_item<log2_w>& dst, const gmtry2i::vector2i& p, const tile* src) {
 			write_tile_to_tile<tile>(src, static_cast<tile*>(alloc_mixed_item<log2_w, tile>(dst, p, 0).ptr), write_mode);
@@ -51,6 +51,7 @@ namespace maps2 {
 		}
 		// Not specified by interface
 		template <gmtry2i::intersects_box2i T>
+			requires std::copyable<T>
 		inline ltistream_ptr<T> read(const T& limit) {
 			return ltistream_ptr<T>(new tree_walker<log2_w, tile, T>(get_top_item(), limit));
 		}
@@ -77,13 +78,9 @@ namespace maps2 {
 			// The minimum-size destination (smallest item that fits the whole stream)
 			mixed_item<log2_w> min_dst = alloc_mixed_item<log2_w, tile>(get_top_item(), min_dst_info.origin, min_dst_info.depth);
 			const tile* next_tile;
-			tile* map_tile;
 			while (next_tile = src->next()) {
 				write_tile(min_dst, src->last_origin(), next_tile);
 			}
-		}
-		gmtry2i::aligned_box2i get_bounds() const override {
-			return info.get_bounds();
 		}
 		tile_write_mode get_wmode() override {
 			return write_mode;
@@ -91,22 +88,82 @@ namespace maps2 {
 		void set_wmode(tile_write_mode new_write_mode) override {
 			write_mode = new_write_mode;
 		}
-		~map_buffer() {
+		gmtry2i::aligned_box2i get_bounds() const override {
+			return info.get_bounds();
+		}
+		~map_buffer() override {
 			delete_mixed_tree<tile>(root, info.depth);
-			root = 0;
 		}
 	};
 
-	template <unsigned int log2_w, writable_tile tile>
-	class map_nbrng_buffer : public map_ostream<tile> {
+	/*
+	* Turns written tiles into neighboring tiles and links them together as they're written
+	* Writing tile streams is not optimized [yet]
+	* Can be used to overwrite a tile, but does not have advanced writing control (adding/subtracting tiles)
+	* Assumption is that 
+	*/
+	template <unsigned int log2_w, typename tile>
+	class nbrng_tile_linker : public tile_ostream<tile>, protected stretchable_region<log2_w>, public bounded_region {
+		tree_info<log2_w> info;
+		mixed_tree* root;
 
+	protected:
+		void stretch(const gmtry2i::vector2i& direction) override {
+			mixed_item<log2_w> parent_item = mixed_item<log2_w>(root, info).create_parent_item(direction);
+			info = parent_item.info;
+			root = static_cast<mixed_tree*>(parent_item.ptr);
+		}
+		inline void write_tile(const mixed_item<log2_w>& dst, const gmtry2i::vector2i& p, const tile* src) {
+			static_cast<nbrng_tile<tile>*>(alloc_nbrng_tile<log2_w, tile>(dst, p).ptr)->tile = *src;
+		}
+
+	public:
+		nbrng_tile_linker(const gmtry2i::vector2i& origin) {
+			info = tree_info<log2_w>(origin, 1);
+			root = new mixed_tree();
+		}
+		// Returns the top spatial item of a tree of neighboring tiles
+		mixed_item<log2_w> get_top_item() {
+			return mixed_item<log2_w>(root, info);
+		}
+		nbrng_tile<tile>* get(const gmtry2i::vector2i& p) {
+			if (!gmtry2i::contains(get_bounds(), p)) return 0;
+			mixed_item<log2_w> deepest_item = seek_mixed_item(get_top_item(), p, 0);
+			if (deepest_item.info.depth == 0) return static_cast<nbrng_tile<tile>*>(deepest_item.ptr);
+			else return 0;
+		}
+		void write(const gmtry2i::vector2i& p, const tile* src) override {
+			this->fit(p);
+			write_tile(get_top_item(), p, src);
+		}
+		void write(tile_istream<tile>* src) override {
+			gmtry2i::aligned_box2i src_bounds = src->get_bounds();
+			if (gmtry2i::area(src_bounds) == 0) return;
+			this->fit(src_bounds);
+			const gmtry2i::vector2i tile_corner_disp(1 << log2_w, 1 << log2_w);
+			gmtry2i::aligned_box2i nbrs_bounds(src_bounds.min - tile_corner_disp, src_bounds.max + tile_corner_disp);
+			tree_info<log2_w> min_dst_info = get_fitted_item_info<log2_w>(info, nbrs_bounds);
+			// The minimum-size destination (smallest item that fits the whole stream)
+			mixed_item<log2_w> min_dst = alloc_mixed_item<log2_w, tile>(get_top_item(), min_dst_info.origin, min_dst_info.depth);
+			const tile* next_tile;
+			while (next_tile = src->next()) {
+				write_tile(min_dst, src->last_origin(), next_tile);
+			}
+		}
+		gmtry2i::aligned_box2i get_bounds() const override {
+			return info.get_bounds();
+		}
+		~nbrng_tile_linker() override {
+			delete_mixed_tree<tile>(root, info.depth);
+		}
 	};
 
 	/*
 	* Stream for efficiently reading and writing tiles to a map file
+	* Indexes every encountered spatial item from the file to reduce random file access
+	* Constructor and every read/write operation may throw an std::ios::failure
+	* Tiles are not buffered (reading a tile twice means it will be read from the file twice)
 	* File is closed when destructor is called
-	* Tiles are not buffered
-	* Construction and every read/write operation may throw an exception
 	* COMPLETELY DESCRIBED BY INTERFACES (except for one template read function)
 	*/
 	template <unsigned int log2_w, writable_tile tile>
@@ -393,7 +450,6 @@ namespace maps2 {
 			DEBUG_PRINT("Recorded root: " << map_header.root); //test
 			DEBUG_PRINT("Recorded file length: " << map_header.size); //test
 
-
 			if (log2_w != map_header.log2_tile_w || map_header.size < file_raw_header_size)
 				throw std::ios::failure("Map file formatted improperly");
 
@@ -402,7 +458,7 @@ namespace maps2 {
 			writemode = TILE_OVERWRITE_MODE;
 			header_has_unsaved_changes = false;
 		}
-		const tile* read(const gmtry2i::vector2i& p) {
+		const tile* read(const gmtry2i::vector2i& p) override {
 			if (!(file.is_open())) throw std::ios::failure("Cannot read map file");
 			if (!gmtry2i::contains(get_bounds(), p)) return 0;
 			item_index deepest_item = seek_item(get_top_item(), p, 0);
@@ -412,7 +468,7 @@ namespace maps2 {
 			}
 			else return 0;
 		}
-		std::unique_ptr<tile_istream<tile>> read() {
+		std::unique_ptr<tile_istream<tile>> read() override {
 			if (!(file.is_open())) throw std::ios::failure("Cannot read map file");
 			item_index top_item = get_top_item();
 			return std::unique_ptr<tile_istream<tile>>
@@ -420,24 +476,25 @@ namespace maps2 {
 		}
 		// not specified by interface
 		template <gmtry2i::intersects_box2i T>
+			requires std::copyable<T>
 		inline ltistream_ptr<T> read(const T& limit) {
 			if (!(file.is_open())) throw std::ios::failure("Cannot read map file");
 			return ltistream_ptr<T>(new map_fstream_tstream<T>(get_top_item(), limit, this));
 		}
-		ltistream_ptr<gmtry2i::aligned_box2i> read(const gmtry2i::aligned_box2i& limit) {
+		ltistream_ptr<gmtry2i::aligned_box2i> read(const gmtry2i::aligned_box2i& limit) override {
 			return read<gmtry2i::aligned_box2i>(limit);
 		}
-		ltistream_ptr<gmtry2i::box_intersectable2i> read(const gmtry2i::box_intersectable2i& limit) {
+		ltistream_ptr<gmtry2i::box_intersectable2i> read(const gmtry2i::box_intersectable2i& limit) override {
 			return read<gmtry2i::box_intersectable2i>(limit);
 		}
-		void write(const gmtry2i::vector2i& p, const tile* src) {
+		void write(const gmtry2i::vector2i& p, const tile* src) override {
 			if (!(file.is_open())) throw std::ios::failure("Cannot write to map file");
 			this->fit(p);
 			item_index dst = alloc_item(get_top_item(), p, 0);
 			write_tile(src, dst.ptr->pos);
 			DEBUG_PRINT("File appended with new tile!"); //test
 		}
-		void write(tile_istream<tile>* src) {
+		void write(tile_istream<tile>* src) override {
 			if (!(file.is_open())) throw std::ios::failure("Cannot write to map file");
 			if (gmtry2i::area(src->get_bounds()) == 0) return;
 			gmtry2i::aligned_box2i src_bounds = src->get_bounds();
@@ -456,19 +513,19 @@ namespace maps2 {
 				write_tile(stream_tile, map_tile.ptr->pos);
 			}
 		}
-		gmtry2i::aligned_box2i get_bounds() const {
+		gmtry2i::aligned_box2i get_bounds() const override {
 			return info.get_bounds();
 		}
-		tile_write_mode get_wmode() {
+		tile_write_mode get_wmode() override {
 			return writemode;
 		}
-		void set_wmode(tile_write_mode new_write_mode) {
+		void set_wmode(tile_write_mode new_write_mode) override {
 			writemode = new_write_mode;
 		}
-		void flush() {
+		void flush() override {
 			if (header_has_unsaved_changes) write_header();
 		}
-		~map_fstream() {
+		~map_fstream() override {
 			if (file.is_open()) {
 				DEBUG_PRINT("Final size of map file: " << map_header.size); //test
 				flush();

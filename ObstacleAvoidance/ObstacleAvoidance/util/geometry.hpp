@@ -810,7 +810,7 @@ namespace gmtry2i {
 	}
 
 	// Returns the intersection of a line segment and a box
-	// no_intersection is set to true if there is no intersection
+	// Parameter no_intersection is set to true if there is no intersection
 	gmtry2::line_segment2 intersection(const gmtry2::line_segment2 l, const aligned_box2i& box, 
 	                                   bool& no_intersection) {
 		// new points will either be intersections with box edges or existing endpoints contained in the box
@@ -1125,7 +1125,7 @@ namespace gmtry2i {
 		inline aligned_box2i get_bounds() const {
 			return intersector->get_bounds();
 		}
-		box_intersectable2i operator =(const box_intersectable2i& object) {
+		box_intersectable2i& operator =(const box_intersectable2i& object) {
 			if (intersector) delete intersector;
 			intersector = object.intersector->clone();
 			return *this;

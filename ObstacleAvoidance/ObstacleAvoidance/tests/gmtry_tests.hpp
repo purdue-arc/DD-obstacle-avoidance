@@ -251,7 +251,7 @@ namespace gmtry_tests {
 		marcher.add_object(&a);
 		marcher.add_object(&b);
 		prjctn::circle_cylinder c1({ {-20, 20}, 4 });
-		//marcher.add_object(&c1);
+		marcher.add_object(&c1);
 		prjctn::rect_cylinder c2({ {-22, 16}, {-16, 26} });
 		marcher.add_object(&c2);
 		prjctn::cam_info config(PI / 2, 48, 32, { gmtry3::make_rotation(2, PI / 8) * gmtry3::make_rotation(1, -PI / 6), 

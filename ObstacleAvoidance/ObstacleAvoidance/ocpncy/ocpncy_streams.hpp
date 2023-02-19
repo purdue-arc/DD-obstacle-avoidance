@@ -196,11 +196,15 @@ namespace ocpncy {
 			update_accumulator_bounds();
 			fill_control();
 		}
+		// Returns the tile in which the observer is currently contained
+		gradient_tile* get_current_tile() {
+			return current_tile;
+		}
 		// Requestee is expected to load requested tiles into the map at the requested positions
 		void set_requestee(gmtry2i::point_ostream2i* new_requestee) {
 			tile_requestee = new_requestee;
 		}
-		// Throws exception if path to the destination crosses tiles that aren't provided by the tile_requestee
+		// Throws std::exception if path to the destination crosses tiles that aren't provided by the tile_requestee
 		void move(const gmtry2i::vector2i& new_position) {
 			gmtry2i::vector2i new_tile_origin = maps2::align_down(new_position, tile_origin, log2_w);
 			// in the loop, position is always tile-aligned
@@ -239,15 +243,17 @@ namespace ocpncy {
 		void relocate(const gmtry2i::vector2i& new_position, maps2::nbrng_tile<gradient_tile>* new_tile) {
 			position = new_position;
 			current_tile = new_tile;
+			update_accumulator_bounds();
+			fill_control();
 		}
-		void write(const gmtry2i::vector2i& p) {
+		void write(const gmtry2i::vector2i& p) override {
 			if (gmtry2i::contains(accumulator_bounds, p)) {
 				gmtry2i::vector2i local_p = p - accumulator_bounds.min;
 				accumulator[local_p.x >> LOG2_MINIW][local_p.y >> LOG2_MINIW] |=
-					((omini)0b1) << ((local_p.x & MINI_COORD_MASK) + ((local_p.y & MINI_COORD_MASK) << LOG2_MINIW));
+					((omini)1) << ((local_p.x & MINI_COORD_MASK) | ((local_p.y & MINI_COORD_MASK) << LOG2_MINIW));
 			}
 		}
-		void flush() {
+		void flush() override {
 			maps2::tile_nbrhd<log2_w, gradient_tile> nbrhd(tile_origin, current_tile);
 			// Observer position defined relative to neighborhood origin
 			gmtry2i::vector2i nbrhd_position = position - nbrhd.origin;
@@ -306,6 +312,7 @@ namespace ocpncy {
 					           ((point.y & get_tile_coord_mask(log2_w)) << log2_w)] |= gradient_tile::MAX_CERTAINTY;
 			}
 
+			// Bounds of aggregator relative to neighborhood
 			gmtry2i::aligned_box2i nbrhd_gator_bounds(accumulator_bounds + gator_nbrhd_shift);
 
 			// Step 3: Compare occupancies from control_tiles buffer with the map occupancies.
@@ -322,11 +329,11 @@ namespace ocpncy {
 						unsigned int row_start_idx = y << log2_w;
 						for (long x = tile_gator_box.min.x; x < tile_gator_box.max.x; x++) {
 							unsigned int oc_idx = x | row_start_idx;
-							unsigned char& map_occupancy = old_tile->certainties[oc_idx];
+							unsigned char& old_occupancy = old_tile->certainties[oc_idx];
 							unsigned char new_occupancy = new_tile->certainties[oc_idx];
 							// only copies over
-							if (static_cast<bool>(map_occupancy) != static_cast<bool>(new_occupancy)) {
-								map_occupancy = new_occupancy;
+							if (static_cast<bool>(old_occupancy) != static_cast<bool>(new_occupancy)) {
+								old_occupancy = new_occupancy;
 								changes_listener.write(new_tile, oc_idx);
 							}
 						}
