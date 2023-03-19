@@ -33,7 +33,7 @@
     <ClCompile Include="Source.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="rs_util.cpp">
+    <ClCompile Include="util\rs_util.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="a_star.cpp">
@@ -42,8 +42,23 @@
     <ClCompile Include="random_maze_generator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="path_planning_testing.cpp" />
+    <ClCompile Include="tests\a_star_tests.cpp" />
     <ClCompile Include="node.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="priority_queue.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="util\util.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="node_map.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\pq_tests.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="d_star.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -61,9 +76,6 @@
   <ItemGroup>
     <ClInclude Include="header.hh">
       <Filter>Header Files</Filter>
-    </ClInclude>
-    <ClInclude Include="dstar.hpp">
-      <Filter>Source Files</Filter>
     </ClInclude>
     <ClInclude Include="maps2\tilemaps.hpp">
       <Filter>Source Files\maps</Filter>
