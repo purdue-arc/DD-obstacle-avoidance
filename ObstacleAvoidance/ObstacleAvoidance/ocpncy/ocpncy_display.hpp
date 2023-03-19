@@ -1,7 +1,7 @@
 #pragma once
 
 #include "occupancy.hpp"
-#include "maps2/maps2_display.hpp"
+#include "../maps2/maps2_display.hpp"
 
 // Displays occupancy tiles and streams
 namespace ocpncy {

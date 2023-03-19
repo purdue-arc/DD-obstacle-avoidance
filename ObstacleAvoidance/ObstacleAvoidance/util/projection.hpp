@@ -26,6 +26,9 @@ namespace prjctn {
 			cam_to_world = pose;
 			world_to_cam = pose.T();
 		}
+		gmtry3::transform3 get_pose() {
+			return cam_to_world;
+		}
 		cam_info() = default;
 		cam_info(float fov, unsigned int res_width, unsigned int res_height, const gmtry3::transform3& pose) {
 			tan_fov = std::tan(fov * 0.5F) * 2.0F;
@@ -43,7 +46,7 @@ namespace prjctn {
 
 	// Generates a depth matrix by sending a ray out through each pixel and colliding it with the virtual world
 	void project(float* depths, cam_info config, ray_collider* collider) {
-		const float img_scale = config.tan_fov / (MAX(config.width, config.height));
+		const float img_scale = config.tan_fov / std::max(config.width, config.height);
 		const float pxl_shiftx = -0.5F * config.width + 0.5F;
 		const float pxl_shifty = -0.5F * config.height + 0.5F;
 		for (int pxl_x = 0; pxl_x < config.width; pxl_x++) for (int pxl_y = 0; pxl_y < config.height; pxl_y++) {
@@ -54,15 +57,16 @@ namespace prjctn {
 	}
 
 	// Deprojects each depth from a depth matrix into a 2D point
-	void deproject(const float* depths, cam_info config, gmtry2i::point2_ostream* points_ostream) {
+	template <gmtry2i::writes_vector2i T>
+	void deproject(const float* depths, cam_info config, T points_ostream) {
 		gmtry3::vector3 cam_space_point;
 		gmtry2i::vector2i projected_point;
 		float pt_scale;
 		// half width and half height
-		const float img_scale = config.tan_fov / (MAX(config.width, config.height));
+		const float img_scale = config.tan_fov / std::max(config.width, config.height);
 		const float pxl_shiftx = -0.5F * config.width + 0.5F;
 		const float pxl_shifty = -0.5F * config.height + 0.5F;
-		for (int pxl_x = 0; pxl_x < config.width; pxl_x++) for (int pxl_y = 0; pxl_y < config.height; pxl_y++) {
+		for (int pxl_y = 0; pxl_y < config.height; pxl_y++) for (int pxl_x = 0; pxl_x < config.width; pxl_x++) {
 			cam_space_point.y = depths[pxl_x + pxl_y * config.width];
 			pt_scale = img_scale * cam_space_point.y;
 			cam_space_point.x = (pxl_x + pxl_shiftx) * pt_scale;
@@ -73,23 +77,24 @@ namespace prjctn {
 			projected_point.y = config.cam_to_world.R.n[0][1] * cam_space_point.x +
 								config.cam_to_world.R.n[1][1] * cam_space_point.y +
 								config.cam_to_world.R.n[2][1] * cam_space_point.z + config.cam_to_world.t.y;
-			points_ostream->write(projected_point);
+			points_ostream.write(projected_point);
 		}
 	}
 
 	// Deprojects each depth from a depth matrix into a 3D point
-	void deproject(const float* depths, cam_info config, gmtry3::point3_ostream* points_ostream) {
+	template <gmtry3::writes_vector3 T>
+	void deproject(const float* depths, cam_info config, T points_ostream) {
 		gmtry3::vector3 cam_space_point;
 		float pt_scale;
 		int hwidth = config.width / 2;
 		int hheight = config.height / 2;
-		float img_scale = config.tan_fov / MAX(hwidth, hheight);
-		for (int x = 0; x < config.width; x++) for (int y = 0; y < config.height; y++) {
+		float img_scale = config.tan_fov / std::max(hwidth, hheight);
+		for (int y = 0; y < config.height; y++) for (int x = 0; x < config.width; x++) {
 			cam_space_point.y = depths[x + y * config.width];
 			pt_scale = img_scale * cam_space_point.y;
 			cam_space_point.x = (x - hwidth) * pt_scale;
 			cam_space_point.z = (y - hheight) * pt_scale;
-			points_ostream->write(config.cam_to_world * cam_space_point);
+			points_ostream.write(config.cam_to_world * cam_space_point);
 		}
 	}
 
@@ -111,8 +116,8 @@ namespace prjctn {
 
 	// Marches a point from the start of a ray out until it collides with something
 	class ray_marcher : public ray_collider {
-		const float MIN_DISTANCE = 0.01; // one one-hundredth
-		const float MAX_DISTANCE = 1000; // one million; must be greater than 1
+		const float MIN_DISTANCE = 0x1p-8; // 1 / 256
+		const float MAX_DISTANCE = 0x1p10; // 1024
 		strcts::linked_arraylist<const measurable_object*> measurables;
 		strcts::linked_arraylist<const collidable_object*> collidables;
 
@@ -147,7 +152,7 @@ namespace prjctn {
 				step_size = get_min_distance({p, direction});
 			}
 			if (step_size == MAX_DISTANCE) return p + direction * MAX_DISTANCE;
-			return p;
+			return p + direction * 0x1p-6F;
 		}
 	};
 
@@ -183,7 +188,7 @@ namespace prjctn {
 			bool no_intersection = false;
 			gmtry2::vector2 direction = gmtry2::normalize(gmtry2::vector2(r.d.x, r.d.y));
 			gmtry2::line_segment2 rayline(r.p, r.p + direction * max_distance);
-			gmtry2::line_segment2 collision = gmtry2i::intersection(rayline, rect, &no_intersection);
+			gmtry2::line_segment2 collision = gmtry2i::intersection(rayline, rect, no_intersection);
 			if (!no_intersection) 
 				return std::min(gmtry2::dot(collision.a - rayline.a, direction), 
 				                gmtry2::dot(collision.b - rayline.a, direction));

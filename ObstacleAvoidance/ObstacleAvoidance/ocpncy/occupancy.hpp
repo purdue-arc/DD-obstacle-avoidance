@@ -1,6 +1,6 @@
 #pragma once
 
-#include "util/geometry.hpp"
+#include "../util/geometry.hpp"
 
 #include <stdint.h>
 
@@ -63,6 +63,7 @@ namespace ocpncy {
 		requires (log2_w >= 3)
 	struct otile {
 		omini minis[get_tile_area_minis(log2_w)];
+		otile() = default;
 		inline otile& operator +=(const otile& tile) {
 			for (int i = 0; i < get_tile_area_minis(log2_w); i++)
 				minis[i] |= tile.minis[i];
@@ -137,7 +138,13 @@ namespace ocpncy {
 	}
 	template <unsigned int log2_w>
 	inline void set_occ(unsigned int x, unsigned int y, otile<log2_w>& ot, bool value) {
-		ot.minis[get_mini_idx(x, y, log2_w)] |= static_cast<omini>(value) << get_bit_idx(x, y);
+		const omini new_occ = static_cast<omini>(value) << get_bit_idx(x, y);
+		omini& ot_occ = ot.minis[get_mini_idx(x, y, log2_w)];
+		ot_occ = (ot_occ & ~new_occ) | new_occ;
+	}
+	template <unsigned int log2_w>
+	inline void put_occ(unsigned int x, unsigned int y, otile<log2_w>& ot) {
+		ot.minis[get_mini_idx(x, y, log2_w)] |= static_cast<omini>(1) << get_bit_idx(x, y);
 	}
 
 	// Converts between 2D tile-space coordinates and their compressed integer representation
@@ -172,7 +179,7 @@ namespace ocpncy {
 		gradient_otile(const otile<log2_w>& t) {
 			for (int y = 0; y < (1 << log2_w); y++)
 				for (int x = 0; x < (1 << log2_w); x++)
-					if (get_occ(x, y, t)) certainties[x | (y << log2_w)] = MAX_CERTAINTY;
+					certainties[x | (y << log2_w)] = get_occ(x, y, t) ? MAX_CERTAINTY : 0;
 		}
 		gradient_otile(const separated_otile<log2_w>& t) {
 			for (int y = 0; y < (1 << log2_w); y++)
@@ -183,10 +190,11 @@ namespace ocpncy {
 				}
 		}
 		operator otile<log2_w>() const {
-			otile<log2_w> t;
+			otile<log2_w> t = otile<log2_w>();
 			for (int y = 0; y < (1 << log2_w); y++)
 				for (int x = 0; x < (1 << log2_w); x++)
-					set_occ(x, y, t, certainties[x | (y << log2_w)]);
+					if (certainties[x | (y << log2_w)])
+						put_occ(x, y, t);
 			return t;
 		}
 		operator separated_otile<log2_w>() const {
@@ -194,7 +202,7 @@ namespace ocpncy {
 			for (int y = 0; y < (1 << log2_w); y++)
 				for (int x = 0; x < (1 << log2_w); x++) {
 					unsigned char certainty = certainties[x | (y << log2_w)];
-					if (certainty) set_occ(x, y, ~certainty ? t.tmp : t.req, true);
+					if (certainty) put_occ(x, y, ~certainty ? t.tmp : t.req);
 				}
 			return t;
 		}

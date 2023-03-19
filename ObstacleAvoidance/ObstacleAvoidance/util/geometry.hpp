@@ -3,9 +3,6 @@
 #include <string>
 #include <cmath>
 
-#define MIN(a, b) ((a < b) ? a : b)
-#define MAX(a, b) ((a > b) ? a : b)
-
 const float PI = 3.14159265F;
 
 // 3D floating-point geometry
@@ -96,7 +93,12 @@ namespace gmtry3 {
 		return std::to_string(v.x) + std::string(", ") + std::to_string(v.y) + std::string(", ") + std::to_string(v.z);
 	}
 
-	class point3_ostream {
+	template <typename T>
+	concept writes_vector3 = requires(T w, const vector3& v) {
+		w.write(v);
+	};
+
+	class point_ostream3 {
 	public:
 		virtual void write(const gmtry3::vector3& p) = 0;
 		virtual void flush() {}
@@ -393,6 +395,10 @@ namespace gmtry2 {
 		return dot(v, v);
 	}
 
+	std::string to_string(const vector2& v) {
+		return std::to_string(v.x) + std::string(", ") + std::to_string(v.y);
+	}
+
 	struct line_segment2 {
 		vector2 a, b;
 		line_segment2() = default;
@@ -416,11 +422,14 @@ namespace gmtry2 {
 		//		[ t >= 0 ] = XOR(wedge(disp2, adisp) < 0, wedge(disp2, disp1) < 0)
 		//		[ abs(t) <= 1 ] = [ abs(wedge(disp2, adisp)) / abs(wedge(disp2, disp1)) <= 1 ]
 		//						= [ abs(wedge(disp2, adisp)) <= abs(wedge(disp2, disp1)) ]
+		// Note: this test really has to be implemented from the perspective of each line segment,
+		//       as it only tests whether l1 intersects the infinite line on which l2 lies
 		return ((wedge1 < 0) != (wedge3 < 0)) && ((wedge2 < 0) != (wedge3 < 0)) &&
 		       (abs(wedge1) <= abs(wedge3))   && (abs(wedge2) <= abs(wedge3));
 	}
 
 	// result invalid if l1 and l2 do not intersect
+	// can be used to find line (not segments) intersections if they are first checked for parallelity
 	vector2 intersection(const line_segment2& l1, const line_segment2& l2) {
 		vector2 disp1 = l1.b - l1.a; // from l1.a to l1.b
 		vector2 disp2 = l2.b - l2.a; // from l2.a to l2.b
@@ -431,12 +440,33 @@ namespace gmtry2 {
 		return l1.a - disp1 * (wedge(disp2, adisp) / wedge(disp2, disp1));
 	}
 
+	// if no intersection exists, returns origin and sets no_intersection to true
+	vector2 intersection(const line_segment2& l1, const line_segment2& l2, bool& no_intersection) {
+		vector2 disp1 = l1.b - l1.a;
+		vector2 disp2 = l2.b - l2.a;
+		vector2 adisp = l1.a - l2.a;
+		float wedge1 = wedge(disp2, adisp);
+		float wedge2 = wedge(disp1, adisp);
+		float wedge3 = wedge(disp2, disp1);
+		if (abs(wedge3) >= gmtry2::EPSILON) {
+			if (((wedge1 < 0) != (wedge3 < 0)) && ((wedge2 < 0) != (wedge3 < 0)) &&
+				(abs(wedge1) <= abs(wedge3)) && (abs(wedge2) <= abs(wedge3)))
+				return l1.a - disp1 * (wedge1 / wedge3);
+		}
+		no_intersection = true;
+		return {};
+	}
+
 	inline line_segment2 operator +(const line_segment2& l, const vector2& v) {
 		return { l.a + v, l.b + v };
 	}
 
 	inline line_segment2 operator -(const line_segment2& l, const vector2& v) {
 		return { l.a - v, l.b - v };
+	}
+
+	std::string to_string(const line_segment2& l) {
+		return to_string(l.a) + std::string("; ") + to_string(l.b);
 	}
 
 	struct line_stepper2 {
@@ -465,6 +495,7 @@ namespace gmtry2 {
 		ball2& operator =(const gmtry3::ball3& sphere) {
 			c = sphere.c;
 			r = sphere.r;
+			return *this;
 		}
 	};
 
@@ -500,6 +531,10 @@ namespace gmtry2i {
 		long l = f;
 		return l + (l < f);
 	}
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////
+	//    INTEGER_PRECISION VECTORS & POINTS                                                          //
+	////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	struct vector2i {
 		long x, y;
@@ -620,11 +655,20 @@ namespace gmtry2i {
 		return { p.x + 0.5F, p.y + 0.5F };
 	}
 
-	class point2_ostream {
+	template <typename T>
+	concept writes_vector2i = requires(T w, const vector2i& p) {
+		w.write(p);
+	};
+
+	class point_ostream2i {
 	public:
 		virtual void write(const gmtry2i::vector2i& p) = 0;
 		virtual void flush() {}
 	};
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////
+	//    AXIS-ALIGNED INTEGER-PRECISION BOXES                                                        //
+	////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	struct aligned_box2i {
 		// inclusive min, exclusive max
@@ -663,13 +707,18 @@ namespace gmtry2i {
 	}
 
 	inline aligned_box2i boundsof(const vector2i& p1, const vector2i& p2) {
-		return aligned_box2i({ MIN(p1.x, p2.x),     MIN(p1.y, p2.y) }, 
-							 { MAX(p1.x, p2.x) + 1, MAX(p1.y, p2.y) + 1 });
+		return aligned_box2i({ std::min(p1.x, p2.x),     std::min(p1.y, p2.y) }, 
+							 { std::max(p1.x, p2.x) + 1, std::max(p1.y, p2.y) + 1 });
 	}
 
 	inline aligned_box2i boundsof(const aligned_box2i& b, const vector2i& p) {
-		return aligned_box2i({ MIN(b.min.x, p.x),     MIN(b.min.y, p.y) }, 
-							 { MAX(b.max.x, p.x + 1), MAX(b.max.y, p.y + 1) });
+		return aligned_box2i({ std::min(b.min.x, p.x),     std::min(b.min.y, p.y) }, 
+							 { std::max(b.max.x, p.x + 1), std::max(b.max.y, p.y + 1) });
+	}
+
+	inline aligned_box2i boundsof(const gmtry2::line_segment2& l) {
+		return aligned_box2i({ floor(std::min(l.a.x, l.b.x)), floor(std::min(l.a.y, l.b.y)) },
+		                     { ceil(std::max(l.a.x, l.b.x)),  ceil(std::max(l.a.y, l.b.y)) });
 	}
 
 	inline aligned_box2i boundsof(const gmtry2::ball2& b) {
@@ -724,29 +773,34 @@ namespace gmtry2i {
 	}
 
 	inline aligned_box2i intersection(const aligned_box2i& b1, const aligned_box2i& b2) {
-		aligned_box2i b3(vector2i(MAX(b1.min.x, b2.min.x), MAX(b1.min.y, b2.min.y)),
-						 vector2i(MIN(b1.max.x, b2.max.x), MIN(b1.max.y, b2.max.y)));
+		return { { std::max(b1.min.x, b2.min.x), std::max(b1.min.y, b2.min.y) },
+				 { std::min(b1.max.x, b2.max.x), std::min(b1.max.y, b2.max.y) } };
+	}
+
+	// if no intersection exists, sets no_intersection to true
+	inline aligned_box2i intersection(const aligned_box2i& b1, const aligned_box2i& b2, bool& no_intersection) {
+		aligned_box2i b3({ std::max(b1.min.x, b2.min.x), std::max(b1.min.y, b2.min.y) },
+						 { std::min(b1.max.x, b2.max.x), std::min(b1.max.y, b2.max.y) });
 		if ((b3.min.x < b3.max.x) && (b3.min.y < b3.max.y)) return b3;
-		else return aligned_box2i();
+		no_intersection = true;
+		return aligned_box2i();
 	}
 
 	inline bool intersects(const gmtry2::line_segment2 l, const aligned_box2i& box) {
 		// test if box contains either endpoint
 		if (contains(box, l.a) || contains(box, l.b)) return true;
 		gmtry2::vector2 disp = l.b - l.a;
-		const gmtry2::vector2 epsilon_disp(gmtry2::EPSILON, gmtry2::EPSILON);
-		// Inclusive extrema of box
-		gmtry2::vector2 box_pts[2] = { to_vector2(box.min) + epsilon_disp, to_vector2(box.max) - epsilon_disp };
 		for (int dim = 0; dim < 2; dim++) if (abs(disp[dim]) > gmtry2::EPSILON)
 			for (int extrema = 0; extrema < 2; extrema++) {
 				// a[dim] + t*disp[dim] = box[extrema][dim]
 				// t = (box[extrema][dim] - a[dim]) / disp[dim]
-				// if 0 <= t <= 1 then they intersect
-				float value1 = box_pts[extrema][dim] - l.a[dim];
+				// if 0 <= t <= 1 then l intersects the infinite line on which this edge of the box lies
+				float value1 = box[extrema][dim] - l.a[dim];
 				float value2 = disp[dim];
 				// if t is not negative AND t is less than 1
 				if (((value1 < 0) == (value2 < 0)) && (abs(value1) <= abs(value2))) {
 					int other_dim = 1 & ~dim;
+					// the other dimension of l's intersection with this edge
 					float other_intersection = l.a[other_dim] + disp[other_dim] * (value1 / value2);
 					if (box.min[other_dim] <= other_intersection && other_intersection < box.max[other_dim])
 						return true;
@@ -755,8 +809,10 @@ namespace gmtry2i {
 		return false;
 	}
 
+	// Returns the intersection of a line segment and a box
+	// Parameter no_intersection is set to true if there is no intersection
 	gmtry2::line_segment2 intersection(const gmtry2::line_segment2 l, const aligned_box2i& box, 
-	                                   bool* no_intersection) {
+	                                   bool& no_intersection) {
 		// new points will either be intersections with box edges or existing endpoints contained in the box
 		gmtry2::vector2 new_pts[2];
 		int pt_idx = 0;
@@ -764,28 +820,36 @@ namespace gmtry2i {
 		if (contains(box, l.b)) new_pts[pt_idx++] = l.b;
 		if (pt_idx > 1) return { new_pts[0], new_pts[1] };
 		gmtry2::vector2 disp = l.b - l.a;
-		const gmtry2::vector2 epsilon_disp(gmtry2::EPSILON, gmtry2::EPSILON);
-		// Inclusive extrema of box
-		gmtry2::vector2 box_pts[2] = { to_vector2(box.min) + epsilon_disp, to_vector2(box.max) - epsilon_disp };
 		for (int dim = 0; dim < 2; dim++) if (abs(disp[dim]) > gmtry2::EPSILON) {
+			// explanation for the following meth is in intersects(line_segment2i, aligned_box2i)
 			float value2 = disp[dim];
 			for (int extrema = 0; extrema < 2; extrema++) {
-				// explanation for the following is in intersects(line_segment2i, aligned_box2i)
-				float value1 = box_pts[extrema][dim] - l.a[dim];
-				if (((value1 < 0) == (value2 < 0)) && (abs(value1) <= abs(value2))) {
-					gmtry2::vector2 intersection = l.a + disp * (value1 / value2);
-					if (contains(box, intersection)) new_pts[pt_idx++] = intersection;
+				float value1 = box[extrema][dim] - l.a[dim];
+				if (((value1 < 0) == (value2 < 0)) && (abs(value1) <= abs(value2)) && (value1 != 0)) {
+					int other_dim = 1 & ~dim;
+					// position along direction parallel to box edge of intersection with box_pts area
+					float other_intersection = l.a[other_dim] + disp[other_dim] * (value1 / value2);
+					if (box.min[other_dim] <= other_intersection && other_intersection < box.max[other_dim]) {
+						gmtry2::vector2 intersection;
+						intersection[dim] = extrema ? (box[extrema][dim] - gmtry2::EPSILON) : (box[extrema][dim]);
+						intersection[other_dim] = other_intersection;
+						new_pts[pt_idx++] = intersection;
+					}
 					if (pt_idx > 1) return { new_pts[0], new_pts[1] };
 				}
 			}
 		}
-		if (no_intersection) *no_intersection = true;
+		no_intersection = true;
 		return {};
 	}
 
 	std::string to_string(const aligned_box2i& b) {
 		return to_string(b.min) + std::string("; ") + to_string(b.max);
 	}
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////
+	//    INTEGER-PRECISION LINE SEGMENTS                                                             //
+	////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	struct line_segment2i {
 		vector2i a, b;
@@ -853,50 +917,22 @@ namespace gmtry2i {
 		// test if box contains either endpoint
 		if (contains(box, l.a) || contains(box, l.b)) return true;
 		vector2i disp = l.b - l.a;
-		vector2i box_pts[2] = { box.min, box.max - vector2i(1, 1) };
 		for (int dim = 0; dim < 2; dim++) if (disp[dim])
 			for (int extrema = 0; extrema < 2; extrema++) {
 				// a[dim] + t*disp[dim] = box[extrema][dim]
 				// t = (box[extrema][dim] - a[dim]) / disp[dim]
 				// if 0 <= t <= 1 then they intersect
-				float value1 = box_pts[extrema][dim] - (l.a[dim] + 0.5F);
+				float value1 = box[extrema][dim] - (l.a[dim] + 0.5F);
 				int value2 = disp[dim];
 				// if t is not negative AND t is less than 1
 				if (((value1 < 0) == (value2 < 0)) && (abs(value1) <= abs(value2))) {
 					int other_dim = 1 & ~dim;
-					long other_intersection = l.a[other_dim] + floor(0.5F + 
-					                          disp[other_dim] * (value1 / value2));
+					float other_intersection = l.a[other_dim] + 0.5F + disp[other_dim] * (value1 / value2);
 					if (box.min[other_dim] <= other_intersection && other_intersection < box.max[other_dim])
 						return true;
 				}
 			}
 		return false;
-	}
-
-	line_segment2i intersection(const line_segment2i& l, const aligned_box2i& box) {
-		// new points will either be intersections with box edges or existing endpoints contained in the box
-		vector2i new_pts[2];
-		int pt_idx = 0;
-		if (contains(box, l.a)) new_pts[pt_idx++] = l.a;
-		if (contains(box, l.b)) new_pts[pt_idx++] = l.b;
-		if (pt_idx > 1) return line_segment2i(new_pts[0], new_pts[1]);
-		vector2i disp = l.b - l.a;
-		vector2i box_pts[2] = { box.min, box.max - vector2i(1, 1) };
-		for (int dim = 0; dim < 2; dim++) if (disp[dim]) {
-			long value2 = disp[dim];
-			for (int extrema = 0; extrema < 2; extrema++) {
-				// explanation for the following is in intersects(line_segment2i, aligned_box2i)
-				float value1 = box_pts[extrema][dim] - (l.a[dim] + 0.5F);
-				if (((value1 < 0) == (value2 < 0)) && (abs(value1) <= abs(value2))) {
-					float scale = static_cast<float>(value1) / value2;
-					vector2i intersection = l.a + gmtry2i::vector2i(floor(0.5F + disp.x * scale), 
-					                                                floor(0.5F + disp.y * scale));
-					if (contains(box, intersection)) new_pts[pt_idx++] = intersection;
-					if (pt_idx > 1) return line_segment2i(new_pts[0], new_pts[1]);
-				}
-			}
-		}
-		return line_segment2i();
 	}
 
 	// Current implementation is slow
@@ -915,14 +951,17 @@ namespace gmtry2i {
 				// if t is not negative AND t is less than 1
 				if (((value1 < 0) == (value2 < 0)) && (abs(value1) <= abs(value2))) {
 					int other_dim = 1 & ~dim;
-					float other_intersection = l.a[other_dim] + 0.5F +
-						disp[other_dim] * (static_cast<float>(value1) / (value2));
-					if (box.min[other_dim] <= other_intersection && other_intersection <= box.max[other_dim])
+					float other_intersection = l.a[other_dim] + 0.5F + disp[other_dim] * (value1 / value2);
+					if (box.min[other_dim] <= other_intersection && other_intersection < box.max[other_dim])
 						return true;
 				}
 			}
 		return false;
 	}
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////
+	//    LINE SEGMENT RASTERIZATION                                                                  //
+	////////////////////////////////////////////////////////////////////////////////////////////////////
 
 	struct line_stepper2i {
 		float step_x, step_y;
@@ -931,13 +970,24 @@ namespace gmtry2i {
 		vector2i p;
 		line_stepper2i(const line_segment2i& l, float step_size) {
 			vector2i disp = l.b - l.a;
-			float lengthf = std::sqrt(squared(disp));
-			waypoints = (lengthf / step_size) + 1;
-			float step_scale = step_size / lengthf;
+			float length = std::sqrt(squared(disp));
+			waypoints = (length / step_size) + 1;
+			float step_scale = step_size / length;
 			step_x = disp.x * step_scale;
 			step_y = disp.y * step_scale;
 			x = static_cast<float>(l.a.x) + 0.5F;
 			y = static_cast<float>(l.a.y) + 0.5F;
+			p = l.a;
+		}
+		line_stepper2i(const gmtry2::line_segment2& l, float step_size) {
+			gmtry2::vector2 disp = l.b - l.a;
+			float length = std::sqrt(gmtry2::squared(disp));
+			waypoints = (length / step_size) + 1;
+			float step_scale = step_size / length;
+			step_x = disp.x * step_scale;
+			step_y = disp.y * step_scale;
+			x = l.a.x;
+			y = l.a.y;
 			p = l.a;
 		}
 		inline void step() {
@@ -946,24 +996,92 @@ namespace gmtry2i {
 		}
 	};
 
+	// l cannot be parallel to the dimension on which the scanlines lie (ln_dim)
+	template <bool ln_dim, writes_vector2i T>
+	void scanline_rasterize(const gmtry2::line_segment2& l, T out) {
+		// offset refers to offset between scanlines
+		const bool ofst_dim = !ln_dim;
+		const gmtry2::vector2 disp = l.b - l.a;
+		const bool neg_slope = (disp[ln_dim] < 0) != (disp[ofst_dim] < 0);
+		const float dln_dofst =  disp[ln_dim] / disp[ofst_dim];
+		// min/max scanlines
+		const float min_ofst = std::min(l.a[ofst_dim], l.b[ofst_dim]),
+		            max_ofst = std::max(l.a[ofst_dim], l.b[ofst_dim]);
+		const long min_sl = floor(min_ofst),
+		           max_sl = ceil(max_ofst);
+		// min/max of all positions along all scanlines
+		const float abs_min_ln_pos = std::min(l.a[ln_dim], l.b[ln_dim]),
+		            abs_max_ln_pos = std::max(l.a[ln_dim], l.b[ln_dim]), 
+					init_ln_pos = !neg_slope ? abs_min_ln_pos : abs_max_ln_pos,
+					finl_ln_pos = !neg_slope ? abs_max_ln_pos : abs_min_ln_pos;
+		// extrema of positions along current scanline, ordered min, max
+		float ln_pos_extrema[2];
+		gmtry2i::vector2i next_point;
+		// if +slope: current extrema idx is 0 and next extrema idx is 1
+		// if -slope: current extrema idx is 1 and next extrema idx is 0
+		// so current extrema idx = neg_slope and next extrema idx = !neg_slope
+		ln_pos_extrema[!neg_slope] = init_ln_pos;
+		for (long cur_sl = min_sl; cur_sl < max_sl - 1; cur_sl++) {
+			ln_pos_extrema[neg_slope] = ln_pos_extrema[!neg_slope];
+			ln_pos_extrema[!neg_slope] = dln_dofst * (cur_sl + 1 - min_ofst) + init_ln_pos;
+			// min/max positions along current scanline
+			long min_ln_pos = floor(ln_pos_extrema[0]), max_ln_pos = ceil(ln_pos_extrema[1]);
+			for (long ln_pos = min_ln_pos; ln_pos < max_ln_pos; ln_pos++) {
+				next_point[ln_dim] = ln_pos; next_point[ofst_dim] = cur_sl;
+				out.write(next_point);
+			}
+		}
+		ln_pos_extrema[neg_slope] = ln_pos_extrema[!neg_slope];
+		ln_pos_extrema[!neg_slope] = finl_ln_pos;
+		long min_ln_pos = floor(ln_pos_extrema[0]), max_ln_pos = ceil(ln_pos_extrema[1]);
+		for (long ln_pos = min_ln_pos; ln_pos < max_ln_pos; ln_pos++) {
+			next_point[ln_dim] = ln_pos; next_point[ofst_dim] = max_sl - 1;
+			out.write(next_point);
+		}
+	}
+
+	template <writes_vector2i T>
+	void rasterize(const gmtry2::line_segment2& l, T out) {
+		gmtry2::vector2 disp = l.b - l.a;
+		if (std::abs(disp.y) < gmtry2::EPSILON) {
+			const long min_ln_pos = floor(std::min(l.a.x, l.b.x)), max_ln_pos = ceil(std::max(l.a.x, l.b.x));
+			const long y = l.a.y;
+			for (long ln_pos = min_ln_pos; ln_pos < max_ln_pos; ln_pos++)
+				out.write({ ln_pos, y });
+		}
+		else if (std::abs(disp.x) < gmtry2::EPSILON) {
+			const long min_ln_pos = floor(std::min(l.a.y, l.b.y)), max_ln_pos = ceil(std::max(l.a.y, l.b.y));
+			const long x = l.a.x;
+			for (long ln_pos = min_ln_pos; ln_pos < max_ln_pos; ln_pos++)
+				out.write({ x, ln_pos });
+		}
+		else if (std::abs(disp.x) > std::abs(disp.y))
+			scanline_rasterize<0, T>(l, out);
+		else scanline_rasterize<1, T>(l, out);
+	}
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////
+	//    BOX INTERSECTION ABSTRACTION                                                                //
+	////////////////////////////////////////////////////////////////////////////////////////////////////
+
 	template <typename T>
-	concept intersectable2i = requires (T a, aligned_box2i b, bool c) {
+	concept intersects_box2i = requires (T a, aligned_box2i b, bool c) {
 		b = boundsof(a);
 		c = intersects(a, b);
-		//intersectable2i<typename decltype(intersection(a, b))>;
+		//intersects_box2i<typename decltype(intersection(a, b))>;
 	};
 
-	// Interface for object with the basic functionality of intersectable2i<aligned_box2i> without the proper functions
+	// Interface for object with the basic functionality of intersects_box2i without the proper functions
 	class box_intersector2i {
 	public:
 		virtual bool intersects(const aligned_box2i& box) = 0;
-		virtual box_intersector2i* intersection(const aligned_box2i& box) = 0;
-		virtual box_intersector2i* clone() = 0;
+		//virtual box_intersector2i* intersection(const aligned_box2i& box) = 0;
 		virtual aligned_box2i get_bounds() = 0;
+		virtual box_intersector2i* clone() = 0;
 	};
 
-	// Used to create a box_intersector2i out of an intersectable2i<aligned_box2i>
-	template <intersectable2i T>
+	// Used to create a box_intersector2i out of an intersects_box2i
+	template <intersects_box2i T>
 	class intersectable_box_intersector2i : public box_intersector2i {
 		T shape;
 	public:
@@ -973,10 +1091,10 @@ namespace gmtry2i {
 		bool intersects(const aligned_box2i& box) {
 			return gmtry2i::intersects(shape, box);
 		}
-		box_intersector2i* intersection(const aligned_box2i& box) {
-			auto box_intersection = gmtry2i::intersection(shape, box);
-			return new intersectable_box_intersector2i<decltype(box_intersection)>(box_intersection);
-		}
+		//box_intersector2i* intersection(const aligned_box2i& box) {
+		//	auto box_intersection = gmtry2i::intersection(shape, box);
+		//	return new intersectable_box_intersector2i<decltype(box_intersection)>(box_intersection);
+		//}
 		box_intersector2i* clone() {
 			return new intersectable_box_intersector2i(shape);
 		}
@@ -985,7 +1103,7 @@ namespace gmtry2i {
 		}
 	};
 
-	//  Memory manager for a box_intersector2i*, through which it satisfies intersectable2i<aligned_box2i>
+	//  Memory manager for a box_intersector2i*, through which it satisfies the requirements for intersects_box2i
 	class box_intersectable2i {
 		box_intersector2i* intersector;
 	public:
@@ -1001,13 +1119,14 @@ namespace gmtry2i {
 		inline bool intersects(const aligned_box2i& box) const {
 			return intersector->intersects(box);
 		}
-		inline box_intersectable2i intersection(const aligned_box2i& box) const {
-			return box_intersectable2i(intersector->intersection(box));
-		}
+		//inline box_intersectable2i intersection(const aligned_box2i& box) const {
+		//	return box_intersectable2i(intersector->intersection(box));
+		//}
 		inline aligned_box2i get_bounds() const {
 			return intersector->get_bounds();
 		}
-		box_intersectable2i operator =(const box_intersectable2i& object) {
+		box_intersectable2i& operator =(const box_intersectable2i& object) {
+			if (intersector) delete intersector;
 			intersector = object.intersector->clone();
 			return *this;
 		}
@@ -1016,23 +1135,23 @@ namespace gmtry2i {
 		}
 	};
 
-	// Creates a box_intersectable2i out of an intersectable
-	// Practical for passing an intersectable2i<aligned_box> to a non-template class or function
-	template <intersectable2i T>
-	inline box_intersectable2i make_box_intersectable(T shape) {
-		intersectable_box_intersector2i intersector(shape);
-		return box_intersectable2i(&intersector);
-	}
-
 	inline bool intersects(const box_intersectable2i& object, const aligned_box2i& box) {
 		return object.intersects(box);
 	}
 
-	inline box_intersectable2i intersection(const box_intersectable2i& object, const aligned_box2i& box) {
-		return object.intersection(box);
-	}
+	//inline box_intersectable2i intersection(const box_intersectable2i& object, const aligned_box2i& box) {
+	//	return object.intersection(box);
+	//}
 
 	inline aligned_box2i boundsof(const box_intersectable2i& object) {
 		return object.get_bounds();
+	}
+
+	// Creates a box_intersectable2i out of an intersectable
+	// Practical for passing an intersects_box2i<aligned_box> to a non-template class or function
+	template <intersects_box2i T>
+	inline box_intersectable2i make_box_intersectable(T shape) {
+		intersectable_box_intersector2i intersector(shape);
+		return box_intersectable2i(&intersector);
 	}
 }

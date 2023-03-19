@@ -30,6 +30,14 @@ namespace strcts {
 			reset();
 		}
 		linked_arraylist& operator =(const linked_arraylist& list) {
+			if (first_array) {
+				linked_array* array1 = first_array, * array2;
+				while (array1) {
+					array2 = array1->next;
+					delete array1;
+					array1 = array2;
+				}
+			}
 			len = list.len;
 			last_array_len = list.last_array_len;
 			first_array = new linked_array(*list.first_array);
@@ -39,6 +47,7 @@ namespace strcts {
 			return *this;
 		}
 		linked_arraylist(const linked_arraylist& list) {
+			first_array = 0;
 			*this = list;
 		}
 		inline void add(T item) {

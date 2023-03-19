@@ -134,7 +134,6 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="a_star.cpp" />
     <ClCompile Include="node.cpp" />
     <ClCompile Include="tests\a_star_tests.cpp" />
     <ClCompile Include="random_maze_generator.cpp" />
@@ -155,6 +154,7 @@
     <ClInclude Include="maps2\maps2_display.hpp" />
     <ClInclude Include="ocpncy\ocpncy_display.hpp" />
     <ClInclude Include="tests\benchmark.hpp" />
+    <ClInclude Include="util\prjctn_display.hpp" />
     <ClInclude Include="util\data_structs.hpp" />
     <ClInclude Include="util\geometry.hpp" />
     <ClInclude Include="util\ascii_display.hpp" />

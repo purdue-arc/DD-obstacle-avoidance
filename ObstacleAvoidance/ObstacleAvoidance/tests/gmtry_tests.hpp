@@ -1,8 +1,9 @@
 #pragma once
 
-#include "util/ascii_display.hpp"
-#include "util/projection.hpp"
 #include "benchmark.hpp"
+#include "../util/prjctn_display.hpp"
+
+#include <iostream>
 
 // Tests to evaulate the consistency of geometric operators/functions
 namespace gmtry_tests {
@@ -66,7 +67,7 @@ namespace gmtry_tests {
 			gmtry2i::line_segment2i ab(a, b), ab_int;
 			gmtry2::line_segment2 abf(ab), abf_int;
 			bool no_intersection = false;
-			abf_int = gmtry2i::intersection(abf, rect, &no_intersection);
+			abf_int = gmtry2i::intersection(abf, rect, no_intersection);
 			bool they_intersect;
 			//they_intersect = gmtry2i::intersects(ab, rect);
 			they_intersect = !no_intersection;
@@ -203,21 +204,6 @@ namespace gmtry_tests {
 		return 0;
 	}
 
-	class image_projector2 : public gmtry2i::point2_ostream {
-		ascii_dsp::ascii_image &img, &traces_img;
-		gmtry2i::vector2i cam_origin;
-	public:
-		image_projector2(ascii_dsp::ascii_image& new_img, ascii_dsp::ascii_image& new_traces_img, 
-		                 const gmtry2i::vector2i& new_cam_origin) :
-			img(new_img), traces_img(new_traces_img) {
-			cam_origin = new_cam_origin;
-		}
-		void write(const gmtry2i::vector2i& p) {
-			traces_img << gmtry2i::line_segment2i(cam_origin, p);
-			img(p) = '@';
-		}
-	};
-
 	int projection_test0() { // PASSED
 		prjctn::cam_info config(PI / 2, 4, 1, {});
 		float* depths = new float[config.width * config.height] {10, 11, 12, 13};
@@ -225,17 +211,16 @@ namespace gmtry_tests {
 		gmtry2i::vector2i cam_origin2(cam_origin.x, cam_origin.y);
 		gmtry3::matrix3 cam_orientation = gmtry3::make_rotation(2, PI / 4);		// Yaw left 45deg
 		//								* gmtry3::make_rotation(0, -PI / 3);	// Pitch down 60deg
-		ascii_dsp::ascii_image img({ {}, {64, 64}}), traces_img({ {}, {64, 64} });
-		image_projector2 projector(img, traces_img, cam_origin2);
+		prjctn::observed_point_drawer2 drawer(64, 64);
+		drawer.set_perspective(config.get_pose());
 		// Draw camera's local axes
 		//img << gmtry2i::line_segment2i(cam_origin2, cam_origin2 + 
 		//	   gmtry2i::vector2i(cam_orientation(0).x * 8, cam_orientation(0).y * 8))
 		//	<< gmtry2i::line_segment2i(cam_origin2, cam_origin2 + 
 		//	   gmtry2i::vector2i(cam_orientation(1).x * 8, cam_orientation(1).y * 8));
 		config.cam_to_world = gmtry3::transform3(cam_orientation, cam_origin);
-		prjctn::deproject(depths, config, &projector);
-		img(cam_origin2) = 'C';
-		std::cout << img;
+		prjctn::deproject(depths, config, drawer);
+		drawer.execute("drw", std::cout);
 
 		delete[] depths;
 		return 0;
@@ -250,13 +235,10 @@ namespace gmtry_tests {
 			//								* gmtry3::make_rotation(0, PI / 2)	// Pitch up
 			* gmtry3::make_rotation(1, -PI / 6);// Roll down to the left
 		ascii_dsp::ascii_image img(gmtry2i::aligned_box2i(gmtry2i::vector2i(), 64));
-		ascii_dsp::ascii_image traces_img(gmtry2i::aligned_box2i(gmtry2i::vector2i(), 64));
-		image_projector2 projector(img, traces_img, cam_origin2);
-		config.cam_to_world = gmtry3::transform3(cam_orientation, cam_origin);
-		prjctn::deproject(depths, config, &projector);
-		img(cam_origin2) = 'C';
-		traces_img.overwrite(img);
-		std::cout << traces_img;
+		prjctn::observed_point_drawer2 drawer(64, 64);
+		config.set_pose(gmtry3::transform3(cam_orientation, cam_origin));
+		prjctn::deproject(depths, config, drawer);
+		drawer.execute("drw", std::cout);
 
 		delete[] depths;
 		return 0;
@@ -269,30 +251,16 @@ namespace gmtry_tests {
 		marcher.add_object(&a);
 		marcher.add_object(&b);
 		prjctn::circle_cylinder c1({ {-20, 20}, 4 });
-		//marcher.add_object(&c1);
+		marcher.add_object(&c1);
 		prjctn::rect_cylinder c2({ {-22, 16}, {-16, 26} });
 		marcher.add_object(&c2);
 		prjctn::cam_info config(PI / 2, 48, 32, { gmtry3::make_rotation(2, PI / 8) * gmtry3::make_rotation(1, -PI / 6), 
 		                                          gmtry3::vector3(6, 2, -0.5) });
-		float* depths = new float[config.width * config.height];
-		prjctn::project(depths, config, &marcher);
-
-		ascii_dsp::ascii_image balls_img({ {}, gmtry2i::vector2i(config.width, config.height)});
-		for (int x = 0; x < config.width; x++) for (int y = 0; y < config.height; y++)
-			balls_img << ascii_dsp::faded_point({ x, y }, depths[x + y * config.width], 1.0F / 20);
-		balls_img.set_caption("First-person rendering of environment");
-		std::cout << balls_img << std::endl;
-
-		gmtry2i::vector2i cam_origin2(config.cam_to_world.t.x, config.cam_to_world.t.y);
-		ascii_dsp::ascii_image img({ {-24, -24}, {24, 24} }), traces_img({ {-24, -24}, {24, 24} });
-		image_projector2 projector(img, traces_img, cam_origin2);
-		prjctn::deproject(depths, config, &projector);
-		img(cam_origin2) = 'C';
-		traces_img.overwrite(img);
-		traces_img.set_caption("Top-down view of perceived environment");
-		std::cout << traces_img << std::endl;
-
-		delete[] depths;
+		prjctn::observed_point_drawer2 drawer(48, 32);
+		prjctn::world_explorer explora(config, &marcher, &drawer);
+		explora.add_listener(&drawer);
+		ascii_dsp::ascii_console console(&explora, std::cout);
+		console.execute_commands(std::cin);
 		return 0;
 	}
 }

@@ -36,9 +36,6 @@
     <ClCompile Include="util\rs_util.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="a_star.cpp">
-      <Filter>Source Files</Filter>
-    </ClCompile>
     <ClCompile Include="random_maze_generator.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -119,8 +116,11 @@
     <ClInclude Include="util\projection.hpp">
       <Filter>Source Files\util</Filter>
     </ClInclude>
-    <ClInclude Include="tests\benchmark.hpp">
+    <ClInclude Include="util\prjctn_display.hpp">
       <Filter>Source Files\util</Filter>
+    </ClInclude>
+    <ClInclude Include="tests\benchmark.hpp">
+      <Filter>Source Files\tests</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

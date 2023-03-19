@@ -1,7 +1,7 @@
 #pragma once
 
 #include "tilemaps.hpp"
-#include "util/ascii_display.hpp"
+#include "../util/ascii_display.hpp"
 
 // Displays generic tiles and tile streams
 namespace maps2 {
@@ -50,9 +50,8 @@ namespace maps2 {
 
 	template <drawable_tile tile>
 	ascii_dsp::ascii_image& operator << (ascii_dsp::ascii_image& img, map_istream<tile>* map) {
-		tile_istream<tile>* tiles = map->read();
-		img << tiles;
-		delete tiles;
+		std::unique_ptr<tile_istream<tile>> tiles = map->read();
+		img << tiles.get();
 		return img;
 	}
 }

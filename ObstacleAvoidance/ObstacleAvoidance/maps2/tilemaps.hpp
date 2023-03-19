@@ -1,8 +1,9 @@
 #pragma once
 
-#include "util/geometry.hpp"
+#include "../util/geometry.hpp"
 
 #include <iostream>
+#include <memory>
 
 #ifdef DEBUG
 #	define DEBUG_PRINT(s) std::cout << s << std::endl;
@@ -33,12 +34,13 @@ namespace maps2 {
 
 	// Tiles that can be inclusively combined, removed from each other, or totally overwritten
 	template <typename T>
-	concept spatial_tile = requires (T a, T b) {
+	concept writable_tile = requires (T a, T b) {
 		a = a + b;
 		a = a - b;
 		a += b;
 		a -= b;
 		a = b;
+		a = T();
 	};
 
 	enum tile_write_mode {
@@ -48,7 +50,7 @@ namespace maps2 {
 	};
 
 	// Preferred way to write tile
-	template<spatial_tile tile>
+	template<writable_tile tile>
 	inline void write_tile_to_tile(const tile* new_tile, tile* old_tile, tile_write_mode wmode) {
 		if (wmode == TILE_OVERWRITE_MODE) {
 			*old_tile = *new_tile;
@@ -138,7 +140,7 @@ namespace maps2 {
 	};
 
 	// Stream for receiving only tiles that intersect the given bounds (bounds can be set manually)
-	template <typename tile, gmtry2i::intersectable2i limiter_type = gmtry2i::aligned_box2i>
+	template <typename tile, gmtry2i::intersects_box2i limiter_type = gmtry2i::aligned_box2i>
 	class lim_tile_istream : public tile_istream<tile> {
 	public:
 		// Sets a bounds on the outgoing tiles. 
@@ -175,19 +177,19 @@ namespace maps2 {
 		* Returns a stream that can be used to stream out all tiles from a desired rectangular region of the map
 		* TILE STREAM MUST BE DELETED MANUALLY
 		*/
-		virtual tile_istream<tile>* read() = 0;
+		virtual std::unique_ptr<tile_istream<tile>> read() = 0;
 		virtual ~map_istream() {}
 	};
 
-	template <typename tile, gmtry2i::intersectable2i limiter_type = gmtry2i::aligned_box2i>
+	template <typename tile, gmtry2i::intersects_box2i limiter_type = gmtry2i::aligned_box2i>
 	class lim_tile_istream_vendor {
 	public:
 		// Returns a limitable tile input stream, which starts off limited by the limit parameter
-		virtual lim_tile_istream<tile, limiter_type>* read(const limiter_type& limit) = 0;
+		virtual std::unique_ptr<lim_tile_istream<tile, limiter_type>> read(const limiter_type& limit) = 0;
 	};
 
 	// Stream for writing tiles to a map with options for specifying how new tiles will be written to existing ones
-	template <spatial_tile tile>
+	template <writable_tile tile>
 	class map_ostream : public tile_ostream<tile> {
 	public:
 		// Accessors for writing mode (determines how a written tile will be combined with an existing one)
@@ -233,7 +235,7 @@ namespace maps2 {
 
 	template <typename T>
 	void delete_homogeneous_tree(homogeneous_tree<T>* tree, unsigned int depth) {
-		if (depth > 0 && tree) {
+		if (depth >= 0 && tree) {
 			for (int i = 0; i < 4; i++)
 				delete_homogeneous_tree(tree->branch[i], depth - 1);
 			delete tree;
@@ -333,6 +335,10 @@ namespace maps2 {
 	// spatial item for representing some component of a mixed tree
 	template <unsigned int log2_w>
 	using mixed_item = spatial_item<log2_w, void>;
+
+	////////////////////////////////////////////////////////////////////////////////////////////////////
+	//    TREE ACCESS                                                                                 //
+	////////////////////////////////////////////////////////////////////////////////////////////////////
 	
 	/*
 	* Walks through the bottom layer (depth = 0) of a tree, returning each tile found along the way
@@ -340,7 +346,8 @@ namespace maps2 {
 	* Makes no assumptions about how the branches of an item/tree are formatted and accessed 
 	*	(default implementation, which may be overridden, assumes items are standard mixed_trees)
 	*/
-	template <unsigned int log2_w, typename tile, gmtry2i::intersectable2i limiter_type = gmtry2i::aligned_box2i>
+	template <unsigned int log2_w, typename tile, gmtry2i::intersects_box2i limiter_type = gmtry2i::aligned_box2i>
+		requires std::copyable<limiter_type>
 	class tree_walker : public lim_tile_istream<tile, limiter_type> {
 		tree_info<log2_w> info;
 		void** items;
@@ -371,7 +378,7 @@ namespace maps2 {
 			reset();
 		}
 		tile* next_tile() {
-			// if the top item yields a tile, don't explore it as a tree-yielding item would be explored
+			// if the top item yields a tile, don't explore it the same as a tree-yielding item would be explored
 			if (info.depth == 0) {
 				// return 0 if it has already been read
 				if (branch_indices[0]) return 0;
@@ -389,8 +396,8 @@ namespace maps2 {
 				else {
 					unsigned int current_depth = info.depth - current_level;
 					unsigned int half_width = 1 << (log2_w + current_depth - 1);
-					origins[current_level + 1] = origins[current_level]
-						+ get_next_branch_disp(branch_indices[current_level], half_width);
+					origins[current_level + 1] = origins[current_level] + 
+						get_next_branch_disp(branch_indices[current_level], half_width);
 
 					// test if next item is in the designated search bounds
 					if (gmtry2i::intersects(limiter, gmtry2i::aligned_box2i(origins[current_level + 1], half_width))) {
@@ -494,14 +501,14 @@ namespace maps2 {
 	* TREE MUST CONTAIN THE GIVEN POINT
 	*/
 	template <unsigned int log2_w, typename tile>
-	mixed_item<log2_w> alloc_mixed_item(const mixed_item<log2_w>& start, const gmtry2i::vector2i& p, unsigned int depth) {
+	mixed_item<log2_w> alloc_mixed_item(const mixed_item<log2_w>& top, const gmtry2i::vector2i& p, unsigned int depth) {
 		mixed_item<log2_w> item = mixed_item<log2_w>();
-		mixed_item<log2_w> next_item = seek_mixed_item(start, p, depth);
+		mixed_item<log2_w> next_item = seek_mixed_item(top, p, depth);
 		while (next_item.info.depth > depth) {
 			item = next_item;
 			next_item = item.create_branch_item(p, new mixed_tree());
 		}
-		// Assuming start contained p, next_item.info.depth equals depth
+		// Assuming top contained p, next_item.info.depth equals depth
 		// The last time the loop iterated, next_item.ptr was written to item.ptr 
 		//	and a new tree was created and written to next_item.ptr
 		// Iff the loop was never entered, item.ptr is null
@@ -530,6 +537,10 @@ namespace maps2 {
 		* 0 1 2
 		*/
 		nbrng_tile<base_tile>* nbrs[8];
+		nbrng_tile() = default;
+		nbrng_tile(const base_tile& t) : nbrs {} {
+			tile = t;
+		}
 	};
 
 	inline gmtry2i::vector2i get_nbrhd_origin(const gmtry2i::vector2i& center_origin, unsigned int log2_w) {
@@ -585,58 +596,49 @@ namespace maps2 {
 	};
 
 	/*
-	* TEMPORARILY DEPRECATED (will definitely cause double-deletions)
-	* 
-	// Deletes a graph of neighboring tiles. Very recursive; may cause a stack overflow (called once per tile).
-	template <typename tile>
-	void delete_tile_graph(nbrng_tile<tile>* start) {
-		// Disconnect all neighbors from start first so none of them will try to delete it a second time
-		for (int x = 0; x < 3; x++) for (int y = 0; y < 3; y++) {
-			int nbr_compressed_coords = x + 3 * y;
-			if (nbr_compressed_coords != 4) {
-				int nbr_idx = nbr_compressed_coords - (nbr_compressed_coords > 4);
-				if (start->nbrs[nbr_idx]) start->nbrs[nbr_idx]->nbrs[(2 - x) + 3 * (2 - y)] = 0;
-			}
-		}
-		// Delete all neighbors
-		for (int i = 0; i < 8; i++) delete_tile_graph(start->nbrs[i]);
-		delete start;
-	}
-	*/
-
-	/*
-	* Allocates a neighboring tile in a tree, connects it bidirectionally with its neighbors, and returns it
-	* Returns the existing item if one existing, skipping the connection process
-	* Extends tree branches as necessary to get down to the desired depth
-	* TREE MUST CONTAIN THE GIVEN POINT
+	* Links the new tile located at the given position with its neighbors.
+	* Doesn't insert the new tile into the spacial tree.
+	* If a tile was there before, it will be unlinked 
+	*	(so the caller should either have another reference to what's there already or know that nothing's there).
 	*/
 	template <unsigned int log2_w, typename tile>
-	mixed_item<log2_w> alloc_nbrng_tile(const mixed_item<log2_w>& start, const gmtry2i::vector2i& p) {
-		gmtry2i::aligned_box2i neighborhood_bounds = 
-			get_nbrhd_bounds(align_down(p, start.info.origin, log2_w), log2_w);
-		mixed_item<log2_w> item = seek_mixed_item(start, p, 0);
-		// If tile was already allocated and connected to neighbors, return
-		if (item.info.depth == 0) return item;
-		item = alloc_mixed_item<log2_w, nbrng_tile<tile>>(item, p, 0);
-		nbrng_tile<tile>* item_tile = static_cast<nbrng_tile<tile>*>(item.ptr);
-		tree_walker<log2_w, nbrng_tile<tile>> nbr_retriever(item, neighborhood_bounds);
+	void link_nbrng_tile(const mixed_item<log2_w>& top, const gmtry2i::vector2i& p, nbrng_tile<tile>* new_tile) {
+		gmtry2i::aligned_box2i neighborhood_bounds = get_nbrhd_bounds(align_down(p, top.info.origin, log2_w), log2_w);
+		tree_walker<log2_w, nbrng_tile<tile>> nbr_retriever(top, neighborhood_bounds);
 		nbrng_tile<tile>* next_nbr;
 		gmtry2i::vector2i local_coords;
 		int compact_coords;
 		while (next_nbr = nbr_retriever.next_tile()) {
-			// Local coordinates of neighbor, relative to item
+			// Local coordinates of neighbor, relative to neighborhood around tile
 			local_coords = (nbr_retriever.last_origin() - neighborhood_bounds.min) >> log2_w;
 			compact_coords = local_coords.x + 3 * local_coords.y;
 			if (compact_coords != 4) {
-				// Link item to neighbor
-				item_tile->nbrs[compact_coords - (local_coords.x > 4)] = next_nbr;
-				// Local coordinates of item, relative to neighbor
+				// Link tile to neighbor
+				new_tile->nbrs[compact_coords - (local_coords.x > 4)] = next_nbr;
+				// Local coordinates of tile, relative to neighbor
 				local_coords = gmtry2i::vector2i(2, 2) - local_coords;
 				compact_coords = local_coords.x + 3 * local_coords.y;
-				// Link neighbor to item
-				next_nbr->nbrs[compact_coords - (local_coords.x > 4)] = item_tile;
+				// Link neighbor to tile
+				next_nbr->nbrs[compact_coords - (local_coords.x > 4)] = new_tile;
 			}
 		}
+	}
+
+	/*
+	* Allocates a neighboring tile in a tree, links it bidirectionally with its neighbors, and returns it.
+	* Returns the existing item if one existing, skipping the linking process.
+	* Extends tree branches as necessary to get down to the desired depth.
+	* TREE MUST CONTAIN THE GIVEN POINT
+	*/
+	template <unsigned int log2_w, typename tile>
+	mixed_item<log2_w> alloc_nbrng_tile(const mixed_item<log2_w>& top, const gmtry2i::vector2i& p) {
+		gmtry2i::aligned_box2i neighborhood_bounds = 
+			get_nbrhd_bounds(align_down(p, top.info.origin, log2_w), log2_w);
+		mixed_item<log2_w> item = seek_mixed_item(top, p, 0);
+		// If tile was already allocated and connected to neighbors, return
+		if (item.info.depth == 0) return item;
+		item = alloc_mixed_item<log2_w, nbrng_tile<tile>>(item, p, 0);
+		link_nbrng_tile<log2_w, tile>(top, p, static_cast<nbrng_tile<tile>*>(item.ptr));
 		return item;
 	}
 }
