@@ -33,13 +33,28 @@ void test_AStar(const char *out_file_name, bool input_file_exists, const char* i
 	}
 	
 	// Setting up for the test
-	DStar test = DStar(maze, nrows, ncols);
+	Dijkstra test = Dijkstra(maze, nrows, ncols);
 
 	// Running the test
 	auto start = high_resolution_clock::now();
 	vector<tuple<int, int>> path = test.generate_path();
 	auto stop = high_resolution_clock::now();
 	auto duration = duration_cast<microseconds>(stop - start);
+	cout << "Time taken by the Dijkstra: " << duration << endl;
+
+	AStar test1 = AStar(maze, nrows, ncols);
+	start = high_resolution_clock::now();
+	path = test1.generate_path();
+	stop = high_resolution_clock::now();
+	duration = duration_cast<microseconds>(stop - start);
+	cout << "Time taken by the AStar: " << duration << endl;
+
+	DStar test2 = DStar(maze, nrows, ncols);
+	start = high_resolution_clock::now();
+	path = test2.generate_path();
+	stop = high_resolution_clock::now();
+	duration = duration_cast<microseconds>(stop - start);
+	cout << "Time taken by the DStar: " << duration << endl;
 
 	// Writing out the results
 	cout << "Time taken by the program: " << duration << endl;

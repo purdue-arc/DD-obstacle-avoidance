@@ -215,10 +215,42 @@ node_t* NodePriorityQueue::pop() {
 	return min_node;
 }
 
+int NodePriorityQueue::find(node_t* to_find) {
+	for (int index = 0; index < insertIndex; index++) {
+		if (nodes[index] == to_find) {
+			return index;
+		}
+	}
+	
+	return -1;
+}
+
+void NodePriorityQueue::update_node_cost(node_t *to_update, int cost) {
+	// Updating cost
+	CNode::set_cost(to_update, cost);
+
+	int index = find(to_update);
+	if (index == -1) {
+		// Element not found
+		return;
+	}
+
+	// Updating location in pq
+	bubbleUp(index);
+	bubbleDown(index);
+}
+
+int NodePriorityQueue::get_size() {
+	return this->insertIndex;
+}
+
+
 void NodePriorityQueue::print_heap() {
 	printf("Heap (index: cost + heuristic): ");
 	for (int index = 0; index < insertIndex; index++) {
-		printf("%d: %d, ", index, CNode::get_cost(nodes[index]) + CNode::get_heuristic(nodes[index]));
+		//  + CNode::get_heuristic(nodes[index])
+		//printf("%d: %d, ", index, CNode::get_cost(nodes[index]));
+		printf("%d -> %p, ", index, nodes[index]);
 	}
 	printf("\n");
 }

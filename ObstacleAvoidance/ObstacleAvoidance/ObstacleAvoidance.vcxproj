@@ -134,6 +134,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="a_star.cpp" />
+    <ClCompile Include="dijkstra.cpp" />
     <ClCompile Include="node.cpp" />
     <ClCompile Include="tests\a_star_tests.cpp" />
     <ClCompile Include="random_maze_generator.cpp" />

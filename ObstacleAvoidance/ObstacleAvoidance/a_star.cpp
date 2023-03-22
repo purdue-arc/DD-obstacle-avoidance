@@ -96,7 +96,6 @@ node_t** AStar::get_node_map() {
  * path exists, traces it out and returns it.
  */
 vector<tuple<int, int>> AStar::generate_path() {
-	NodeMap::print_occupancy_matrix(this->node_map, rows, cols);
 	bool path_exists = compute();
 	if (path_exists) {
 		this->path = NodeMap::trace_path(this->node_map, goal_x, goal_y, rows, cols);

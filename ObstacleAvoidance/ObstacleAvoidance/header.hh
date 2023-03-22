@@ -17,6 +17,7 @@
 #include <tuple>
 #include <limits>
 #include <chrono>
+#include <unordered_set>
 
 // Primary Libraries
 #include <librealsense2/rs.hpp>
@@ -152,6 +153,9 @@ public:
 	bool isEmpty();
 	void push(node_t*);
 	node_t* pop();
+	int find(node_t*);
+	void update_node_cost(node_t*, int);
+	int get_size();
 	void print_heap();
 };
 
@@ -197,3 +201,25 @@ bool** create_maze_file(const char* file_name, int nrows, int ncols,
 	double density);
 bool** read_maze_file(FILE*);
 void write_maze_sol(FILE*, node_t**, vector<tuple<int, int>>, int, int);
+
+
+// Defines another approach to path planning
+class Dijkstra {
+	// Attributes
+	node** node_map;
+	unordered_set<node_t*> explored;
+	int rows, cols, start_x, start_y, goal_x, goal_y;
+	NodePriorityQueue pq;
+
+	// Helper functions
+	bool compute();
+
+public:
+	// Constructors
+	Dijkstra(bool** occ_matrix, int rows, int cols);
+	Dijkstra(bool** occ_matrix, int rows, int cols, int start_x, int start_y, int goal_x, int goal_y);
+
+	// API
+	node_t** get_node_map();
+	vector<tuple<int, int>> generate_path();
+};
