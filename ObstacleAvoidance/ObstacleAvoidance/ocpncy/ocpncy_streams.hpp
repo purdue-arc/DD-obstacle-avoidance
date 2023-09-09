@@ -2,7 +2,8 @@
 
 #include "occupancy.hpp"
 #include "../maps2/maps2_streams.hpp"
-#include "../util/data_structs.hpp"
+
+#include <vector>
 
 namespace ocpncy {
 	// Produces tiles from a matrix of occupancy values (a state is occupied if it's occupancy value is not 0)
@@ -268,7 +269,7 @@ namespace ocpncy {
 			// Tracks whether each member of the neighborhood has been modified
 			bool nbrs_modified[3][3] = {};
 			// Saves the position of each observed occupancy relative to neighborhood origin
-			strcts::linked_arraylist<gmtry2i::vector2i, 64> observed_points;
+			std::vector<gmtry2i::vector2i> observed_points;
 			
 			// Step 1: Lower certainties of occupancies that should have been seen, but might not have been.
 			//         An occupancy might not have been seen if there exists a line of sight (to another occupancy)
@@ -285,7 +286,7 @@ namespace ocpncy {
 						// Position of an occupancy state relative to the neighborhood
 						gmtry2i::vector2i nbrhd_oc_pos(mini_origin | get_bit_offset(bit_idx));
 						// Save the point in a list so we won't have to go through accumulator and find it again later
-						observed_points.add(nbrhd_oc_pos);
+						observed_points.push_back(nbrhd_oc_pos);
 						gmtry2i::line_segment2i nbrhd_oc_line(nbrhd_position, nbrhd_oc_pos);
 						for (int nbr_x = 0; nbr_x < 3; nbr_x++) for (int nbr_y = 0; nbr_y < 3; nbr_y++) {
 							bool no_intersection = false;
@@ -303,9 +304,9 @@ namespace ocpncy {
 			}
 
 			// Step 2: Raise certainties of spotted occupancies
-			int num_observed_points = observed_points.get_length();
+			int num_observed_points = observed_points.size();
 			for (int i = 0; i < num_observed_points; i++) {
-				gmtry2i::vector2i point = observed_points.next();
+				gmtry2i::vector2i point = observed_points[i];
 				gradient_tile* occupied_tile = nbrhd(point.x >> log2_w, point.y >> log2_w);
 				if (occupied_tile) occupied_tile->
 					certainties[(point.x & get_tile_coord_mask(log2_w)) | 

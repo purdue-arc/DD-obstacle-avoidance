@@ -138,6 +138,8 @@
     <ClCompile Include="random_maze_generator.cpp" />
     <ClCompile Include="Source.cpp" />
     <ClCompile Include="rs_util.cpp" />
+    <ClCompile Include="util\ascii_display.cpp" />
+    <ClCompile Include="util\geometry.cpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="realsense2.dll" />
@@ -149,10 +151,9 @@
     <ClInclude Include="maps2\maps2_display.hpp" />
     <ClInclude Include="ocpncy\ocpncy_display.hpp" />
     <ClInclude Include="tests\benchmark.hpp" />
-    <ClInclude Include="util\prjctn_display.hpp" />
-    <ClInclude Include="util\data_structs.hpp" />
-    <ClInclude Include="util\geometry.hpp" />
     <ClInclude Include="util\ascii_display.hpp" />
+    <ClInclude Include="util\prjctn_display.hpp" />
+    <ClInclude Include="util\geometry.hpp" />
     <ClInclude Include="maps2\maps2_streams.hpp" />
     <ClInclude Include="ocpncy\occupancy.hpp" />
     <ClInclude Include="tests\gmtry_tests.hpp" />

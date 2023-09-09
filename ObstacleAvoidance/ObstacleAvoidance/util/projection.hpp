@@ -2,6 +2,8 @@
 
 #include "geometry.hpp"
 
+#include <vector>
+
 // Handles simple geometric projection/deprojection between a virtual world and depth matrices
 namespace prjctn {
 	/*
@@ -118,30 +120,28 @@ namespace prjctn {
 	class ray_marcher : public ray_collider {
 		const float MIN_DISTANCE = 0x1p-8; // 1 / 256
 		const float MAX_DISTANCE = 0x1p10; // 1024
-		strcts::linked_arraylist<const measurable_object*> measurables;
-		strcts::linked_arraylist<const collidable_object*> collidables;
+		std::vector<const measurable_object*> measurables;
+		std::vector<const collidable_object*> collidables;
 
 		float get_min_distance(const gmtry3::ray3& r) {
-			measurables.reset();
-			int num_objects = measurables.get_length();
+			int num_objects = measurables.size();
 			float min_dst = MAX_DISTANCE;
 			for (int i = 0; i < num_objects; i++) {
-				min_dst = std::min(min_dst, measurables.next()->get_distance(r.p));
+				min_dst = std::min(min_dst, measurables[i]->get_distance(r.p));
 			}
-			collidables.reset();
-			num_objects = collidables.get_length();
+			num_objects = collidables.size();
 			for (int i = 0; i < num_objects; i++) {
-				min_dst = std::min(min_dst, collidables.next()->get_distance(r, MAX_DISTANCE));
+				min_dst = std::min(min_dst, collidables[i]->get_distance(r, MAX_DISTANCE));
 			}
 			return std::max(0.0F, min_dst);
 		}
 	public:
 		ray_marcher() : measurables() {};
 		void add_object(const measurable_object* object) {
-			measurables.add(object);
+			measurables.push_back(object);
 		}
 		void add_object(const collidable_object* object) {
-			collidables.add(object);
+			collidables.push_back(object);
 		}
 		gmtry3::vector3 collide(const gmtry3::ray3& r) {
 			gmtry3::vector3 p = r.p;
