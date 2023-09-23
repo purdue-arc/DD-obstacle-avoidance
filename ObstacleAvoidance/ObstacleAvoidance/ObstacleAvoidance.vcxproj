@@ -135,11 +135,15 @@
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="node.cpp" />
+    <ClCompile Include="util\prjctn_display.cpp" />
+    <ClCompile Include="util\projection.cpp" />
     <ClCompile Include="random_maze_generator.cpp" />
     <ClCompile Include="Source.cpp" />
     <ClCompile Include="rs_util.cpp" />
+    <ClCompile Include="tests\benchmark.cpp" />
     <ClCompile Include="util\ascii_display.cpp" />
     <ClCompile Include="util\geometry.cpp" />
+    <ClCompile Include="util\geometry.hpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="realsense2.dll" />
@@ -153,7 +157,6 @@
     <ClInclude Include="tests\benchmark.hpp" />
     <ClInclude Include="util\ascii_display.hpp" />
     <ClInclude Include="util\prjctn_display.hpp" />
-    <ClInclude Include="util\geometry.hpp" />
     <ClInclude Include="maps2\maps2_streams.hpp" />
     <ClInclude Include="ocpncy\occupancy.hpp" />
     <ClInclude Include="tests\gmtry_tests.hpp" />
@@ -161,7 +164,7 @@
     <ClInclude Include="tests\ocpncy_tests.hpp" />
     <ClInclude Include="ocpncy\ocpncy_streams.hpp" />
     <ClInclude Include="util\projection.hpp" />
-    <ClInclude Include="maps2\tilemaps.hpp" />
+    <ClInclude Include="maps2\tilemaps2.hpp" />
     <ClInclude Include="header.hh" />
     <ClInclude Include="tests\rs_tests.hpp" />
   </ItemGroup>
