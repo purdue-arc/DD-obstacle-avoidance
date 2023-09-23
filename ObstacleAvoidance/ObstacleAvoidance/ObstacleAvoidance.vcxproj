@@ -134,16 +134,23 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="a_star.cpp" />
+    <ClCompile Include="dijkstra.cpp" />
     <ClCompile Include="node.cpp" />
     <ClCompile Include="util\prjctn_display.cpp" />
     <ClCompile Include="util\projection.cpp" />
+    <ClCompile Include="tests\a_star_tests.cpp" />
     <ClCompile Include="random_maze_generator.cpp" />
     <ClCompile Include="Source.cpp" />
-    <ClCompile Include="rs_util.cpp" />
+    <ClCompile Include="priority_queue.cpp" />
+    <ClCompile Include="node_map.cpp" />
+    <ClCompile Include="d_star.cpp" />
+    <ClCompile Include="tests\pq_tests.cpp" />
+    <ClCompile Include="util\rs_util.cpp" />
+    <ClCompile Include="util\util.cpp" />
     <ClCompile Include="tests\benchmark.cpp" />
     <ClCompile Include="util\ascii_display.cpp" />
     <ClCompile Include="util\geometry.cpp" />
-    <ClCompile Include="util\geometry.hpp" />
   </ItemGroup>
   <ItemGroup>
     <None Include="realsense2.dll" />
@@ -151,7 +158,6 @@
     <None Include="resources\output\map256x256" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="dstar.hpp" />
     <ClInclude Include="maps2\maps2_display.hpp" />
     <ClInclude Include="ocpncy\ocpncy_display.hpp" />
     <ClInclude Include="tests\benchmark.hpp" />

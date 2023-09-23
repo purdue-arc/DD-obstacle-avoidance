@@ -1,5 +1,3 @@
-// Future plan: split some things into new node class for generalization
-
 // Prevents multiple definitions
 #pragma once
 
@@ -18,21 +16,27 @@
 #include <vector>
 #include <tuple>
 #include <limits>
+#include <chrono>
+#include <unordered_set>
 
 // Primary Libraries
 #include <librealsense2/rs.hpp>
 #include <opencv2/opencv.hpp>
 
-
 // Namespaces
 using namespace std;
 using namespace rs2;
 using namespace cv;
+using namespace std::chrono;
 
 // Constants
 #define WIDTH (640)
 #define HEIGHT (480)
+
 #define COST (2)
+const int max_cost = numeric_limits<int>::max();
+const float max_heuristic = numeric_limits<float>::max();
+const float max_rhs = numeric_limits<float>::max();
 
 
 // Node struct
@@ -47,68 +51,175 @@ typedef struct node {
 	 */
 	unsigned int cost;
 	float heuristic;
+	float rhs;
 } node_t;
 
 
-// Function Prototypes
-// utils.cpp
-inline Mat frame_to_mat(frame);
-inline bool device_with_streams(vector <rs2_stream>, string&);
-bool nodeCompare(const node_t* n1, const node_t* n2);
-inline bool file_exists(const char* name);
+// Creating a node wrapper/api class
+class CNode {
+public:
+	// Functions
+	static void initialize_node(node_t*, int, bool, int);
+	static bool get_occupancy(node_t*);
+	static void set_occupancy(node_t*, bool);
+	static int get_cost(node_t*);
+	static void set_cost(node_t*, int);
+	static void set_cost_and_occupancy(node_t*, int, bool);
+	static float get_heuristic(node_t*);
+	static void set_heuristic(node_t*, float);
+	static bool nodeCompare(node_t*, node_t*);
+};
 
-// random_maze_generator.cpp
-bool **create_maze_file(const char* file_name, int nrows, int ncols, double density);
-bool** create_maze(int nrows, int ncols, double density);
- 
-// path_planning_testing.cpp
-void test_AStar(const char* out_file_name, bool input_file_exists, const char* input_file_name, bool create_input_file, const char* new_input_file_name, int nrows, int ncols, double density);
+
+// For easier use/debugging of a node map
+class NodeMap {
+public:
+	static node_t** initialize_node_map(int, int, bool**, int, int);
+	static void free_node_map(node_t**);
+	static void print_cost_matrix(node_t**, int, int);
+	static void print_occupancy_matrix(node_t**, int, int);
+	static void print_heuristic_matrix(node_t**, int, int);
+	static bool outOfBounds(node_t**, int, int, int, int);
+	static vector<node*> get_neighbors(node_t**, int, int, int, int);
+	static vector<tuple<int, int>> trace_path(node_t**, int, int, int, int);
+	static void print_generated_path(node_t**, vector<tuple<int, int>>, int, int);
+};
 
 
-// For syntax purposes
+// For general priority queue syntax purposes
 struct nodeComp {
 	bool operator()(const node_t* n1, const node_t* n2) {
-		return nodeCompare(n1, n2);
+		return CNode::nodeCompare((node_t*)n1, (node_t*)n2);
 	}
 };
 
 
-// node.cpp: Declaring the class
-class CNode {
-public:
-	// Functions
-	inline static void set_occupancy(node_t* node, bool occupied);
-	inline static bool get_occupancy(node_t* node);
-	inline static int get_cost(node_t* node);
-	inline static void set_cost(node_t* node, int cost);
-	inline static void set_cost_and_occupancy(node_t* node, int cost, bool occupied);
-};
-
-// a_star.cpp: Declaring the class
+// A Star class
 class AStar {
 private:
 	// Attributes
-	int rows, cols, start_x, start_y, goal_x, goal_y;
-	bool** occ_matrix;
 	node_t** node_map;
+	int rows, cols, start_x, start_y, goal_x, goal_y;
 	priority_queue<node_t*, vector<node_t*>, nodeComp> pq;
+	vector<tuple<int, int>> path;
 
-protected:
-	// Functions
-	node_t** initialize_nodes();
-	void free_nodes();
+	// Helper functions
 	float get_heuristic(int x_i, int y_i, int x_f, int y_f);
-	bool outOfBounds(int row, int col);
-	vector<node*> get_neighbors(int row, int col);
 	void initializePriorityQueue();
 	node_t* pop_min();
 	bool compute();
 
 public:
-	// Functions
+	// Constructors
 	AStar(bool** occ_matrix, int rows, int cols);
 	AStar(bool** occ_matrix, int rows, int cols, int start_x, int start_y, int goal_x, int goal_y);
+
+	// API
+	node_t** get_node_map();
 	vector<tuple<int, int>> generate_path();
-	void print_node_map(bool occupancy, bool cost, bool heuristic);
-	void debugGeneratePath();
+	bool update_occupancy_map(bool **);
+};
+
+
+// Custom priority queue
+class NodePriorityQueue {
+private:
+	// Attributes
+	int size, insertIndex;
+	node_t** nodes;
+
+	// Helper functions
+	inline void swap(int, int);
+	inline int getNextSize();
+	inline int getPrevSize();
+	inline int getParentIndex(int);
+	inline int getLeftChildIndex(int);
+	inline int getRightChildIndex(int);
+	inline int getLargerElement(int, int);
+	inline int getSmallerElement(int, int);
+	inline int getSmallerChild(int);
+	inline int getLargerChild(int);
+	void bubbleUp(int);
+	void bubbleDown(int);
+	void heapify();
+	void heapify_helper(int);
+
+public:
+	// Constructors
+	NodePriorityQueue();
+	NodePriorityQueue(int, node_t**);
+
+	// API Functions
+	bool isEmpty();
+	void push(node_t*);
+	node_t* pop();
+	int find(node_t*);
+	void update_node_cost(node_t*, int);
+	int get_size();
+	void print_heap();
+};
+
+
+// Defines another approach to path planning
+class DStar {
+	// Attributes
+	node_t** node_map;
+	int rows, cols, start_x, start_y, goal_x, goal_y;
+	NodePriorityQueue pq;
+
+	// Helper functions
+	bool compute();
+	float get_heuristic(int x_i, int y_i, int x_f, int y_f);
+
+public:
+	// Constructors
+	DStar(bool** occ_matrix, int rows, int cols);
+	DStar(bool** occ_matrix, int rows, int cols, int start_x, int start_y, int goal_x, int goal_y);
+
+	// API
+	node_t** get_node_map();
+	vector<tuple<int, int>> generate_path();
+	void update_occupancy_map(bool**);
+};
+
+
+// Function Prototypes
+// Util
+void** allocate_2d_arr(int, int, int);
+void free_2d_arr(void**);
+
+// Testing
+void test_pq();
+void test_AStar(const char* out_file_name, bool input_file_exists,
+	const char* input_file_name, bool create_input_file,
+	const char* new_input_file_name, int nrows, int ncols,
+	double density);
+
+// random_maze_generator.cpp
+bool** create_maze(int nrows, int ncols, double density);
+bool** create_maze_file(const char* file_name, int nrows, int ncols,
+	double density);
+bool** read_maze_file(FILE*);
+void write_maze_sol(FILE*, node_t**, vector<tuple<int, int>>, int, int);
+
+
+// Defines another approach to path planning
+class Dijkstra {
+	// Attributes
+	node** node_map;
+	unordered_set<node_t*> explored;
+	int rows, cols, start_x, start_y, goal_x, goal_y;
+	NodePriorityQueue pq;
+
+	// Helper functions
+	bool compute();
+
+public:
+	// Constructors
+	Dijkstra(bool** occ_matrix, int rows, int cols);
+	Dijkstra(bool** occ_matrix, int rows, int cols, int start_x, int start_y, int goal_x, int goal_y);
+
+	// API
+	node_t** get_node_map();
+	vector<tuple<int, int>> generate_path();
 };

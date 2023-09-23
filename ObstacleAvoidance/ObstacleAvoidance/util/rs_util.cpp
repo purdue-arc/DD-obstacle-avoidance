@@ -1,7 +1,5 @@
-#pragma once
-
 // header file
-#include "header.hh"
+/*#include "../header.hh"
 
 
 // checks if given stream is supported
@@ -39,3 +37,14 @@ Mat frame_to_mat(frame frame) {
     Mat color_image(Size(WIDTH, HEIGHT), CV_8UC3, (void*)frame.get_data(), Mat::AUTO_STEP);
     return color_image;
 }
+
+// Checks if file exists
+inline bool file_exists(const char* name) {
+    if (FILE* file = fopen(name, "r")) {
+        fclose(file);
+        return true;
+    }
+    else {
+        return false;
+    }
+}*/
