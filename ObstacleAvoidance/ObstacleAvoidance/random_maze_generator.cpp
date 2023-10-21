@@ -17,13 +17,9 @@ inline int random_bit(double density) {
   return r;
 }
 
-// Gets a random point in a r x c maze
-int* random_point(int nrows, int ncols) {
-	int *point = (int *) malloc(2 * sizeof(int));
-	point[0] = rand() % nrows;
-	point[1] = rand() % ncols;
-
-	return point;
+// Gets a random coord in range [0, n)
+int random_coord(int n) {
+	return rand() % n;
 }
 
 // Functions
@@ -90,20 +86,19 @@ bool** create_clustered_maze(int nrows, int ncols) {
 	int numClusters = 0;
 	int numIters = 0;
 	while (numClusters < maxClusters && numIters++ < nrows) {
-		int* clusterPoint = random_point(nrows, ncols);
-		int centerX = clusterPoint[0];
-		int centerY = clusterPoint[1];
+		int clusterX = random_coord(nrows);
+		int clusterY = random_coord(ncols);
 
-		if (maze[centerX][centerY]) {
+		if (maze[clusterX][clusterY]) {
 			continue;
 		}
 
-		maze[centerX][centerY] = 1;
+		maze[clusterX][clusterY] = 1;
 		for (int j = 0; j < CLUSTER_SIZE - 1; j++) {
 			int x = operations[j][0];
 			int y = operations[j][1];
-			int newX = centerX + x;
-			int newY = centerY + y;
+			int newX = clusterX + x;
+			int newY = clusterY + y;
 
 			if ((newX < 0 && newX >= nrows) && (newY < 0 && newY >= ncols)) {
 				continue;
