@@ -2,6 +2,8 @@
 
 #include "geometry.hpp"
 
+#include <vector>
+
 // Handles simple geometric projection/deprojection between a virtual world and depth matrices
 namespace prjctn {
 	/*
@@ -22,20 +24,10 @@ namespace prjctn {
 		float tan_fov;
 		unsigned int width, height;
 		gmtry3::transform3 cam_to_world, world_to_cam;
-		void set_pose(const gmtry3::transform3& pose) {
-			cam_to_world = pose;
-			world_to_cam = pose.T();
-		}
-		gmtry3::transform3 get_pose() {
-			return cam_to_world;
-		}
+		void set_pose(const gmtry3::transform3& pose);
+		gmtry3::transform3 get_pose();
 		cam_info() = default;
-		cam_info(float fov, unsigned int res_width, unsigned int res_height, const gmtry3::transform3& pose) {
-			tan_fov = std::tan(fov * 0.5F) * 2.0F;
-			width = res_width;
-			height = res_height;
-			set_pose(pose);
-		}
+		cam_info(float fov, unsigned int res_width, unsigned int res_height, const gmtry3::transform3& pose);
 	};
 
 	// Collides a ray with a virtual world and returns the point of collision
@@ -45,16 +37,7 @@ namespace prjctn {
 	};
 
 	// Generates a depth matrix by sending a ray out through each pixel and colliding it with the virtual world
-	void project(float* depths, cam_info config, ray_collider* collider) {
-		const float img_scale = config.tan_fov / std::max(config.width, config.height);
-		const float pxl_shiftx = -0.5F * config.width + 0.5F;
-		const float pxl_shifty = -0.5F * config.height + 0.5F;
-		for (int pxl_x = 0; pxl_x < config.width; pxl_x++) for (int pxl_y = 0; pxl_y < config.height; pxl_y++) {
-			depths[pxl_x + pxl_y * config.width] = (config.world_to_cam * collider->collide({ config.cam_to_world.t,
-				config.cam_to_world.R * gmtry3::vector3((pxl_x + pxl_shiftx) * img_scale, 1,
-														(pxl_y + pxl_shifty) * img_scale) })).y;
-		}
-	}
+	void project(float* depths, cam_info config, ray_collider* collider);
 
 	// Deprojects each depth from a depth matrix into a 2D point
 	template <gmtry2i::writes_vector2i T>
@@ -118,81 +101,35 @@ namespace prjctn {
 	class ray_marcher : public ray_collider {
 		const float MIN_DISTANCE = 0x1p-8; // 1 / 256
 		const float MAX_DISTANCE = 0x1p10; // 1024
-		strcts::linked_arraylist<const measurable_object*> measurables;
-		strcts::linked_arraylist<const collidable_object*> collidables;
+		std::vector<const measurable_object*> measurables;
+		std::vector<const collidable_object*> collidables;
 
-		float get_min_distance(const gmtry3::ray3& r) {
-			measurables.reset();
-			int num_objects = measurables.get_length();
-			float min_dst = MAX_DISTANCE;
-			for (int i = 0; i < num_objects; i++) {
-				min_dst = std::min(min_dst, measurables.next()->get_distance(r.p));
-			}
-			collidables.reset();
-			num_objects = collidables.get_length();
-			for (int i = 0; i < num_objects; i++) {
-				min_dst = std::min(min_dst, collidables.next()->get_distance(r, MAX_DISTANCE));
-			}
-			return std::max(0.0F, min_dst);
-		}
+		float get_min_distance(const gmtry3::ray3& r);
 	public:
-		ray_marcher() : measurables() {};
-		void add_object(const measurable_object* object) {
-			measurables.add(object);
-		}
-		void add_object(const collidable_object* object) {
-			collidables.add(object);
-		}
-		gmtry3::vector3 collide(const gmtry3::ray3& r) {
-			gmtry3::vector3 p = r.p;
-			gmtry3::vector3 direction = gmtry3::normalize(r.d);
-			float step_size = get_min_distance({ p, direction });
-			while (MIN_DISTANCE < step_size && step_size < MAX_DISTANCE) {
-				p += direction * step_size;
-				step_size = get_min_distance({p, direction});
-			}
-			if (step_size == MAX_DISTANCE) return p + direction * MAX_DISTANCE;
-			return p + direction * 0x1p-6F;
-		}
+		ray_marcher();
+		void add_object(const measurable_object* object);
+		void add_object(const collidable_object* object);
+		gmtry3::vector3 collide(const gmtry3::ray3& r);
 	};
 
 	class sphere : public measurable_object {
 		gmtry3::ball3 ball;
 	public:
-		sphere(const gmtry3::ball3& new_sphere) {
-			ball = new_sphere;
-		}
-		float get_distance(const gmtry3::vector3& p) const {
-			return gmtry3::magnitude(ball.c - p) - ball.r;
-		}
+		sphere(const gmtry3::ball3& new_sphere);
+		float get_distance(const gmtry3::vector3& p) const;
 	};
 
 	struct circle_cylinder : public measurable_object {
 		gmtry2::ball2 circle;
 	public:
-		circle_cylinder(const gmtry2::ball2& new_circle) {
-			circle = new_circle;
-		}
-		float get_distance(const gmtry3::vector3& p) const {
-			return gmtry2::magnitude(circle.c - p) - circle.r;
-		}
+		circle_cylinder(const gmtry2::ball2& new_circle);
+		float get_distance(const gmtry3::vector3& p) const;
 	};
 
 	struct rect_cylinder : public collidable_object {
 		gmtry2i::aligned_box2i rect;
 	public:
-		rect_cylinder(const gmtry2i::aligned_box2i& new_rect) {
-			rect = new_rect;
-		}
-		float get_distance(const gmtry3::ray3& r, float max_distance) const {
-			bool no_intersection = false;
-			gmtry2::vector2 direction = gmtry2::normalize(gmtry2::vector2(r.d.x, r.d.y));
-			gmtry2::line_segment2 rayline(r.p, r.p + direction * max_distance);
-			gmtry2::line_segment2 collision = gmtry2i::intersection(rayline, rect, no_intersection);
-			if (!no_intersection) 
-				return std::min(gmtry2::dot(collision.a - rayline.a, direction), 
-				                gmtry2::dot(collision.b - rayline.a, direction));
-			else return max_distance;
-		}
+		rect_cylinder(const gmtry2i::aligned_box2i& new_rect);
+		float get_distance(const gmtry3::ray3& r, float max_distance) const;
 	};
 }

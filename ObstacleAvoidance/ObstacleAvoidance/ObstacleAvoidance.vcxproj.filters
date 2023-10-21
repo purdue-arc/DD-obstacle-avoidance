@@ -66,6 +66,24 @@
     <ClCompile Include="a_star.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="util\ascii_display.cpp">
+      <Filter>Source Files\util</Filter>
+    </ClCompile>
+    <ClCompile Include="util\geometry.hpp">
+      <Filter>Header Files</Filter>
+    </ClCompile>
+    <ClCompile Include="util\geometry.cpp">
+      <Filter>Source Files\util</Filter>
+    </ClCompile>
+    <ClCompile Include="tests\benchmark.cpp">
+      <Filter>Source Files\tests</Filter>
+    </ClCompile>
+    <ClCompile Include="util\projection.cpp">
+      <Filter>Source Files\util</Filter>
+    </ClCompile>
+    <ClCompile Include="util\prjctn_display.cpp">
+      <Filter>Source Files\util</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include="realsense2.dll">
@@ -82,7 +100,10 @@
     <ClInclude Include="header.hh">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="maps2\tilemaps.hpp">
+    <ClInclude Include="dstar.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="maps2\tilemaps2.hpp">
       <Filter>Source Files\maps</Filter>
     </ClInclude>
     <ClInclude Include="maps2\maps2_streams.hpp">
@@ -106,9 +127,6 @@
     <ClInclude Include="tests\rs_tests.hpp">
       <Filter>Source Files\tests</Filter>
     </ClInclude>
-    <ClInclude Include="util\data_structs.hpp">
-      <Filter>Source Files\util</Filter>
-    </ClInclude>
     <ClInclude Include="maps2\maps2_display.hpp">
       <Filter>Source Files\maps</Filter>
     </ClInclude>
@@ -116,19 +134,16 @@
       <Filter>Source Files\ocpncy_maps</Filter>
     </ClInclude>
     <ClInclude Include="util\ascii_display.hpp">
-      <Filter>Source Files\util</Filter>
-    </ClInclude>
-    <ClInclude Include="util\geometry.hpp">
-      <Filter>Source Files\util</Filter>
-    </ClInclude>
-    <ClInclude Include="util\projection.hpp">
-      <Filter>Source Files\util</Filter>
-    </ClInclude>
-    <ClInclude Include="util\prjctn_display.hpp">
-      <Filter>Source Files\util</Filter>
+      <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="tests\benchmark.hpp">
-      <Filter>Source Files\tests</Filter>
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="util\projection.hpp">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="util\prjctn_display.hpp">
+      <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

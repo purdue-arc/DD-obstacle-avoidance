@@ -1,6 +1,6 @@
 #pragma once
 
-#include "tilemaps.hpp"
+#include "tilemaps2.hpp"
 #include "../util/ascii_display.hpp"
 
 // Displays generic tiles and tile streams

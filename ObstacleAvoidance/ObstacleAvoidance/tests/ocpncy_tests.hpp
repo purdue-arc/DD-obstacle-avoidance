@@ -4,7 +4,8 @@
 #include "../ocpncy/ocpncy_streams.hpp"
 #include "../ocpncy/ocpncy_display.hpp"
 #include "../util/prjctn_display.hpp"
-#include "../util/data_structs.hpp"
+
+#include <vector>
 
 #ifndef OUTPUT_FILEPATH 
 #	define OUTPUT_FILEPATH (std::string(""))
@@ -420,7 +421,7 @@ namespace oc_tests {
 
 		maps2::map_istream<ocpncy::otile<log2_w>>* source;
 		maps2::nbrng_tile_linker<log2_w, ocpncy::gradient_otile<log2_w>> linker;
-		strcts::linked_arraylist<nbrng_grad_otile*> freestyle;
+		std::vector<nbrng_grad_otile*> freestyle;
 	public:
 		otile_loader(maps2::map_istream<ocpncy::otile<log2_w>>* tile_source, 
 		             gmtry2i::vector2i map_center) : 
@@ -438,15 +439,14 @@ namespace oc_tests {
 			}
 			else {
 				nbrng_grad_otile* freestyle_tile = new nbrng_grad_otile();
-				freestyle.add(freestyle_tile);
+				freestyle.push_back(freestyle_tile);
 				maps2::link_nbrng_tile<log2_w, ocpncy::gradient_otile<log2_w>>(linker.get_top_item(), p, freestyle_tile);
 			}
 		}
 		~otile_loader() {
-			freestyle.reset();
-			int num_freestyle = freestyle.get_length();
+			int num_freestyle = freestyle.size();
 			for (int i = 0; i < num_freestyle; i++) 
-				delete freestyle.next();
+				delete freestyle[i];
 		}
 	};
 
