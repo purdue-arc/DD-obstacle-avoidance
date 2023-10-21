@@ -3,6 +3,7 @@
 
 // Private Define
 #define MAX_MAP_BIT_VAL (2)
+#define CLUSTER_SIZE (9)
 
 // Initializes random seed
 void init_random_bit() {
@@ -14,6 +15,15 @@ inline int random_bit(double density) {
   const int r = rand() / (int) (((double) RAND_MAX) * density);
   printf("%d\n", r);
   return r;
+}
+
+// Gets a random point in a r x c maze
+int* random_point(int nrows, int ncols) {
+	int *point = (int *) malloc(2 * sizeof(int));
+	point[0] = rand() % nrows;
+	point[1] = rand() % ncols;
+
+	return point;
 }
 
 // Functions
@@ -60,6 +70,59 @@ bool **create_maze(int nrows, int ncols, double density) {
     }
 
     return maze;
+}
+
+bool** create_clustered_maze(int nrows, int ncols) {
+	init_random_bit();
+
+	printf("Map Shape: \n%d %d\n", nrows, ncols);
+
+	// Creates a maze array
+	bool** maze = (bool**) allocate_2d_arr(nrows, ncols, sizeof(bool));
+	if (maze == NULL) {
+		fprintf(stderr, "Problem allocating memory for the maze.\n");
+		return NULL;
+	}
+
+	int maxClusters = ceil((nrows * ncols) / CLUSTER_SIZE);
+	int operations[CLUSTER_SIZE - 1][2] = { {0, -1}, {0, 1}, {1, 0}, {-1, 0}, {-1, -1}, {-1, 1}, {1, -1}, {1, 1} };
+
+	int numClusters = 0;
+	int numIters = 0;
+	while (numClusters < maxClusters && numIters++ < nrows) {
+		int* clusterPoint = random_point(nrows, ncols);
+		int centerX = clusterPoint[0];
+		int centerY = clusterPoint[1];
+
+		if (maze[centerX][centerY]) {
+			continue;
+		}
+
+		maze[centerX][centerY] = 1;
+		for (int j = 0; j < CLUSTER_SIZE - 1; j++) {
+			int x = operations[j][0];
+			int y = operations[j][1];
+			int newX = centerX + x;
+			int newY = centerY + y;
+
+			if ((newX < 0 && newX >= nrows) && (newY < 0 && newY >= ncols)) {
+				continue;
+			}
+
+			maze[newX][newY] = 1;
+		}
+
+		numClusters++;
+		numIters = 0;
+	}
+
+	for (int row = 0; row < nrows; row++) {
+		for (int col = 0; col < ncols; col++) {
+			maze[row][col] = maze[row][col] || 0;
+		}
+	}
+
+	return maze;
 }
 
 // Function to read in maze
