@@ -194,10 +194,17 @@ void test_AStar(const char* out_file_name, bool input_file_exists,
 	const char* input_file_name, bool create_input_file,
 	const char* new_input_file_name, int nrows, int ncols,
 	double density);
+void test_DStar(const char* out_file_name, bool input_file_exists,
+	const char* input_file_name, bool create_input_file,
+	const char* new_input_file_name, int nrows, int ncols,
+	double density);
 
 // random_maze_generator.cpp
 bool** create_maze(int nrows, int ncols, double density);
+bool** create_clustered_maze(int nrows, int ncols, double density);
 bool** create_maze_file(const char* file_name, int nrows, int ncols,
+	double density);
+bool** create_clustered_maze_file(const char* file_name, int nrows, int ncols,
 	double density);
 bool** read_maze_file(FILE*);
 void write_maze_sol(FILE*, node_t**, vector<tuple<int, int>>, int, int);

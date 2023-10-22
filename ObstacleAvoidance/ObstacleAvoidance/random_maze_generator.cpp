@@ -13,7 +13,6 @@ void init_random_bit() {
 // Gets a random bit
 inline int random_bit(double density) {
   const int r = rand() / (int) (((double) RAND_MAX) * density);
-  printf("%d\n", r);
   return r;
 }
 
@@ -47,6 +46,29 @@ bool **create_maze_file(const char* file_name, int nrows, int ncols, double dens
 }
 
 
+bool** create_clustered_maze_file(const char* file_name, int nrows, int ncols, double density) {
+	FILE* out_file = fopen(file_name, "w");
+	if (out_file == NULL) {
+		fprintf(stderr, "Problem creating/opening output file to write map into.\n");
+		return NULL;
+	}
+
+	bool** maze = create_clustered_maze(nrows, ncols, density);
+
+	// Creates a .pbm file
+	fprintf(out_file, "P1\n%d %d\n", nrows, ncols);
+	for (int row = 0; row < nrows; row++) {
+		for (int col = 0; col < ncols; col++) {
+			fprintf(out_file, "%c\n", '0' + maze[row][col]);
+		}
+	}
+
+	fclose(out_file);
+	out_file = NULL;
+
+	return maze;
+}
+
 bool **create_maze(int nrows, int ncols, double density) {
     init_random_bit();
 
@@ -68,7 +90,7 @@ bool **create_maze(int nrows, int ncols, double density) {
     return maze;
 }
 
-bool** create_clustered_maze(int nrows, int ncols) {
+bool** create_clustered_maze(int nrows, int ncols, double density) {
 	init_random_bit();
 
 	printf("Map Shape: \n%d %d\n", nrows, ncols);
@@ -80,42 +102,41 @@ bool** create_clustered_maze(int nrows, int ncols) {
 		return NULL;
 	}
 
-	int maxClusters = ceil((nrows * ncols) / CLUSTER_SIZE);
-	int operations[CLUSTER_SIZE - 1][2] = { {0, -1}, {0, 1}, {1, 0}, {-1, 0}, {-1, -1}, {-1, 1}, {1, -1}, {1, 1} };
+	for (int row = 0; row < nrows; row++) {
+		for (int col = 0; col < ncols; col++) {
+			maze[row][col] = 0;
+		}
+	}
 
-	int numClusters = 0;
-	int numIters = 0;
-	while (numClusters < maxClusters && numIters++ < nrows) {
+	int numClusters = ceil((float) ((nrows * ncols) / CLUSTER_SIZE) * density);
+	int operations[CLUSTER_SIZE][2] = { {0, 0}, {0, -1}, {0, 1}, {1, 0}, {-1, 0}, {-1, -1}, {-1, 1}, {1, -1}, {1, 1} };
+
+	for (int i = 0; i < numClusters; i++) {
 		int clusterX = random_coord(nrows);
 		int clusterY = random_coord(ncols);
 
-		if (maze[clusterX][clusterY]) {
-			continue;
-		}
-
-		maze[clusterX][clusterY] = 1;
-		for (int j = 0; j < CLUSTER_SIZE - 1; j++) {
+		for (int j = 0; j < CLUSTER_SIZE; j++) {
 			int x = operations[j][0];
 			int y = operations[j][1];
 			int newX = clusterX + x;
 			int newY = clusterY + y;
 
-			if ((newX < 0 && newX >= nrows) && (newY < 0 && newY >= ncols)) {
+			if ((newX < 0 || newX >= nrows) || (newY < 0 || newY >= ncols)) {
 				continue;
 			}
 
-			maze[newX][newY] = 1;
+			maze[newX][newY] = random_bit(density) & 1;
 		}
-
-		numClusters++;
-		numIters = 0;
 	}
 
+	printf("\n\nOccupancy Matrix:\n");
 	for (int row = 0; row < nrows; row++) {
 		for (int col = 0; col < ncols; col++) {
-			maze[row][col] = maze[row][col] || 0;
+			printf("%d, ", maze[row][col]);
 		}
+		printf("\n");
 	}
+	printf("\n");
 
 	return maze;
 }
